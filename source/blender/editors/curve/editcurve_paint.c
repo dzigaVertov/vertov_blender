@@ -1229,3 +1229,45 @@ void CURVE_OT_draw(wmOperatorType *ot)
 }
 
 /** \} */
+
+/* ********************************************** */
+/* gp fitcurve functions */
+/* ********************************************** */
+static int gp_fitcurve_exec(bContext *C, wmOperator *op){
+  printf("operator executed");
+  return OPERATOR_FINISHED;
+}
+
+static int gp_fitcurve_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+  return gp_fitcurve_exec(C, op);
+}
+
+static void gp_fitcurve_cancel(bContext *C, wmOperator *op){}
+
+bool gp_fitcurve_poll(bContext *C){
+  return true;
+}
+
+
+
+/* Absolutelly first lines of code I am writting in the Blender source */
+/* Fitting a bezier curve to a grease prencil stroke */
+void GP_OT_fit_curve(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "GP fit curve";
+  ot->idname = "GP_OT_fit_curve";
+  ot->description = "Fit a bezier curve to a grease pencil stroke";
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* api callbacks */
+  ot->exec = gp_fitcurve_exec;
+  ot->invoke = gp_fitcurve_invoke;
+  ot->cancel = gp_fitcurve_cancel;
+  ot->modal = NULL;
+  ot->poll = gp_fitcurve_poll;
+
+  
+}
