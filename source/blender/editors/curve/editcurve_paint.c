@@ -58,6 +58,12 @@
 
 #include "RNA_enum_types.h"
 
+/* This is added for the fit_curve operator  */
+#include "../gpencil/gpencil_intern.h"
+#include "../include/ED_gpencil.h"
+#include "DNA_gpencil_types.h"
+
+
 #define USE_SPLINE_FIT
 
 #ifdef USE_SPLINE_FIT
@@ -1233,6 +1239,16 @@ void CURVE_OT_draw(wmOperatorType *ot)
 /* ********************************************** */
 /* gp fitcurve functions */
 /* ********************************************** */
+
+static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
+{
+  BLI_assert(op->customdata ==NULL);
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  
+
+  return true;  
+}
+
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   printf("operator executed");
   return OPERATOR_FINISHED;
@@ -1252,11 +1268,11 @@ bool gp_fitcurve_poll(bContext *C){
 
 /* Absolutelly first lines of code I am writting in the Blender source */
 /* Fitting a bezier curve to a grease prencil stroke */
-void GP_OT_fit_curve(wmOperatorType *ot)
+void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 {
   /* identifiers */
-  ot->name = "GP fit curve";
-  ot->idname = "GP_OT_fit_curve";
+  ot->name = "Fit curve";
+  ot->idname = "GPENCIL_OT_fit_curve";
   ot->description = "Fit a bezier curve to a grease pencil stroke";
 
   /* flags */
