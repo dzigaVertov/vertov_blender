@@ -24,6 +24,8 @@
 #ifndef __CURVE_INTERN_H__
 #define __CURVE_INTERN_H__
 
+#include "BKE_context.h"
+
 /* internal exports only */
 struct EditNurb;
 struct GHash;
@@ -31,6 +33,7 @@ struct ListBase;
 struct Object;
 struct ViewContext;
 struct wmOperatorType;
+
 
 /* editfont.c */
 enum {
@@ -194,5 +197,7 @@ void ED_curve_nurb_vert_selected_find(
 
 /* editcurve_paint.c */
 void CURVE_OT_draw(struct wmOperatorType *ot);
+void GP_OT_fit_curve(struct wmOperatorType *ot);
+bool gp_fitcurve_poll(bContext *C);
 
 #endif /* __CURVE_INTERN_H__ */
