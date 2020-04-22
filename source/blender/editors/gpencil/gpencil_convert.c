@@ -1834,3 +1834,61 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
                          "Create an inverted image for masking using alpha channel");
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
+
+
+/* ********************************************** */
+/* gp fitcurve functions */
+/* ********************************************** */
+
+static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
+{
+  BLI_assert(op->customdata ==NULL);
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  /* Tendríamos que:
+      1) Recuperar los puntos del stroke seleccionado.
+      2) Convertirlos a las coordenadas de espacio.
+      2) Tener acceso al objeto de la curva sobre la que vamos a fitear.
+      3) En este punto se sigue el camino del operador de curva. 
+  */
+
+  return true;  
+}
+
+static int gp_fitcurve_exec(bContext *C, wmOperator *op){
+  printf("operator executed");
+  return OPERATOR_FINISHED;
+}
+
+static int gp_fitcurve_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+  return gp_fitcurve_exec(C, op);
+}
+
+static void gp_fitcurve_cancel(bContext *C, wmOperator *op){}
+
+bool gp_fitcurve_poll(bContext *C){
+  return true;
+}
+
+
+
+/* Absolutelly first lines of code I am writting in the Blender source */
+/* Fitting a bezier curve to a grease prencil stroke */
+void GPENCIL_OT_fit_curve(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Fit curve";
+  ot->idname = "GPENCIL_OT_fit_curve";
+  ot->description = "Fit a bezier curve to a grease pencil stroke";
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* api callbacks */
+  ot->exec = gp_fitcurve_exec;
+  ot->invoke = gp_fitcurve_invoke;
+  ot->cancel = gp_fitcurve_cancel;
+  ot->modal = NULL;
+  ot->poll = gp_fitcurve_poll;
+
+  
+}
