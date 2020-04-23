@@ -58,12 +58,6 @@
 
 #include "RNA_enum_types.h"
 
-/* /\* This is added for the fit_curve operator  *\/ */
-/* #include "../gpencil/gpencil_intern.h" */
-/* #include "../include/ED_gpencil.h" */
-/* #include "DNA_gpencil_types.h" */
-
-
 #define USE_SPLINE_FIT
 
 #ifdef USE_SPLINE_FIT

@@ -29,6 +29,7 @@ set(INC
   ../../windowmanager
   ../../../../intern/glew-mx
   ../../../../intern/guardedalloc
+  ../../../../extern/curve_fit_nd
 )
 
 set(INC_SYS
@@ -68,6 +69,7 @@ set(SRC
 set(LIB
   bf_blenkernel
   bf_blenlib
+  extern_curve_fit_nd
 )
 
 if(WITH_INTERNATIONAL)

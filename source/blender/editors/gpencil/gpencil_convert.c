@@ -83,6 +83,8 @@
 
 #include "gpencil_intern.h"
 
+#include "curve_fit_nd.h"
+
 /* ************************************************ */
 /* Grease Pencil to Data Operator */
 
@@ -1872,9 +1874,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
       break;
       }
   }
-  printf("Found stroke with %d points\n", gps->totpoints);
   
-
   /* Agregar el objeto curva */
   ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
   cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);
@@ -1883,7 +1883,9 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   DEG_relations_tag_update(bmain); /* tag update */
 
   cu->flag |= CU_3D;
+  ED_object_base_select(base_new, BA_SELECT);
 
+  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 
   return true;
@@ -1892,6 +1894,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   fit_curve_init(C, op, false);
   printf("operator executed\n");
+  
   return OPERATOR_FINISHED;
 }
 
