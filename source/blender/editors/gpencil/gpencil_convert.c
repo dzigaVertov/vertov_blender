@@ -1842,6 +1842,96 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
 /* gp fitcurve functions */
 /* ********************************************** */
 
+static bool add_points_to_curve(Object* ob,
+				Nurb* nu,
+				int num_points,
+				float points[5][3],
+				bGPDstroke* gps)
+{
+  #define BEZT_HANDLE_FAC 0.3
+
+  Curve *cu = ob->data;
+  
+  float cur_pt[3];
+  float next_pt[3];
+  float prev_pt[3];
+  float h1[3];
+  float h2[3];
+
+  copy_v3_v3(cur_pt, points[0]);
+  copy_v3_v3(next_pt, points[1]);
+  
+  nu = (Nurb *)MEM_callocN(sizeof(Nurb), "fit_curve_bezier(nurb)");
+  nu->pntsu = num_points;
+  nu->resolu = 12;
+  nu->resolv = 12;
+  nu->type = CU_BEZIER;
+  nu->bezt = (BezTriple *)MEM_callocN(sizeof(BezTriple) * nu->pntsu, "fit_bezts");
+
+
+  /* Adding the points */
+  BezTriple *bezt;
+  int i;
+  for ( i=0 , bezt = &nu->bezt[0]; i< num_points ; i++, bezt++)
+    {
+      /* calculate handles interpolating */
+      if (i)
+	{
+	  interp_v3_v3v3(h1, cur_pt, prev_pt, BEZT_HANDLE_FAC);
+	}
+      else
+	{
+	  interp_v3_v3v3(h1, cur_pt, next_pt, -BEZT_HANDLE_FAC);
+	}
+
+      if (i < num_points -1)
+	{
+	  interp_v3_v3v3(h2, cur_pt, next_pt, BEZT_HANDLE_FAC);
+	}
+      else
+	{
+	  interp_v3_v3v3(h2, cur_pt, prev_pt, -BEZT_HANDLE_FAC);
+	}
+      copy_v3_v3(bezt->vec[0], h1);
+      copy_v3_v3(bezt->vec[1], cur_pt);
+      copy_v3_v3(bezt->vec[2], h2);
+
+      /* set settings */
+      bezt->h1 = bezt->h2 = HD_AUTO;
+      bezt->f1 = bezt->f2 = bezt->f3 = SELECT;
+      bezt->radius = 0.5;
+      bezt->weight = 0.5;
+
+      copy_v3_v3(prev_pt, cur_pt);
+      copy_v3_v3(cur_pt, next_pt);
+      if (i < num_points -2)
+	{
+	  copy_v3_v3(next_pt, points[i+2]);
+	}
+    }
+
+  BKE_nurb_handles_calc(nu);
+
+  BLI_addtail(&cu->nurb, nu);
+  
+  
+  return true;
+}
+
+static void get_test_points(float points[5][3]){
+
+  for (int i = 0; i < 5; i++)
+    {
+      points[i][0] = 5.0* rand()/RAND_MAX;
+
+      points[i][1] = 5.0* rand()/RAND_MAX;
+
+      points[i][2] = 5.0* rand()/RAND_MAX;
+
+    }
+
+}
+
 static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
   BLI_assert(op->customdata ==NULL);
@@ -1884,16 +1974,28 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
   cu->flag |= CU_3D;
   ED_object_base_select(base_new, BA_SELECT);
-
   DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
+  float test_points[5][3];
+  get_test_points(test_points);
+  add_points_to_curve(ob, nu, 5, test_points,NULL);
+
+  
 
   return true;
 }
 
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
+  Scene *scene = CTX_data_scene(C);
   fit_curve_init(C, op, false);
+  
   printf("operator executed\n");
+
+  /* notifiers */
+  DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
+  WM_event_add_notifier(C, NC_OBJECT | NA_ADDED, NULL);
+  WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
+ 
   
   return OPERATOR_FINISHED;
 }
