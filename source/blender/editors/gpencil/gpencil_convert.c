@@ -1111,7 +1111,7 @@ static void gp_stroke_to_bezier(bContext *C,
   if (add_end_point) {
     float p[3];
     float dt = 0.0f;
-
+     
     if (gps->totpoints > 1) {
       interp_v3_v3v3(p, prev_bezt->vec[1], (prev_bezt - 1)->vec[1], -GAP_DFAC);
       if (do_gtd) {
@@ -1843,19 +1843,55 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
 static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
   BLI_assert(op->customdata ==NULL);
-  bGPdata *gpd = ED_gpencil_data_get_active(C);
-  /* Tendríamos que:
-      1) Recuperar los puntos del stroke seleccionado.
-      2) Convertirlos a las coordenadas de espacio.
-      2) Tener acceso al objeto de la curva sobre la que vamos a fitear.
-      3) En este punto se sigue el camino del operador de curva. 
-  */
 
-  return true;  
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  /* check if there's data to work with */
+  if (gpd == NULL) {
+    BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
+    return OPERATOR_CANCELLED;
+  }
+
+  /* Para agregar el objeto curva  */
+  struct Main *bmain = CTX_data_main(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+  Collection *collection = CTX_data_collection(C);
+  Scene *scene = CTX_data_scene(C);
+  Object *ob;
+  Curve *cu;
+  Nurb *nu = NULL;
+  Base *base_new = NULL;
+  
+  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+  bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
+  bGPDstroke *gps;
+  
+  /* Otener un stroke seleccionado  */
+  for (gps= gpf->strokes.first; gps; gps->next){
+    if ( BKE_gpencil_stroke_select_check(gps)){
+      printf("Found selected stroke\n");
+      break;
+      }
+  }
+  printf("Found stroke with %d points\n", gps->totpoints);
+  
+
+  /* Agregar el objeto curva */
+  ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
+  cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);
+  BKE_collection_object_add(bmain, collection, ob);
+  base_new = BKE_view_layer_base_find(view_layer, ob);
+  DEG_relations_tag_update(bmain); /* tag update */
+
+  cu->flag |= CU_3D;
+
+
+
+  return true;
 }
 
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
-  printf("operator executed");
+  fit_curve_init(C, op, false);
+  printf("operator executed\n");
   return OPERATOR_FINISHED;
 }
 
