@@ -1845,69 +1845,40 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
 static bool add_points_to_curve(Object* ob,
 				Nurb* nu,
 				int num_points,
-				float points[5][3],
-				bGPDstroke* gps)
+				float *points)				
 {
   #define BEZT_HANDLE_FAC 0.3
 
   Curve *cu = ob->data;
-  
-  float cur_pt[3];
-  float next_pt[3];
-  float prev_pt[3];
-  float h1[3];
-  float h2[3];
-
-  copy_v3_v3(cur_pt, points[0]);
-  copy_v3_v3(next_pt, points[1]);
-  
   nu = (Nurb *)MEM_callocN(sizeof(Nurb), "fit_curve_bezier(nurb)");
-  nu->pntsu = num_points;
   nu->resolu = 12;
   nu->resolv = 12;
   nu->type = CU_BEZIER;
   nu->bezt = (BezTriple *)MEM_callocN(sizeof(BezTriple) * nu->pntsu, "fit_bezts");
 
-
+  float *co = points;
+  int dims = 3;
+  
   /* Adding the points */
-  BezTriple *bezt;
-  int i;
-  for ( i=0 , bezt = &nu->bezt[0]; i< num_points ; i++, bezt++)
+  BezTriple *bezt = nu->bezt;
+  
+  
+  for ( int j=0 ; j< num_points ; j++, bezt++, co+=(dims * 3)) /* Bezier TRIPLES */
     {
-      /* calculate handles interpolating */
-      if (i)
-	{
-	  interp_v3_v3v3(h1, cur_pt, prev_pt, BEZT_HANDLE_FAC);
-	}
-      else
-	{
-	  interp_v3_v3v3(h1, cur_pt, next_pt, -BEZT_HANDLE_FAC);
-	}
+      const float *handle_l = co + (dims * 0);
+      const float *pt = co + (dims * 1);
+      const float *handle_r = co + (dims * 2);
 
-      if (i < num_points -1)
-	{
-	  interp_v3_v3v3(h2, cur_pt, next_pt, BEZT_HANDLE_FAC);
-	}
-      else
-	{
-	  interp_v3_v3v3(h2, cur_pt, prev_pt, -BEZT_HANDLE_FAC);
-	}
-      copy_v3_v3(bezt->vec[0], h1);
-      copy_v3_v3(bezt->vec[1], cur_pt);
-      copy_v3_v3(bezt->vec[2], h2);
+      copy_v3_v3(bezt->vec[0], handle_l);
+      copy_v3_v3(bezt->vec[1], pt);
+      copy_v3_v3(bezt->vec[2], handle_r);
 
       /* set settings */
-      bezt->h1 = bezt->h2 = HD_AUTO;
+      bezt->h1 = bezt->h2 = HD_FREE;
       bezt->f1 = bezt->f2 = bezt->f3 = SELECT;
       bezt->radius = 0.5;
       bezt->weight = 0.5;
 
-      copy_v3_v3(prev_pt, cur_pt);
-      copy_v3_v3(cur_pt, next_pt);
-      if (i < num_points -2)
-	{
-	  copy_v3_v3(next_pt, points[i+2]);
-	}
     }
 
   BKE_nurb_handles_calc(nu);
@@ -1987,6 +1958,9 @@ static int get_the_fitted_spline(float *coords,
 					      &corners_index,
 					      &corners_index_len);
     
+  if (corners){
+    free(corners);
+  }
     
   return result;
 }
@@ -2032,10 +2006,12 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   get_the_fitted_spline(coords, num_points, 0.1, &cubic_spline, &cubic_spline_len );
 
   
-  for (int i = 0; i < num_points; i++){
-    printf(" Punto %d\t x=%f\t y=%f\t z=%f\n", i, coords[3*i], coords[3*i +1], coords[3*i +2]);
-  }
-  
+  /* for (int i = 0; i < num_points; i++){ */
+  /*   printf(" Punto %d\t x=%f\t y=%f\t z=%f\n", i, coords[3*i], coords[3*i +1], coords[3*i +2]); */
+  /* } */
+
+  /* Liberar la memoria de las coords */
+  MEM_freeN(coords);
   
   /* Agregar el objeto curva */
   ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
@@ -2048,9 +2024,9 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   ED_object_base_select(base_new, BA_SELECT);
   DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
-  float test_points[5][3];
-  get_test_points(test_points);
-  add_points_to_curve(ob, nu, 5, test_points,NULL);
+  /* float test_points[5][3]; */
+  /* get_test_points(test_points); */
+  add_points_to_curve(ob, nu, cubic_spline_len, cubic_spline);
 
   
   MEM_freeN(coords);
