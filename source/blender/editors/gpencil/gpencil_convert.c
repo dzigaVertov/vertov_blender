@@ -1932,6 +1932,65 @@ static void get_test_points(float points[5][3]){
 
 }
 
+static void get_points_coords(float *coords, int num_points, bGPDstroke *gps)
+{
+  float *co = coords;
+  for (int i=0; i<num_points; i++ , co += 3)
+    {
+      copy_v3_v3(co, &gps->points[i].x);
+    }
+}
+
+static int get_the_fitted_spline(float *coords,
+				 int num_points,
+				 float error_threshold,
+				 float **r_cubic_spline,  uint *r_cubic_spline_len )
+{
+  int result;
+  uint *corners = NULL;
+  uint corners_len = 0;
+  float corner_angle = (float)M_PI_2;
+
+  if (corner_angle < (float)M_PI)
+    {
+      /* this could be configurable... */
+      const float corner_radius_min = error_threshold / 8;
+      const float corner_radius_max = error_threshold * 2;
+      const uint samples_max = 16;
+
+      curve_fit_corners_detect_fl(coords,
+				  num_points,
+				  3,
+				  corner_radius_min,
+				  corner_radius_max,
+				  samples_max,
+				  corner_angle,
+				  &corners,
+				  &corners_len);
+    }
+
+  uint *corners_index = NULL;
+  uint corners_index_len = 0;
+  uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
+
+  result = curve_fit_cubic_to_points_refit_fl(coords,
+					      num_points,
+					      3,
+					      error_threshold,
+					      calc_flag,
+					      NULL,
+					      0,
+					      corner_angle,
+					      r_cubic_spline,
+					      r_cubic_spline_len,
+					      NULL,
+					      &corners_index,
+					      &corners_index_len);
+    
+    
+  return result;
+}
+
 static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
   BLI_assert(op->customdata ==NULL);
@@ -1964,6 +2023,19 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
       break;
       }
   }
+  int num_points = gps->totpoints;
+  float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
+  get_points_coords(coords, num_points, gps);
+
+  float *cubic_spline = NULL;
+  uint cubic_spline_len = 0;
+  get_the_fitted_spline(coords, num_points, 0.1, &cubic_spline, &cubic_spline_len );
+
+  
+  for (int i = 0; i < num_points; i++){
+    printf(" Punto %d\t x=%f\t y=%f\t z=%f\n", i, coords[3*i], coords[3*i +1], coords[3*i +2]);
+  }
+  
   
   /* Agregar el objeto curva */
   ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
@@ -1981,7 +2053,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   add_points_to_curve(ob, nu, 5, test_points,NULL);
 
   
-
+  MEM_freeN(coords);
   return true;
 }
 
@@ -1989,8 +2061,6 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   Scene *scene = CTX_data_scene(C);
   fit_curve_init(C, op, false);
   
-  printf("operator executed\n");
-
   /* notifiers */
   DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
   WM_event_add_notifier(C, NC_OBJECT | NA_ADDED, NULL);
