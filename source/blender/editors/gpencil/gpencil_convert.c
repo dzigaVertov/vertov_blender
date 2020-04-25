@@ -1842,15 +1842,14 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
 /* gp fitcurve functions */
 /* ********************************************** */
 
-static bool add_points_to_curve(Object* ob,
+static bool add_points_to_curve(bContext *C, Object* ob,
 				Nurb* nu,
 				int num_points,
 				float *points)				
 {
-  #define BEZT_HANDLE_FAC 0.3
-
   Curve *cu = ob->data;
   nu = (Nurb *)MEM_callocN(sizeof(Nurb), "fit_curve_bezier(nurb)");
+  nu->pntsu = num_points;
   nu->resolu = 12;
   nu->resolv = 12;
   nu->type = CU_BEZIER;
@@ -1884,6 +1883,8 @@ static bool add_points_to_curve(Object* ob,
   BKE_nurb_handles_calc(nu);
 
   BLI_addtail(&cu->nurb, nu);
+  WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
+  DEG_id_tag_update(ob->data, 0);
   
   
   return true;
@@ -2026,7 +2027,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
   /* float test_points[5][3]; */
   /* get_test_points(test_points); */
-  add_points_to_curve(ob, nu, cubic_spline_len, cubic_spline);
+  add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
 
   
   MEM_freeN(coords);
