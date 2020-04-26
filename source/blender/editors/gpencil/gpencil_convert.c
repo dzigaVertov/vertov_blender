@@ -2004,7 +2004,8 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
   float *cubic_spline = NULL;
   uint cubic_spline_len = 0;
-  get_the_fitted_spline(coords, num_points, 0.1, &cubic_spline, &cubic_spline_len );
+  float error = RNA_float_get(op->ptr, "error_threshold");
+  get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
 
   
   /* for (int i = 0; i < num_points; i++){ */
@@ -2077,6 +2078,17 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   ot->cancel = gp_fitcurve_cancel;
   ot->modal = NULL;
   ot->poll = gp_fitcurve_poll;
+
+  /* Properties */
+  ot->prop = RNA_def_float(ot->srna,
+			   "error_threshold",
+			   0.05f,
+			   0.0f,
+			   100.0f,
+			   "Error Threshold",
+			   "How close to the original stroke",
+			   0.0f,
+			   10.0f);
 
   
 }
