@@ -1884,6 +1884,7 @@ static bool add_points_to_curve(bContext *C, Object* ob,
 
   BLI_addtail(&cu->nurb, nu);
   WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
+  /* Primer occurencia de DEG en mi código */
   DEG_id_tag_update(ob->data, 0);
   
   
@@ -2005,6 +2006,8 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   float *cubic_spline = NULL;
   uint cubic_spline_len = 0;
   float error = RNA_float_get(op->ptr, "error_threshold");
+  printf("got here\n");
+
   get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
 
   
@@ -2029,7 +2032,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   /* float test_points[5][3]; */
   /* get_test_points(test_points); */
   add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
-
+  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
   
   MEM_freeN(coords);
   return true;
@@ -2078,7 +2081,7 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   ot->cancel = gp_fitcurve_cancel;
   ot->modal = NULL;
   ot->poll = gp_fitcurve_poll;
-
+    
   /* Properties */
   ot->prop = RNA_def_float(ot->srna,
 			   "error_threshold",
@@ -2089,6 +2092,5 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 			   "How close to the original stroke",
 			   0.0f,
 			   10.0f);
-
   
 }

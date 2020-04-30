@@ -994,10 +994,7 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
   }
 
   if (ease) {
-
-
-    const float circle_factor = 1.0f;
-    /*'length * (cubic_tangent_factor_circle_v3(h1, h2) / 0.75f);*/
+    const float circle_factor = length * (cubic_tangent_factor_circle_v3(h1, h2) / 0.75f);
 
     const float hlength1 = param->ease1 * circle_factor;
     const float hlength2 = param->ease2 * circle_factor;
