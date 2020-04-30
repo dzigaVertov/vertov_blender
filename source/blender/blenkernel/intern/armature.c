@@ -807,6 +807,7 @@ void BKE_pchan_bbone_spline_params_get(struct bPoseChannel *pchan,
 
     if (!done) {
       mul_v3_m4v3(param->prev_h, imat, h1);
+      
     }
 
     if (!param->prev_bbone) {
@@ -993,7 +994,10 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
   }
 
   if (ease) {
-    const float circle_factor = length * (cubic_tangent_factor_circle_v3(h1, h2) / 0.75f);
+
+
+    const float circle_factor = 1.0f;
+    /*'length * (cubic_tangent_factor_circle_v3(h1, h2) / 0.75f);*/
 
     const float hlength1 = param->ease1 * circle_factor;
     const float hlength2 = param->ease2 * circle_factor;
