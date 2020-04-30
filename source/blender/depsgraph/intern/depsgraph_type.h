@@ -38,13 +38,13 @@
 #include <map>
 #include <set>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "BLI_map.hh"
 #include "BLI_set.hh"
 #include "BLI_string_ref.hh"
 #include "BLI_vector.hh"
+#include "BLI_vector_set.hh"
 
 struct Depsgraph;
 
@@ -59,13 +59,13 @@ using BLI::Set;
 using BLI::StringRef;
 using BLI::StringRefNull;
 using BLI::Vector;
+using BLI::VectorSet;
 using std::deque;
 using std::map;
 using std::pair;
 using std::set;
 using std::string;
 using std::unique_ptr;
-using std::unordered_map;
 using std::vector;
 
 /* Commonly used functions. */
