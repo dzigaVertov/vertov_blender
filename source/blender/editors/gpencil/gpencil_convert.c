@@ -2011,6 +2011,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   float *cubic_spline = NULL;
   uint cubic_spline_len = 0;
   float error = RNA_float_get(op->ptr, "error_threshold");
+  
 
   get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
     
@@ -2043,6 +2044,13 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
     return OPERATOR_CANCELLED;
   }
 
+  PointerRNA ptr;
+  PropertyRNA *prop;
+
+  struct wmWindowManager *wm =  CTX_wm_manager(C);
+ 
+  
+    
   /* notifiers */
   DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
   WM_event_add_notifier(C, NC_OBJECT | NA_ADDED, NULL);
@@ -2081,6 +2089,8 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   ot->cancel = gp_fitcurve_cancel;
   ot->modal = NULL;
   ot->poll = gp_fitcurve_poll;
+
+  
     
   /* Properties */
   ot->prop = RNA_def_float(ot->srna,
