@@ -1883,10 +1883,7 @@ static bool add_points_to_curve(bContext *C, Object* ob,
   BKE_nurb_handles_calc(nu);
 
   BLI_addtail(&cu->nurb, nu);
-  WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);
-  /* Primer occurencia de DEG en mi código */
-  DEG_id_tag_update(ob->data, 0);
-  
+  /* WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data); */
   
   return true;
 }
@@ -1971,7 +1968,9 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
   BLI_assert(op->customdata ==NULL);
 
-  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  Object *obgp = CTX_data_active_object(C);
+  bGPdata *gpd = (bGPdata *)obgp->data;
+  
   /* check if there's data to work with */
   if (gpd == NULL) {
     BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
@@ -1993,12 +1992,18 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   bGPDstroke *gps;
   
   /* Otener un stroke seleccionado  */
-  for (gps= gpf->strokes.first; gps; gps->next){
+  bool found = false;
+  for (gps= gpf->strokes.first; gps; gps = gps->next){
     if ( BKE_gpencil_stroke_select_check(gps)){
       printf("Found selected stroke\n");
+      found = true;
       break;
       }
   }
+  if (!found){
+    return false;    
+  }
+
   int num_points = gps->totpoints;
   float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
   get_points_coords(coords, num_points, gps);
@@ -2006,15 +2011,9 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   float *cubic_spline = NULL;
   uint cubic_spline_len = 0;
   float error = RNA_float_get(op->ptr, "error_threshold");
-  printf("got here\n");
 
   get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
-
-  
-  /* for (int i = 0; i < num_points; i++){ */
-  /*   printf(" Punto %d\t x=%f\t y=%f\t z=%f\n", i, coords[3*i], coords[3*i +1], coords[3*i +2]); */
-  /* } */
-
+    
   /* Liberar la memoria de las coords */
   MEM_freeN(coords);
   
@@ -2023,31 +2022,32 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);
   BKE_collection_object_add(bmain, collection, ob);
   base_new = BKE_view_layer_base_find(view_layer, ob);
-  DEG_relations_tag_update(bmain); /* tag update */
+  DEG_relations_tag_update(bmain); /* added object */
 
   cu->flag |= CU_3D;
-  ED_object_base_select(base_new, BA_SELECT);
-  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
-
+  
   /* float test_points[5][3]; */
   /* get_test_points(test_points); */
   add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
-  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
-  
+    
   MEM_freeN(coords);
+  ED_object_base_select(base_new, BA_SELECT);
+  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
+
   return true;
 }
 
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   Scene *scene = CTX_data_scene(C);
-  fit_curve_init(C, op, false);
-  
+  if (!fit_curve_init(C, op, false)) {
+    return OPERATOR_CANCELLED;
+  }
+
   /* notifiers */
   DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
   WM_event_add_notifier(C, NC_OBJECT | NA_ADDED, NULL);
   WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
- 
-  
+
   return OPERATOR_FINISHED;
 }
 
