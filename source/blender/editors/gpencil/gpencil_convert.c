@@ -82,7 +82,6 @@
 #include "ED_view3d.h"
 
 #include "gpencil_intern.h"
-
 #include "curve_fit_nd.h"
 
 /* ************************************************ */
@@ -1113,7 +1112,7 @@ static void gp_stroke_to_bezier(bContext *C,
   if (add_end_point) {
     float p[3];
     float dt = 0.0f;
-     
+
     if (gps->totpoints > 1) {
       interp_v3_v3v3(p, prev_bezt->vec[1], (prev_bezt - 1)->vec[1], -GAP_DFAC);
       if (do_gtd) {
@@ -1966,27 +1965,10 @@ static int get_the_fitted_spline(float *coords,
 
 static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
-  BLI_assert(op->customdata ==NULL);
-
+  /* BLI_assert(op->customdata ==NULL); */
+  Scene *scene = CTX_data_scene(C);
   Object *obgp = CTX_data_active_object(C);
   bGPdata *gpd = (bGPdata *)obgp->data;
-  
-  /* check if there's data to work with */
-  if (gpd == NULL) {
-    BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
-    return OPERATOR_CANCELLED;
-  }
-
-  /* Para agregar el objeto curva  */
-  struct Main *bmain = CTX_data_main(C);
-  ViewLayer *view_layer = CTX_data_view_layer(C);
-  Collection *collection = CTX_data_collection(C);
-  Scene *scene = CTX_data_scene(C);
-  Object *ob;
-  Curve *cu;
-  Nurb *nu = NULL;
-  Base *base_new = NULL;
-  
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
   bGPDstroke *gps;
@@ -2003,6 +1985,24 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   if (!found){
     return false;    
   }
+  
+  /* check if there's data to work with */
+  if (gpd == NULL) {
+    BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
+    return OPERATOR_CANCELLED;
+  }
+
+  /* Para agregar el objeto curva  */
+  struct Main *bmain = CTX_data_main(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+  Collection *collection = CTX_data_collection(C);
+  
+  Object *ob;
+  Curve *cu;
+  Nurb *nu = NULL;
+  Base *base_new = NULL;
+  
+
 
   int num_points = gps->totpoints;
   float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
@@ -2030,7 +2030,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   /* get_test_points(test_points); */
   add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
     
-  MEM_freeN(coords);
+  free(cubic_spline);
   ED_object_base_select(base_new, BA_SELECT);
   DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
@@ -2076,8 +2076,8 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
   /* api callbacks */
-  ot->exec = gp_fitcurve_exec;
   ot->invoke = gp_fitcurve_invoke;
+  ot->exec = gp_fitcurve_exec;
   ot->cancel = gp_fitcurve_cancel;
   ot->modal = NULL;
   ot->poll = gp_fitcurve_poll;
