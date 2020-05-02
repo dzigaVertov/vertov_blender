@@ -8702,7 +8702,6 @@ static void edbm_average_normals_ui(bContext *C, wmOperator *op)
   wmWindowManager *wm = CTX_wm_manager(C);
   PointerRNA ptr;
 
-  /* Aqui el campodonico */
   RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 
   /* Main auto-draw call */

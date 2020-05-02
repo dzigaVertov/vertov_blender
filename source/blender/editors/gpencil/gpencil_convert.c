@@ -2045,9 +2045,17 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   }
 
   PointerRNA ptr;
+  PointerRNA ptr2;
   PropertyRNA *prop;
 
   struct wmWindowManager *wm =  CTX_wm_manager(C);
+  void *data;
+  RNA_id_pointer_create(&wm->id, &ptr);
+  /* float gopro = RNA_float_get(&ptr, "gopro"); */
+  RNA_collection_add(&ptr, "gopro", &ptr2);
+  RNA_float_set(&ptr2, "floatie", 43.434343);
+  /* printf("logrado: %f", gopro); */
+ 
  
   
     
