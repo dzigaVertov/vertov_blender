@@ -102,6 +102,12 @@ enum {
   GP_STROKECONVERT_TIMING_CUSTOMGAP = 4,
 };
 
+/* Defines for possible targets of fit_curve */
+enum {
+      ARMATURE = 1,
+      CURVE = 2,
+};
+
 /* RNA enum define */
 static const EnumPropertyItem prop_gpencil_convertmodes[] = {
     {GP_STROKECONVERT_PATH, "PATH", ICON_CURVE_PATH, "Path", "Animation path"},
@@ -119,6 +125,13 @@ static const EnumPropertyItem prop_gpencil_convert_timingmodes_restricted[] = {
     {GP_STROKECONVERT_TIMING_LINEAR, "LINEAR", 0, "Linear", "Simple linear timing"},
     {0, NULL, 0, NULL, NULL},
 };
+
+/* Target property for the fit_curve operator */
+static const EnumPropertyItem prop_gpencil_fit_target[] =
+  {
+   {ARMATURE, "ARMATURE", 0, "Armature", "Fit with bendy bones"},
+   {CURVE, "CURVE", 0, "Curve", "Fit with a bezier curve"},		   
+  };
 
 static const EnumPropertyItem prop_gpencil_convert_timingmodes[] = {
     {GP_STROKECONVERT_TIMING_NONE, "NONE", 0, "No Timing", "Ignore timing"},
@@ -1963,6 +1976,61 @@ static int get_the_fitted_spline(float *coords,
   return result;
 }
 
+/**
+ * @brief      Saves bones positions for ARMATURE target
+ *
+ * @details    Saves the fitted points positions to the CollectionProperty in the window_manager.  Also passes the correction coefficient so the bendy bones will match the fitted curve. 
+ *
+ * @param      float *cubic_spline The fitted points
+ *
+ * @return     return type
+ */
+static bool set_bones_positions(bContext *C,
+				uint cubic_spline_len,
+				float *cubic_spline)
+{
+
+  return true;
+}
+
+/**
+ * @brief      Add fitted curve
+ *
+ * @details    Adds a new curve object to the active collection, adds the fitted bezier points to it.  
+ *
+ * @param      float *cubic_spline The fitted points
+ *
+ * @return     bool
+ */
+static bool add_curve(bContext *C,
+		      uint cubic_spline_len,
+		      float *cubic_spline,
+		      char *name)
+{
+  struct Main *bmain = CTX_data_main(C);
+  Collection *collection = CTX_data_collection(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+  Object *ob;
+  Curve *cu;
+  Nurb *nu = NULL;
+  Base *base_new = NULL;
+
+  /* Agregar el objeto */
+  ob = BKE_object_add_only_object(bmain, OB_CURVE, name);
+  cu = BKE_curve_add(bmain, name, OB_CURVE);
+  BKE_collection_object_add(bmain, collection, ob);
+  base_new = BKE_view_layer_base_find(view_layer, ob);
+  DEG_relations_tag_update(bmain); /* added object */
+  cu->flag |= CU_3D;
+
+  /* Agregar los puntos fiteados a la curva */
+  add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
+  ED_object_base_select(base_new, BA_SELECT);
+  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
+  
+  return true;
+}
+
 static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 {
   /* BLI_assert(op->customdata ==NULL); */
@@ -1992,17 +2060,6 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
     return OPERATOR_CANCELLED;
   }
 
-  /* Para agregar el objeto curva  */
-  struct Main *bmain = CTX_data_main(C);
-  ViewLayer *view_layer = CTX_data_view_layer(C);
-  Collection *collection = CTX_data_collection(C);
-  
-  Object *ob;
-  Curve *cu;
-  Nurb *nu = NULL;
-  Base *base_new = NULL;
-  
-
 
   int num_points = gps->totpoints;
   float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
@@ -2012,29 +2069,20 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   uint cubic_spline_len = 0;
   float error = RNA_float_get(op->ptr, "error_threshold");
   
-
   get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
     
   /* Liberar la memoria de las coords */
   MEM_freeN(coords);
-  
-  /* Agregar el objeto curva */
-  ob = BKE_object_add_only_object(bmain, OB_CURVE, gpl->info);
-  cu = ob->data = BKE_curve_add(bmain, gpl->info, OB_CURVE);
-  BKE_collection_object_add(bmain, collection, ob);
-  base_new = BKE_view_layer_base_find(view_layer, ob);
-  DEG_relations_tag_update(bmain); /* added object */
 
-  cu->flag |= CU_3D;
-  
-  /* float test_points[5][3]; */
-  /* get_test_points(test_points); */
-  add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
-    
+  int target = RNA_enum_get(op->ptr, "target");
+  if (target==CURVE){
+    add_curve(C, cubic_spline_len, cubic_spline, gpl->info);    
+  }
+  else {
+    set_bones_positions(C, cubic_spline_len, cubic_spline);
+  }
+
   free(cubic_spline);
-  ED_object_base_select(base_new, BA_SELECT);
-  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
-
   return true;
 }
 
@@ -2054,7 +2102,7 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   /* float gopro = RNA_float_get(&ptr, "gopro"); */
   RNA_collection_add(&ptr, "gopro", &ptr2);
   RNA_float_set(&ptr2, "floatie", 43.434343);
-  /* printf("logrado: %f", gopro); */
+
  
  
   
@@ -2110,5 +2158,12 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 			   "How close to the original stroke",
 			   0.0f,
 			   10.0f);
+
+  RNA_def_enum(ot->srna,
+	       "target",
+	       &prop_gpencil_fit_target,
+	       CURVE,
+	       "Fitting target",
+	       "Target to fit the stroke to");
   
 }
