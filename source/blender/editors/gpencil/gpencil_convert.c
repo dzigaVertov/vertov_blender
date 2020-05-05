@@ -1989,6 +1989,24 @@ static bool set_bones_positions(bContext *C,
 				uint cubic_spline_len,
 				float *cubic_spline)
 {
+  /* get the collection prop */
+  PointerRNA ptr;
+  PointerRNA ptr2;
+  PropertyRNA *prop;
+
+  struct wmWindowManager *wm =  CTX_wm_manager(C);
+  
+  int num_points = cubic_spline_len;
+  int dims = 3;
+  float* co = cubic_spline;
+  for (int i = 0; i < num_points; i++, co+=dims*3 ){ /* 3 points */
+    RNA_id_pointer_create(&wm->id, &ptr);
+    RNA_collection_add(&ptr,"fitted_curve_coefs" , &ptr2);
+    RNA_float_set(&ptr2, "handle_l", *(co + (dims*0)));
+    RNA_float_set(&ptr2, "ctrl_point", *(co + (dims*1)));
+    RNA_float_set(&ptr2, "handle_r", *(co + (dims*2)));
+    RNA_float_set(&ptr2, "h_coef", 1.0); 
+  }
 
   return true;
 }
@@ -2017,7 +2035,7 @@ static bool add_curve(bContext *C,
 
   /* Agregar el objeto */
   ob = BKE_object_add_only_object(bmain, OB_CURVE, name);
-  cu = BKE_curve_add(bmain, name, OB_CURVE);
+  cu = ob->data =  BKE_curve_add(bmain, name, OB_CURVE);
   BKE_collection_object_add(bmain, collection, ob);
   base_new = BKE_view_layer_base_find(view_layer, ob);
   DEG_relations_tag_update(bmain); /* added object */
@@ -2036,6 +2054,8 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   /* BLI_assert(op->customdata ==NULL); */
   Scene *scene = CTX_data_scene(C);
   Object *obgp = CTX_data_active_object(C);
+  printf("El objeto activo es: %s\n", obgp->id.name);
+
   bGPdata *gpd = (bGPdata *)obgp->data;
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
@@ -2088,24 +2108,15 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   Scene *scene = CTX_data_scene(C);
+  printf("execd!!");
+ 
+  char *name = CTX_data_active_object(C)->id.name;
+  printf("%s\n", name);
+  
   if (!fit_curve_init(C, op, false)) {
     return OPERATOR_CANCELLED;
   }
 
-  PointerRNA ptr;
-  PointerRNA ptr2;
-  PropertyRNA *prop;
-
-  struct wmWindowManager *wm =  CTX_wm_manager(C);
-  void *data;
-  RNA_id_pointer_create(&wm->id, &ptr);
-  /* float gopro = RNA_float_get(&ptr, "gopro"); */
-  RNA_collection_add(&ptr, "gopro", &ptr2);
-  RNA_float_set(&ptr2, "floatie", 43.434343);
-
- 
- 
-  
     
   /* notifiers */
   DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
@@ -2116,6 +2127,9 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
 }
 
 static int gp_fitcurve_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+  printf("invoked!!");
+  char *name = CTX_data_active_object(C)->id.name;
+  printf("%s\n", name);
   return gp_fitcurve_exec(C, op);
 }
 
@@ -2165,5 +2179,12 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 	       CURVE,
 	       "Fitting target",
 	       "Target to fit the stroke to");
+
+  /* Save the grease pencil object */
+  RNA_def_pointer_runtime(ot->srna,
+			  "ob_gp",&RNA_Object, "grease pencil object",
+			  "The grease pencil object to be fitted");
+
+  RNA_def_pointer(ot->srna, "ob_gp", "OBJECT", "grease pencil object", "The grease pencil object to be fitted");
   
 }
