@@ -32,6 +32,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_math_geom.h"
 #include "BLI_rand.h"
 #include "BLI_utildefines.h"
 
@@ -1987,7 +1988,7 @@ static int get_the_fitted_spline(float *coords,
  */
 static bool set_bones_positions(bContext *C,
 				uint cubic_spline_len,
-				float *cubic_spline)
+				const float *cubic_spline)
 {
   /* get the collection prop */
   PointerRNA ptr;
@@ -1998,18 +1999,19 @@ static bool set_bones_positions(bContext *C,
   
   int num_points = cubic_spline_len;
   int dims = 3;
-  float* co = cubic_spline;
-  for (int i = 0; i < num_points; i++, co+=dims*3 ){ /* 3 points */
+  const float* co = cubic_spline;
+  for (int i = 0; i < num_points; i++, co += dims * 3) { /* 3 points */
     RNA_id_pointer_create(&wm->id, &ptr);
-    RNA_collection_add(&ptr,"fitted_curve_coefs" , &ptr2);
-    RNA_float_set(&ptr2, "handle_l", *(co + (dims*0)));
-    RNA_float_set(&ptr2, "ctrl_point", *(co + (dims*1)));
-    RNA_float_set(&ptr2, "handle_r", *(co + (dims*2)));
-    RNA_float_set(&ptr2, "h_coef", 1.0); 
+    RNA_collection_add(&ptr, "fitted_curve_coefs", &ptr2);
+    RNA_float_set_array(&ptr2, "handle_l", (co + (dims * 0)));
+    RNA_float_set_array(&ptr2, "ctrl_point", (co + (dims * 1)));
+    RNA_float_set_array(&ptr2, "handle_r", (co + (dims * 2)));
+    RNA_float_set(&ptr2, "h_coef", 1.0);
   }
 
-  return true;
-}
+    return true;
+  }
+
 
 /**
  * @brief      Add fitted curve
@@ -2108,10 +2110,6 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
 static int gp_fitcurve_exec(bContext *C, wmOperator *op){
   Scene *scene = CTX_data_scene(C);
-  printf("execd!!");
- 
-  char *name = CTX_data_active_object(C)->id.name;
-  printf("%s\n", name);
   
   if (!fit_curve_init(C, op, false)) {
     return OPERATOR_CANCELLED;
@@ -2127,16 +2125,32 @@ static int gp_fitcurve_exec(bContext *C, wmOperator *op){
 }
 
 static int gp_fitcurve_invoke(bContext *C, wmOperator *op, const wmEvent *event){
-  printf("invoked!!");
-  char *name = CTX_data_active_object(C)->id.name;
-  printf("%s\n", name);
+
   return gp_fitcurve_exec(C, op);
 }
 
 static void gp_fitcurve_cancel(bContext *C, wmOperator *op){}
 
 bool gp_fitcurve_poll(bContext *C){
-  return true;
+  Object *ob = CTX_data_active_object(C);
+  Scene *scene = CTX_data_scene(C);
+
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = NULL;
+  bGPDframe *gpf = NULL;
+
+
+  /* if there's valid data (i.e. at least one stroke!),
+   * and if we are not in edit mode!
+   */
+  return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
+          (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)) &&
+          (gpf->strokes.first) && (!GPENCIL_ANY_EDIT_MODE(gpd)));
+
 }
 
 
@@ -2184,7 +2198,5 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   RNA_def_pointer_runtime(ot->srna,
 			  "ob_gp",&RNA_Object, "grease pencil object",
 			  "The grease pencil object to be fitted");
-
-  RNA_def_pointer(ot->srna, "ob_gp", "OBJECT", "grease pencil object", "The grease pencil object to be fitted");
   
 }
