@@ -481,7 +481,8 @@ static void gpencil_object_vgroup_calc_from_armature(const bContext *C,
   DEG_relations_tag_update(CTX_data_main(C));
 }
 
-bool ED_gpencil_add_armature(const bContext *C, ReportList *reports, Object *ob, Object *ob_arm)
+bool ED_gpencil_add_armature_weights(
+    const bContext *C, ReportList *reports, Object *ob, Object *ob_arm, int mode)
 {
   Main *bmain = CTX_data_main(C);
   Scene *scene = CTX_data_scene(C);
@@ -515,24 +516,11 @@ bool ED_gpencil_add_armature(const bContext *C, ReportList *reports, Object *ob,
       return false;
     }
   }
-  return true;
-}
-
-bool ED_gpencil_add_armature_weights(
-    const bContext *C, ReportList *reports, Object *ob, Object *ob_arm, int mode)
-{
-  if (ob == NULL) {
-    return false;
-  }
-
-  bool success = ED_gpencil_add_armature(C, reports, ob, ob_arm);
 
   /* add weights */
-  if (success) {
-    gpencil_object_vgroup_calc_from_armature(C, ob, ob_arm, mode, DEFAULT_RATIO, DEFAULT_DECAY);
-  }
+  gpencil_object_vgroup_calc_from_armature(C, ob, ob_arm, mode, DEFAULT_RATIO, DEFAULT_DECAY);
 
-  return success;
+  return true;
 }
 /* ***************** Generate armature weights ************************** */
 static bool gpencil_generate_weights_poll(bContext *C)

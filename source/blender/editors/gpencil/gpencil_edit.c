@@ -90,9 +90,8 @@
 
 #include "gpencil_intern.h"
 
-/* -------------------------------------------------------------------- */
-/** \name Stroke Edit Mode Management
- * \{ */
+/* ************************************************ */
+/* Stroke Edit Mode Management */
 
 /* poll callback for all stroke editing operators */
 static bool gp_stroke_edit_poll(bContext *C)
@@ -138,12 +137,6 @@ static bool gpencil_editmode_toggle_poll(bContext *C)
 
   return ED_gpencil_data_get_active(C) != NULL;
 }
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Edit Mode Operator
- * \{ */
 
 static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 {
@@ -230,12 +223,6 @@ void GPENCIL_OT_editmode_toggle(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Select Mode Operator
- * \{ */
-
 /* set select mode */
 static bool gpencil_selectmode_toggle_poll(bContext *C)
 {
@@ -311,11 +298,7 @@ void GPENCIL_OT_selectmode_toggle(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Stroke Paint Mode Operator
- * \{ */
+/* Stroke Paint Mode Management */
 
 static bool gpencil_paintmode_toggle_poll(bContext *C)
 {
@@ -419,11 +402,7 @@ void GPENCIL_OT_paintmode_toggle(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Stroke Sculpt Mode Operator
- * \{ */
+/* Stroke Sculpt Mode Management */
 
 static bool gpencil_sculptmode_toggle_poll(bContext *C)
 {
@@ -499,12 +478,6 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 
   return OPERATOR_FINISHED;
 }
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Weight Paint Mode Operator
- * \{ */
 
 void GPENCIL_OT_sculptmode_toggle(wmOperatorType *ot)
 {
@@ -627,11 +600,7 @@ void GPENCIL_OT_weightmode_toggle(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Toggle Vertex Paint Mode Operator
- * \{ */
+/* Vertex Paint Mode Management */
 
 static bool gpencil_vertexmode_toggle_poll(bContext *C)
 {
@@ -729,11 +698,10 @@ void GPENCIL_OT_vertexmode_toggle(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
+/* ************************************************ */
+/* Stroke Editing Operators */
 
-/* -------------------------------------------------------------------- */
-/** \name Stroke Hide Selection Toggle Operator
- * \{ */
+/* ************ Stroke Hide selection Toggle ************** */
 
 static int gpencil_hideselect_toggle_exec(bContext *C, wmOperator *UNUSED(op))
 {
@@ -772,11 +740,7 @@ void GPENCIL_OT_selection_opacity_toggle(wmOperatorType *ot)
   ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Duplicate Selected Strokes Operator
- * \{ */
+/* ************** Duplicate Selected Strokes **************** */
 
 /* Make copies of selected point segments in a selected stroke */
 static void gp_duplicate_points(const bGPDstroke *gps,
@@ -953,11 +917,7 @@ void GPENCIL_OT_duplicate(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Extrude Selected Strokes Operator
- * \{ */
+/* ************** Extrude Selected Strokes **************** */
 
 /* helper to copy a point to temp area */
 static void copy_move_point(bGPDstroke *gps,
@@ -1178,18 +1138,14 @@ void GPENCIL_OT_extrude(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Copy/Paste Strokes Utilities
- *
- * Grease Pencil stroke data copy/paste buffer:
+/* ******************* Copy/Paste Strokes ************************* */
+/* Grease Pencil stroke data copy/paste buffer:
  * - The copy operation collects all segments of selected strokes,
  *   dumping "ready to be copied" copies of the strokes into the buffer.
  * - The paste operation makes a copy of those elements, and adds them
  *   to the active layer. This effectively flattens down the strokes
  *   from several different layers into a single layer.
- * \{ */
+ */
 
 /* list of bGPDstroke instances */
 /* NOTE: is exposed within the editors/gpencil module so that other tools can use it too */
@@ -1301,11 +1257,8 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
   return new_colors;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Copy Selected Strokes Operator
- * \{ */
+/* --------------------- */
+/* Copy selected strokes */
 
 static int gp_strokes_copy_exec(bContext *C, wmOperator *op)
 {
@@ -1422,11 +1375,8 @@ void GPENCIL_OT_copy(wmOperatorType *ot)
   // ot->flag = OPTYPE_REGISTER;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Paste Selected Strokes Operator
- * \{ */
+/* --------------------- */
+/* Paste selected strokes */
 
 static bool gp_strokes_paste_poll(bContext *C)
 {
@@ -1597,11 +1547,7 @@ void GPENCIL_OT_paste(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Move To Layer Operator
- * \{ */
+/* ******************* Move To Layer ****************************** */
 
 static int gp_move_to_layer_exec(bContext *C, wmOperator *op)
 {
@@ -1721,11 +1667,7 @@ void GPENCIL_OT_move_to_layer(wmOperatorType *ot)
   RNA_def_property_flag(ot->prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Add Blank Frame Operator
- * \{ */
+/* ********************* Add Blank Frame *************************** */
 
 static int gp_blank_frame_add_exec(bContext *C, wmOperator *op)
 {
@@ -1799,11 +1741,7 @@ void GPENCIL_OT_blank_frame_add(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Delete Active Frame Operator
- * \{ */
+/* ******************* Delete Active Frame ************************ */
 
 static bool gp_actframe_delete_poll(bContext *C)
 {
@@ -1884,12 +1822,7 @@ void GPENCIL_OT_annotation_active_frame_delete(wmOperatorType *ot)
   ot->exec = gp_actframe_delete_exec;
   ot->poll = gp_annotation_actframe_delete_poll;
 }
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Delete All Active Frames
- * \{ */
+/* **************** Delete All Active Frames ****************** */
 
 static bool gp_actframe_delete_all_poll(bContext *C)
 {
@@ -1950,11 +1883,7 @@ void GPENCIL_OT_active_frames_delete_all(wmOperatorType *ot)
   ot->poll = gp_actframe_delete_all_poll;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Delete/Dissolve Utilities
- * \{ */
+/* ******************* Delete Operator ************************ */
 
 typedef enum eGP_DeleteMode {
   /* delete selected stroke points */
@@ -1973,6 +1902,8 @@ typedef enum eGP_DissolveMode {
   /* dissolve unselected points */
   GP_DISSOLVE_UNSELECT = 2,
 } eGP_DissolveMode;
+
+/* ----------------------------------- */
 
 /* Delete selected strokes */
 static int gp_delete_selected_strokes(bContext *C)
@@ -2567,11 +2498,7 @@ int gp_delete_selected_point_wrap(bContext *C)
   return gp_delete_selected_points(C);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Delete Operator
- * \{ */
+/* ----------------------------------- */
 
 static int gp_delete_exec(bContext *C, wmOperator *op)
 {
@@ -2630,12 +2557,6 @@ void GPENCIL_OT_delete(wmOperatorType *ot)
                           "Method used for deleting Grease Pencil data");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Dissolve Operator
- * \{ */
-
 static int gp_dissolve_exec(bContext *C, wmOperator *op)
 {
   eGP_DissolveMode mode = RNA_enum_get(op->ptr, "type");
@@ -2678,11 +2599,7 @@ void GPENCIL_OT_dissolve(wmOperatorType *ot)
                           "Method used for dissolving Stroke points");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Snapping Selection to Grid Operator
- * \{ */
+/* ****************** Snapping - Strokes <-> Cursor ************************ */
 
 /* Poll callback for snap operators */
 /* NOTE: For now, we only allow these in the 3D view, as other editors do not
@@ -2696,6 +2613,8 @@ static bool gp_snap_poll(bContext *C)
   return (ob != NULL) && (ob->type == OB_GPENCIL) &&
          ((area != NULL) && (area->spacetype == SPACE_VIEW3D));
 }
+
+/* --------------------------------- */
 
 static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 {
@@ -2771,11 +2690,7 @@ void GPENCIL_OT_snap_to_grid(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Snapping Selection to Cursor Operator
- * \{ */
+/* ------------------------------- */
 
 static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 {
@@ -2867,11 +2782,7 @@ void GPENCIL_OT_snap_to_cursor(wmOperatorType *ot)
                              "Offset the entire stroke instead of selected points only");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Snapping Cursor to Selection Operator
- * \{ */
+/* ------------------------------- */
 
 static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 {
@@ -2962,11 +2873,7 @@ void GPENCIL_OT_snap_cursor_to_selected(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Apply Layer Thickness Change to Strokes Operator
- * \{ */
+/* ******************* Apply layer thickness change to strokes ************************** */
 
 static int gp_stroke_apply_thickness_exec(bContext *C, wmOperator *UNUSED(op))
 {
@@ -3013,11 +2920,7 @@ void GPENCIL_OT_stroke_apply_thickness(wmOperatorType *ot)
   ot->poll = gp_active_layer_poll;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Toggle Cyclic Operator
- * \{ */
+/* ******************* Close Strokes ************************** */
 
 enum {
   GP_STROKE_CYCLIC_CLOSE = 1,
@@ -3137,11 +3040,7 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Toggle Flat Caps Operator
- * \{ */
+/* ******************* Flat Stroke Caps ************************** */
 
 enum {
   GP_STROKE_CAPS_TOGGLE_BOTH = 0,
@@ -3237,11 +3136,7 @@ void GPENCIL_OT_stroke_caps_set(wmOperatorType *ot)
   ot->prop = RNA_def_enum(ot->srna, "type", toggle_type, GP_STROKE_CAPS_TOGGLE_BOTH, "Type", "");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Join Operator
- * \{ */
+/* ******************* Stroke join ************************** */
 
 /* Helper: flip stroke */
 static void gpencil_flip_stroke(bGPDstroke *gps)
@@ -3293,6 +3188,7 @@ static void gpencil_flip_stroke(bGPDstroke *gps)
 static void gpencil_stroke_copy_point(bGPDstroke *gps,
                                       MDeformVert *dvert,
                                       bGPDspoint *point,
+                                      int idx,
                                       const float delta[3],
                                       float pressure,
                                       float strength,
@@ -3385,17 +3281,17 @@ static void gpencil_stroke_join_strokes(bGPDstroke *gps_a,
     point = gps_a->points[gps_a->totpoints - 1];
     deltatime = point.time;
 
-    gpencil_stroke_copy_point(gps_a, NULL, &point, delta, 0.0f, 0.0f, 0.0f);
+    gpencil_stroke_copy_point(gps_a, NULL, &point, gps_a->totpoints - 1, delta, 0.0f, 0.0f, 0.0f);
 
     /* 2nd: add one head point to finish invisible area */
     point = gps_b->points[0];
-    gpencil_stroke_copy_point(gps_a, NULL, &point, delta, 0.0f, 0.0f, deltatime);
+    gpencil_stroke_copy_point(gps_a, NULL, &point, 0, delta, 0.0f, 0.0f, deltatime);
   }
 
   /* 3rd: add all points */
   for (i = 0, pt = gps_b->points; i < gps_b->totpoints && pt; i++, pt++) {
     MDeformVert *dvert = (gps_b->dvert) ? &gps_b->dvert[i] : NULL;
-    gpencil_stroke_copy_point(gps_a, dvert, pt, delta, pt->pressure, pt->strength, deltatime);
+    gpencil_stroke_copy_point(gps_a, dvert, pt, i, delta, pt->pressure, pt->strength, deltatime);
   }
 }
 
@@ -3541,11 +3437,7 @@ void GPENCIL_OT_stroke_join(wmOperatorType *ot)
                   "Leave gaps between joined strokes instead of linking them");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Flip Operator
- * \{ */
+/* ******************* Stroke flip ************************** */
 
 static int gp_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
 {
@@ -3604,11 +3496,7 @@ void GPENCIL_OT_stroke_flip(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Re-project Operator
- * \{ */
+/* ***************** Reproject Strokes ********************** */
 
 typedef enum eGP_ReprojectModes {
   /* Axis */
@@ -3846,6 +3734,7 @@ static int gp_recalc_geometry_exec(bContext *C, wmOperator *UNUSED(op))
 
 void GPENCIL_OT_recalc_geometry(wmOperatorType *ot)
 {
+
   /* identifiers */
   ot->name = "Recalculate internal geometry";
   ot->idname = "GPENCIL_OT_recalc_geometry";
@@ -3859,12 +3748,7 @@ void GPENCIL_OT_recalc_geometry(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Subdivide Operator
- * \{ */
-
+/* ******************* Stroke subdivide ************************** */
 /* helper to smooth */
 static void gp_smooth_stroke(bContext *C, wmOperator *op)
 {
@@ -4245,12 +4129,7 @@ void GPENCIL_OT_stroke_sample(wmOperatorType *ot)
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Trim Operator
- * \{ */
-
+/* ******************* Stroke trim ************************** */
 static int gp_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -4315,12 +4194,7 @@ void GPENCIL_OT_stroke_trim(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Separate Operator
- * \{ */
-
+/* ***************** Separate Strokes ********************** */
 typedef enum eGP_SeparateModes {
   /* Points */
   GP_SEPARATE_POINT = 0,
@@ -4538,12 +4412,7 @@ void GPENCIL_OT_stroke_separate(wmOperatorType *ot)
   ot->prop = RNA_def_enum(ot->srna, "mode", separate_type, GP_SEPARATE_POINT, "Mode", "");
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Split Operator
- * \{ */
-
+/* ***************** Split Strokes ********************** */
 static int gp_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
 {
   Object *ob = CTX_data_active_object(C);
@@ -4640,12 +4509,6 @@ void GPENCIL_OT_stroke_split(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Smooth Operator
- * \{ */
-
 static int gp_stroke_smooth_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -4695,12 +4558,6 @@ void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
   RNA_def_boolean(ot->srna, "smooth_strength", false, "Strength", "");
   RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
 }
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Stroke Cutter Operator
- * \{ */
 
 /* smart stroke cutter for trimming stroke ends */
 struct GP_SelectLassoUserData {
@@ -4958,12 +4815,7 @@ bool ED_object_gpencil_exit(struct Main *bmain, Object *ob)
   return ok;
 }
 
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Merge By Distance Operator
- * \{ */
-
+/* ** merge by distance *** */
 static bool gp_merge_by_distance_poll(bContext *C)
 {
   Object *ob = CTX_data_active_object(C);
@@ -5032,5 +4884,3 @@ void GPENCIL_OT_stroke_merge_by_distance(wmOperatorType *ot)
       ot->srna, "use_unselected", 0, "Unselected", "Use whole stroke, not only selected points");
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
-
-/** \} */

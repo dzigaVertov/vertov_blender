@@ -203,6 +203,7 @@ void clear_physics_relations(Depsgraph *graph)
           for (ListBase *list : hash->values()) {
             BKE_effector_relations_free(list);
           }
+          hash->clear();
           break;
         case DEG_PHYSICS_COLLISION:
         case DEG_PHYSICS_SMOKE_COLLISION:
@@ -210,11 +211,11 @@ void clear_physics_relations(Depsgraph *graph)
           for (ListBase *list : hash->values()) {
             BKE_collision_relations_free(list);
           }
+          hash->clear();
           break;
         case DEG_PHYSICS_RELATIONS_NUM:
           break;
       }
-      delete hash;
       graph->physics_relations[i] = nullptr;
     }
   }
