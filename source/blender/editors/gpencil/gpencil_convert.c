@@ -1977,6 +1977,37 @@ static int get_the_fitted_spline(float *coords,
   return result;
 }
 
+static bool scale_handle_for_bbone( const float *handle,
+				    bool is_right_handle,
+				    float *r_handle){
+  float original_length;
+  int dims = 3;
+  const float *other_handle;
+  const float *ctrl_point;
+  const float bone_length;
+  float *local_handle;
+  float *other_local_handle;
+
+  if (right_handle){
+    other_handle = (handle - dims);
+    ctrl_point = (handle -dims*2);
+  }
+  else{
+    other_handle =  (handle + dims);
+    ctrl_point = (handle - dims);
+    sub_v3_v3v3(local_handle, handle, ctrl_point);
+    original_length = normalize_v3(local_handle);
+    
+  }
+  
+  
+  /* length = size(handle - ctrl_point) */
+  
+  original_length = normalize_v3_v3(local_handle, handle);
+
+  return true;
+}
+
 /**
  * @brief      Saves bones positions for ARMATURE target
  *
@@ -1997,16 +2028,17 @@ static bool set_bones_positions(bContext *C,
 
   struct wmWindowManager *wm =  CTX_wm_manager(C);
   
-  int num_points = cubic_spline_len;
+  int num_bones = cubic_spline_len - 1;
   int dims = 3;
   const float* co = cubic_spline;
-  for (int i = 0; i < num_points; i++, co += dims * 3) { /* 3 points */
+  for (int i = 0; i < num_bones; i++, co += dims * 3) { /* 4 points  per bone */
     RNA_id_pointer_create(&wm->id, &ptr);
-    RNA_collection_add(&ptr, "fitted_curve_coefs", &ptr2);
-    RNA_float_set_array(&ptr2, "handle_l", (co + (dims * 0)));
-    RNA_float_set_array(&ptr2, "ctrl_point", (co + (dims * 1)));
-    RNA_float_set_array(&ptr2, "handle_r", (co + (dims * 2)));
-    RNA_float_set(&ptr2, "h_coef", 1.0);
+    RNA_collection_add(&ptr, "fitted_bones", &ptr2);
+    RNA_float_set_array(&ptr2, "bone_head", (co + (dims * 1)));
+    RNA_float_set_array(&ptr2, "handle_l", (co + (dims * 2)));
+    RNA_float_set_array(&ptr2, "handle_r", (co + (dims * 3)));
+    RNA_float_set_array(&ptr2, "bone_tail", (co + (dims * 4)));
+
   }
 
     return true;
@@ -2056,18 +2088,16 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   /* BLI_assert(op->customdata ==NULL); */
   Scene *scene = CTX_data_scene(C);
   Object *obgp = CTX_data_active_object(C);
-  printf("El objeto activo es: %s\n", obgp->id.name);
-
   bGPdata *gpd = (bGPdata *)obgp->data;
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
   bGPDstroke *gps;
   
   /* Otener un stroke seleccionado  */
+  /* TODO: This should be checked in poll */
   bool found = false;
   for (gps= gpf->strokes.first; gps; gps = gps->next){
     if ( BKE_gpencil_stroke_select_check(gps)){
-      printf("Found selected stroke\n");
       found = true;
       break;
       }
@@ -2077,6 +2107,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   }
   
   /* check if there's data to work with */
+  /* TODO: This should be checked in poll */
   if (gpd == NULL) {
     BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
     return OPERATOR_CANCELLED;

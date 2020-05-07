@@ -954,7 +954,8 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
       copy_v3_fl3(h1, 0.0f, -1.0f, 0.0f);
     }
 
-    negate_v3(h1);
+    /* CHANGED MARCELO TODO */
+    /* negate_v3(h1); */
 
     if (!param->prev_bbone) {
       /* Find the previous roll to interpolate. */
@@ -976,7 +977,7 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
       /* pass */
     }
     else {
-      h2[1] -= length;
+      h2[1] -= length;		/* this "puts" h2 at the tail of the bone */
     }
 
     if (normalize_v3(h2) < epsilon) {
@@ -1001,7 +1002,7 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
 
     /* and only now negate h2 */
     mul_v3_fl(h1, hlength1);
-    mul_v3_fl(h2, -hlength2);
+    mul_v3_fl(h2, hlength2);	/* changed MARCELO TODO -hlength2 */
   }
 
   /* Add effects from bbone properties over the top
