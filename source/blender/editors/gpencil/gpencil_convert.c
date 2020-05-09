@@ -1977,34 +1977,38 @@ static int get_the_fitted_spline(float *coords,
   return result;
 }
 
-static bool scale_handle_for_bbone( const float *handle,
-				    bool is_right_handle,
-				    float *r_handle){
-  float original_length;
+/* Calculate coefficient for the ease property of bbones */
+/* so the deformation matches a bezier curve with the same  */
+/* handles positions. The spline is passed in an array:*/
+/* ...[handle_l[3]][ctrl_point[3]][handle_r[3]]... */
+/* The left handle of a bone is the right handle of a bezier node */
+static bool ease_coef_for_bbone( const float *handle_l,
+				    float ease[2]){
+  float h_l_length;
+  float h_r_length;
   int dims = 3;
-  const float *other_handle;
-  const float *ctrl_point;
-  const float bone_length;
-  float *local_handle;
-  float *other_local_handle;
+  const float *handle_r;
+  const float *bone_head;
+  float bone_length;
+  float *handle_l_local;
+  float *handle_r_local;
+  float *bone_tail;
+  float circle_factor;
 
-  if (right_handle){
-    other_handle = (handle - dims);
-    ctrl_point = (handle -dims*2);
-  }
-  else{
-    other_handle =  (handle + dims);
-    ctrl_point = (handle - dims);
-    sub_v3_v3v3(local_handle, handle, ctrl_point);
-    original_length = normalize_v3(local_handle);
+  bone_head = (handle_l - dims);   /* head of the bone */
+  sub_v3_v3v3(handle_l_local, handle_l, bone_head);
+  h_l_length = normalize_v3(handle_l_local);
+  
+  handle_r =  (handle_l + dims);/* right handle */
+  bone_tail = (handle_l + dims*2);
+  sub_v3_v3v3(handle_r_local, handle_r, bone_tail);
+  h_r_length = normalize_v3(handle_r_local);
+  bone_length = len_v3v3(bone_head, bone_tail);
+  
+  circle_factor = bone_length * cubic_tangent_factor_circle_v3(handle_l_local, handle_r_local)/0.75f;
+  ease[0] = h_l_length/circle_factor;
+  ease[1] = h_r_length/circle_factor;
     
-  }
-  
-  
-  /* length = size(handle - ctrl_point) */
-  
-  original_length = normalize_v3_v3(local_handle, handle);
-
   return true;
 }
 
@@ -2025,6 +2029,7 @@ static bool set_bones_positions(bContext *C,
   PointerRNA ptr;
   PointerRNA ptr2;
   PropertyRNA *prop;
+  float ease[2];
 
   struct wmWindowManager *wm =  CTX_wm_manager(C);
   
@@ -2039,6 +2044,9 @@ static bool set_bones_positions(bContext *C,
     RNA_float_set_array(&ptr2, "handle_r", (co + (dims * 3)));
     RNA_float_set_array(&ptr2, "bone_tail", (co + (dims * 4)));
 
+    ease_coef_for_bbone((co + (dims*2)), ease);
+    RNA_float_set_array(&ptr2, "ease", ease);
+    
   }
 
     return true;
