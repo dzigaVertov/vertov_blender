@@ -1000,6 +1000,7 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
     const float hlength1 = param->ease1 * circle_factor;
     const float hlength2 = param->ease2 * circle_factor;
 
+
     /* and only now negate h2 */
     mul_v3_fl(h1, hlength1);
     mul_v3_fl(h2, hlength2);	/* changed MARCELO TODO -hlength2 */

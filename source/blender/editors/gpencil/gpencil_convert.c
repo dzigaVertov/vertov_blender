@@ -1987,11 +1987,11 @@ static bool ease_coef_for_bbone( const float *handle_l,
   float h_l_length;
   float h_r_length;
   int dims = 3;
-  const float *handle_r;
-  const float *bone_head;
+  float *handle_r;
+  float *bone_head;
   float bone_length;
-  float *handle_l_local;
-  float *handle_r_local;
+  float handle_l_local[3];
+  float handle_r_local[3];
   float *bone_tail;
   float circle_factor;
 
@@ -2006,6 +2006,7 @@ static bool ease_coef_for_bbone( const float *handle_l,
   bone_length = len_v3v3(bone_head, bone_tail);
   
   circle_factor = bone_length * cubic_tangent_factor_circle_v3(handle_l_local, handle_r_local)/0.75f;
+
   ease[0] = h_l_length/circle_factor;
   ease[1] = h_r_length/circle_factor;
     
