@@ -148,6 +148,8 @@ class _defs_annotate:
 
     def draw_settings_common(context, layout, tool):
         gpd = context.annotation_data
+        region_type = context.region.type
+
         if gpd is not None:
             if gpd.layers.active_note is not None:
                 text = gpd.layers.active_note
@@ -160,17 +162,24 @@ class _defs_annotate:
             gpl = context.active_annotation_layer
             if gpl is not None:
                 layout.label(text="Annotation:")
-                sub = layout.row(align=True)
-                sub.ui_units_x = 8
+                if context.space_data.type == 'VIEW_3D':
+                    if region_type == 'TOOL_HEADER':
+                        sub = layout.split(align=True, factor=0.5)
+                        sub.ui_units_x = 6.5
+                        sub.prop(gpl, "color", text="")
+                    else:
+                        sub = layout.row(align=True)
+                        sub.prop(gpl, "color", text="")
+                    sub.popover(
+                        panel="TOPBAR_PT_annotation_layers",
+                        text=text,
+                    )
+                else:
+                    layout.prop(gpl, "color", text="")
 
-                sub.prop(gpl, "color", text="")
-                sub.popover(
-                    panel="TOPBAR_PT_annotation_layers",
-                    text=text,
-                )
-
-        tool_settings = context.tool_settings
         space_type = tool.space_type
+        tool_settings = context.tool_settings
+
         if space_type == 'VIEW_3D':
             layout.separator()
 
@@ -180,6 +189,29 @@ class _defs_annotate:
                 row.prop(tool_settings.gpencil_sculpt, "lockaxis")
             elif tool_settings.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:
                 row.prop(tool_settings, "use_gpencil_stroke_endpoints")
+
+        if tool.idname == "builtin.annotate_line":
+            layout.separator()
+
+            props = tool.operator_properties("gpencil.annotate")
+            if region_type == 'TOOL_HEADER':
+                row = layout.row()
+                row.ui_units_x = 15
+                row.prop(props, "arrowstyle_start", text="Start")
+                row.separator()
+                row.prop(props, "arrowstyle_end", text="End")
+            else:
+                col = layout.row().column(align=True)
+                col.prop(props, "arrowstyle_start", text="Style Start")
+                col.prop(props, "arrowstyle_end", text="End")
+        elif tool.idname == "builtin.annotate" and region_type != 'TOOL_HEADER':
+            layout.separator()
+            props = tool.operator_properties("gpencil.annotate")
+            layout.prop(props, "use_stabilizer", text="Stabilize Stroke")
+            col = layout.column(align=False)
+            col.active = props.use_stabilizer
+            col.prop(props, "stabilizer_radius", text="Radius", slider=True)
+            col.prop(props, "stabilizer_factor", text="Factor", slider=True)
 
     @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
     def scribble(*, draw_settings):
@@ -859,23 +891,61 @@ class _defs_edit_curve:
 
     @ToolDef.from_fn
     def draw():
-        def draw_settings(context, layout, _tool):
+        def draw_settings(context, layout, tool, *, extra=False):
             # Tool settings initialize operator options.
             tool_settings = context.tool_settings
             cps = tool_settings.curve_paint_settings
+            region_type = context.region.type
 
-            col = layout.column()
+            if region_type == 'TOOL_HEADER':
+                if not extra:
+                    layout.prop(cps, "curve_type", text="")
+                    layout.prop(cps, "depth_mode", expand=True)
+                    layout.popover("TOPBAR_PT_tool_settings_extra", text="...")
+                    return
 
-            col.prop(cps, "curve_type")
+            layout.use_property_split = True
+            layout.use_property_decorate = False
 
+            if region_type != 'TOOL_HEADER':
+                layout.prop(cps, "curve_type")
+                layout.separator()
             if cps.curve_type == 'BEZIER':
-                col.prop(cps, "error_threshold")
-                col.prop(cps, "fit_method")
-                col.prop(cps, "use_corners_detect")
+                layout.prop(cps, "fit_method")
+                layout.prop(cps, "error_threshold")
+                if region_type != 'TOOL_HEADER':
+                    row = layout.row(heading="Detect Corners", align=True)
+                else:
+                    row = layout.row(heading="Corners", align=True)
+                row.prop(cps, "use_corners_detect", text="")
+                sub = row.row(align=True)
+                sub.active = cps.use_corners_detect
+                sub.prop(cps, "corner_angle", text="")
+                layout.separator()
 
-                col = layout.row()
-                col.active = cps.use_corners_detect
-                col.prop(cps, "corner_angle")
+
+            col = layout.column(align=True)
+            col.prop(cps, "radius_taper_start", text="Taper Start", slider=True)
+            col.prop(cps, "radius_taper_end", text="End", slider=True)
+            col = layout.column(align=True)
+            col.prop(cps, "radius_min", text="Radius Min")
+            col.prop(cps, "radius_max", text="Max")
+            col.prop(cps, "use_pressure_radius")
+
+            layout.separator()
+
+            if region_type != 'TOOL_HEADER':
+                row = layout.row()
+                row.prop(cps, "depth_mode", expand=True)
+            if cps.depth_mode == 'SURFACE':
+                col = layout.column()
+                col.prop(cps, "surface_offset")
+                col.prop(cps, "use_offset_absolute")
+                col.prop(cps, "use_stroke_endpoints")
+                if cps.use_stroke_endpoints:
+                    colsub = layout.column(align=True)
+                    colsub.prop(cps, "surface_plane")
+
 
         return dict(
             idname="builtin.draw",

@@ -337,18 +337,6 @@ static void library_foreach_paint(LibraryForeachIDData *data, Paint *paint)
   FOREACH_FINALIZE_VOID;
 }
 
-static void library_foreach_bone(LibraryForeachIDData *data, Bone *bone)
-{
-  IDP_foreach_property(
-      bone->prop, IDP_TYPE_FILTER_ID, BKE_lib_query_idpropertiesForeachIDLink_callback, data);
-
-  LISTBASE_FOREACH (Bone *, curbone, &bone->childbase) {
-    library_foreach_bone(data, curbone);
-  }
-
-  FOREACH_FINALIZE_VOID;
-}
-
 static void library_foreach_layer_collection(LibraryForeachIDData *data, ListBase *lb)
 {
   LISTBASE_FOREACH (LayerCollection *, lc, lb) {
@@ -676,8 +664,7 @@ static void library_foreach_ID_link(Main *bmain,
 
     switch ((ID_Type)GS(id->name)) {
       case ID_LI: {
-        Library *lib = (Library *)id;
-        CALLBACK_INVOKE(lib->parent, IDWALK_CB_NEVER_SELF);
+        BLI_assert(0);
         break;
       }
       case ID_SCE: {
@@ -903,11 +890,7 @@ static void library_foreach_ID_link(Main *bmain,
       }
 
       case ID_AR: {
-        bArmature *arm = (bArmature *)id;
-
-        LISTBASE_FOREACH (Bone *, bone, &arm->bonebase) {
-          library_foreach_bone(&data, bone);
-        }
+        BLI_assert(0);
         break;
       }
 
@@ -917,26 +900,12 @@ static void library_foreach_ID_link(Main *bmain,
       }
 
       case ID_CU: {
-        Curve *curve = (Curve *)id;
-        CALLBACK_INVOKE(curve->bevobj, IDWALK_CB_NOP);
-        CALLBACK_INVOKE(curve->taperobj, IDWALK_CB_NOP);
-        CALLBACK_INVOKE(curve->textoncurve, IDWALK_CB_NOP);
-        CALLBACK_INVOKE(curve->key, IDWALK_CB_USER);
-        for (i = 0; i < curve->totcol; i++) {
-          CALLBACK_INVOKE(curve->mat[i], IDWALK_CB_USER);
-        }
-        CALLBACK_INVOKE(curve->vfont, IDWALK_CB_USER);
-        CALLBACK_INVOKE(curve->vfontb, IDWALK_CB_USER);
-        CALLBACK_INVOKE(curve->vfonti, IDWALK_CB_USER);
-        CALLBACK_INVOKE(curve->vfontbi, IDWALK_CB_USER);
+        BLI_assert(0);
         break;
       }
 
       case ID_MB: {
-        MetaBall *metaball = (MetaBall *)id;
-        for (i = 0; i < metaball->totcol; i++) {
-          CALLBACK_INVOKE(metaball->mat[i], IDWALK_CB_USER);
-        }
+        BLI_assert(0);
         break;
       }
 
@@ -946,27 +915,17 @@ static void library_foreach_ID_link(Main *bmain,
       }
 
       case ID_TE: {
-        Tex *texture = (Tex *)id;
-        if (texture->nodetree) {
-          /* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
-          BKE_library_foreach_ID_embedded(&data, (ID **)&texture->nodetree);
-        }
-        CALLBACK_INVOKE(texture->ima, IDWALK_CB_USER);
+        BLI_assert(0);
         break;
       }
 
       case ID_LT: {
-        Lattice *lattice = (Lattice *)id;
-        CALLBACK_INVOKE(lattice->key, IDWALK_CB_USER);
+        BLI_assert(0);
         break;
       }
 
       case ID_LA: {
-        Light *lamp = (Light *)id;
-        if (lamp->nodetree) {
-          /* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
-          BKE_library_foreach_ID_embedded(&data, (ID **)&lamp->nodetree);
-        }
+        BLI_assert(0);
         break;
       }
 
