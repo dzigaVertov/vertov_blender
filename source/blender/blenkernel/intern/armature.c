@@ -871,7 +871,8 @@ void BKE_pchan_bbone_spline_params_get(struct bPoseChannel *pchan,
       param->next_bbone = (next->bone->segments > 1);
 
       /* Use bone tail as absolute position. */
-      copy_v3_v3(h2, rest ? next->bone->arm_tail : next->pose_tail);
+      copy_v3_v3(h2, rest ? next->bone->arm_head : next->pose_head);
+      /* MARCELO changed here arm_tail por arm_head y next->pose_head por next->pose_tail */
     }
 
     if (!done) {

@@ -1927,7 +1927,9 @@ static void get_points_coords(float *coords, int num_points, bGPDstroke *gps)
 static int get_the_fitted_spline(float *coords,
 				 int num_points,
 				 float error_threshold,
-				 float **r_cubic_spline,  uint *r_cubic_spline_len )
+				 float **r_cubic_spline,
+				 uint *r_cubic_spline_len,
+				 uint **orig_index)
 {
   int result;
   uint *corners = NULL;
@@ -1956,6 +1958,7 @@ static int get_the_fitted_spline(float *coords,
   uint corners_index_len = 0;
   uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
 
+
   result = curve_fit_cubic_to_points_refit_fl(coords,
 					      num_points,
 					      3,
@@ -1966,14 +1969,15 @@ static int get_the_fitted_spline(float *coords,
 					      corner_angle,
 					      r_cubic_spline,
 					      r_cubic_spline_len,
-					      NULL,
+					      orig_index,
 					      &corners_index,
 					      &corners_index_len);
-    
+
+
   if (corners){
     free(corners);
   }
-    
+     
   return result;
 }
 
@@ -2024,7 +2028,8 @@ static bool ease_coef_for_bbone( const float *handle_l,
  */
 static bool set_bones_positions(bContext *C,
 				uint cubic_spline_len,
-				const float *cubic_spline)
+				const float *cubic_spline,
+				uint *stroke_idx)
 {
   /* get the collection prop */
   PointerRNA ptr;
@@ -2037,7 +2042,7 @@ static bool set_bones_positions(bContext *C,
   int num_bones = cubic_spline_len - 1;
   int dims = 3;
   const float* co = cubic_spline;
-  for (int i = 0; i < num_bones; i++, co += dims * 3) { /* 4 points  per bone */
+  for (int i = 0; i < num_bones; i++, co += dims * 3, stroke_idx++) { /* 4 points  per bone */
     RNA_id_pointer_create(&wm->id, &ptr);
     RNA_collection_add(&ptr, "fitted_bones", &ptr2);
     RNA_float_set_array(&ptr2, "bone_head", (co + (dims * 1)));
@@ -2047,7 +2052,7 @@ static bool set_bones_positions(bContext *C,
 
     ease_coef_for_bbone((co + (dims*2)), ease);
     RNA_float_set_array(&ptr2, "ease", ease);
-    
+    RNA_int_set_array(&ptr2, "vg_idx", stroke_idx);
   }
 
     return true;
@@ -2129,9 +2134,16 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
   float *cubic_spline = NULL;
   uint cubic_spline_len = 0;
+  uint *stroke_idx;		/* where in the stroke would the bones land */
   float error = RNA_float_get(op->ptr, "error_threshold");
   
-  get_the_fitted_spline(coords, num_points, error, &cubic_spline, &cubic_spline_len );
+  
+  get_the_fitted_spline(coords,
+			num_points,
+			error,
+			&cubic_spline,
+			&cubic_spline_len,
+			&stroke_idx);
     
   /* Liberar la memoria de las coords */
   MEM_freeN(coords);
@@ -2141,10 +2153,11 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
     add_curve(C, cubic_spline_len, cubic_spline, gpl->info);    
   }
   else {
-    set_bones_positions(C, cubic_spline_len, cubic_spline);
+    set_bones_positions(C, cubic_spline_len, cubic_spline, stroke_idx);
   }
 
   free(cubic_spline);
+  free(stroke_idx);
   return true;
 }
 
