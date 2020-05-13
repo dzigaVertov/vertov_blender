@@ -714,7 +714,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.operator("object.multires_rebuild_subdiv", text="Rebuild Subdivisions")
         col.prop(md, "uv_smooth", text="")
         col.prop(md, "show_only_control_edges")
-        col.prop(md, "use_creases")
+
+        row = col.row()
+        row.enabled = not have_displacement
+        row.prop(md, "use_creases")
 
         layout.separator()
 
@@ -1822,6 +1825,10 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         row.prop(md, "invert_vertex_group", text="", icon='ARROW_LEFTRIGHT')
         col.prop(md, "thresh", text="Threshold")
         col.prop(md, "face_influence")
+
+    def SIMULATION(self, layout, ob, md):
+        layout.prop(md, "simulation")
+        layout.prop(md, "data_path")
 
 
 class DATA_PT_gpencil_modifiers(ModifierButtonsPanel, Panel):
