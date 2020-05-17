@@ -2107,27 +2107,22 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
   bGPDstroke *gps;
   
-  /* Otener un stroke seleccionado  */
-  /* TODO: This should be checked in poll */
-  bool found = false;
-  for (gps= gpf->strokes.first; gps; gps = gps->next){
-    if ( BKE_gpencil_stroke_select_check(gps)){
-      found = true;
-      break;
-      }
+  /* Otener el stroke a fittear  */
+  int stroke_index = RNA_int_get(op->ptr, "stroke_index");
+  if (stroke_index == -1){
+    gps = gpf->strokes.last;
+    printf("we are in the stroke_index==-1 scenario\n");
   }
-  if (!found){
-    return false;    
+  else {
+    gps = gpf->strokes.first;
+    for (int i = 0; i<=stroke_index; i++){
+      printf("whe are in the other scenario: %d\n", stroke_index+1);
+      if (gps->next){
+	gps = gps->next;      
+      }
+    }    
   }
   
-  /* check if there's data to work with */
-  /* TODO: This should be checked in poll */
-  if (gpd == NULL) {
-    BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data to work on");
-    return OPERATOR_CANCELLED;
-  }
-
-
   int num_points = gps->totpoints;
   float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
   get_points_coords(coords, num_points, gps);
@@ -2230,6 +2225,7 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
   
     
   /* Properties */
+  /* Error threshold */
   ot->prop = RNA_def_float(ot->srna,
 			   "error_threshold",
 			   0.05f,
@@ -2240,6 +2236,7 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 			   0.0f,
 			   10.0f);
 
+  /* Create a curve or coordinates for poser */
   RNA_def_enum(ot->srna,
 	       "target",
 	       &prop_gpencil_fit_target,
@@ -2247,6 +2244,17 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 	       "Fitting target",
 	       "Target to fit the stroke to");
 
+  /* Index of the stroke to be fitted */
+  RNA_def_int(ot->srna,
+	      "stroke_index",
+	      -1,
+	      -10000,
+	      10000,
+	      "stroke_index",
+	      "Index of the stroke to be fitted",
+	      -10000,
+	      10000);
+  
   /* Save the grease pencil object */
   RNA_def_pointer_runtime(ot->srna,
 			  "ob_gp",&RNA_Object, "grease pencil object",
