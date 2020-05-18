@@ -2111,12 +2111,10 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   int stroke_index = RNA_int_get(op->ptr, "stroke_index");
   if (stroke_index == -1){
     gps = gpf->strokes.last;
-    printf("we are in the stroke_index==-1 scenario\n");
   }
   else {
     gps = gpf->strokes.first;
     for (int i = 0; i<=stroke_index; i++){
-      printf("whe are in the other scenario: %d\n", stroke_index+1);
       if (gps->next){
 	gps = gps->next;      
       }
