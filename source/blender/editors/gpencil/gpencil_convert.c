@@ -2115,6 +2115,9 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   else {
     gps = gpf->strokes.first;
     for (int i = 0; i<=stroke_index; i++){
+      if (BKE_gpencil_stroke_select_check(gps)){
+	break;
+      }
       if (gps->next){
 	gps = gps->next;      
       }
@@ -2195,7 +2198,7 @@ bool gp_fitcurve_poll(bContext *C){
    */
   return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
           (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)) &&
-          (gpf->strokes.first) && (!GPENCIL_ANY_EDIT_MODE(gpd)));
+	   (gpf->strokes.first));// && (!GPENCIL_ANY_EDIT_MODE(gpd)));
 
 }
 
