@@ -612,6 +612,27 @@ static void rna_GPencil_stroke_point_select_set(PointerRNA *ptr, const bool valu
   }
 }
 
+static void rna_GPencil_bonegroup_add(ID *id, bGPDstroke *stroke)
+{
+  bGPdata *gpd = (bGPdata *)id;
+  /* create space at the end of the array for extra points */
+  /* TODO: Change this to a reasonable behavior */
+  /* Copying the stroke_point_add code here to get it working  */
+  /* Crearly a bad approach in this case: reallocating memory on each call */
+  /* to store a single int */
+  stroke->bone_groups = MEM_recallocN_id(stroke->bone_groups,
+				    sizeof(IntPropertyRNA),
+				    "gp_bonegroups");
+}
+
+static void rna_GPencil_bonegroup_pop(ID *id,
+				      bGPDstroke *stroke,
+				      ReportList *reports,
+				      int index)
+{
+  return;
+}
+
 static void rna_GPencil_stroke_point_add(
     ID *id, bGPDstroke *stroke, int count, float pressure, float strength)
 {
@@ -999,6 +1020,28 @@ static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
 
+static void rna_def_gpencil_bonegroups_api(BlenderRNA *brna, PropertyRNA *cprop)
+{
+  StructRNA *srna;
+  FunctionRNA *func;
+  PropertyRNA *parm;
+
+  RNA_def_property_srna(cprop, "GPencilBoneGroups");
+  srna = RNA_def_struct(brna, "GPencilBoneGroups", NULL);
+  RNA_def_struct_sdna(srna, "bGPDstroke");
+  RNA_def_struct_ui_text(srna, "Grease Pencil Bone Groups", "Collection of grease pencil bone groups");
+
+  func = RNA_def_function(srna, "add", "rna_GPencil_bonegroup_add");
+  RNA_def_function_ui_description(func, "Add a new grase pencil bone group");
+  RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+
+  func = RNA_def_function(srna, "pop", "rna_GPencil_bonegroup_pop");
+  RNA_def_function_ui_description(func, "Remove a grease pencil bone group");
+  RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_SELF_ID);
+  RNA_def_int(func, "index", -1, INT_MIN, INT_MAX, "Index", "bone group index", INT_MIN, INT_MAX);
+}
+
+
 static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cprop)
 {
   StructRNA *srna;
@@ -1008,8 +1051,7 @@ static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cpr
   RNA_def_property_srna(cprop, "GPencilStrokePoints");
   srna = RNA_def_struct(brna, "GPencilStrokePoints", NULL);
   RNA_def_struct_sdna(srna, "bGPDstroke");
-  RNA_def_struct_ui_text(
-      srna, "Grease Pencil Stroke Points", "Collection of grease pencil stroke points");
+  RNA_def_struct_ui_text(srna, "Grease Pencil Stroke Points", "Collection of grease pencil stroke points");
 
   func = RNA_def_function(srna, "add", "rna_GPencil_stroke_point_add");
   RNA_def_function_ui_description(func, "Add a new grease pencil stroke point");
@@ -1117,6 +1159,14 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
   RNA_def_struct_sdna(srna, "bGPDstroke");
   RNA_def_struct_ui_text(srna, "Grease Pencil Stroke", "Freehand curve defining part of a sketch");
 
+  /* Bone Groups */
+  prop = RNA_def_property(srna, "bone_groups", PROP_COLLECTION, PROP_NONE);
+  RNA_def_property_collection_sdna(prop, NULL, "bone_groups", "num_bgroups");
+  RNA_def_property_struct_type(prop, "IntProperty");
+  RNA_def_property_ui_text(prop, "Bone Groups", "Bones that affect the stroke");
+  rna_def_gpencil_bonegroups_api(brna, prop);
+  
+  
   /* Points */
   prop = RNA_def_property(srna, "points", PROP_COLLECTION, PROP_NONE);
   RNA_def_property_collection_sdna(prop, NULL, "points", "totpoints");
