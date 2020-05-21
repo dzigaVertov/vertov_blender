@@ -37,6 +37,7 @@ struct MDeformVert;
 
 #define GP_MATERIAL_BUFFER_LEN 256
 
+
 /* ***************************************** */
 /* GP Stroke Points */
 
@@ -251,9 +252,8 @@ typedef struct bGPDstroke {
   bGPDstroke_Runtime runtime;
 
   /** Bone groups the stroke is affected by */
-  int *bone_groups;
-  int num_bgroups;
-  char _pad4[4];
+  unsigned int bonegroup;
+  char _pad5[4];
   
 } bGPDstroke;
 
