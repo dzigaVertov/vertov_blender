@@ -2193,8 +2193,9 @@ bool gp_fitcurve_poll(bContext *C){
   bGPDframe *gpf = NULL;
 
 
+
   /* if there's valid data (i.e. at least one stroke!),
-   * and if we are not in edit mode!
+   * 
    */
   return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
           (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)) &&
