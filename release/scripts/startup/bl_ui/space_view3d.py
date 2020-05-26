@@ -431,7 +431,7 @@ class _draw_tool_settings_context_mode:
 
             row.prop(gp_settings, "use_material_pin", text="")
 
-            if brush.gpencil_tool in {'DRAW', 'FILL'} and ma:
+            if brush.gpencil_tool in {'DRAW', 'FILL'}:
                 row.separator(factor=1.0)
                 subrow = row.row(align=True)
                 row.prop_enum(settings, "color_mode", 'MATERIAL', text="", icon='MATERIAL')
@@ -6379,7 +6379,7 @@ class VIEW3D_PT_overlay_edit_curve(Panel):
         col.active = display_all
 
         row = col.row()
-        row.prop(overlay, "show_curve_handles", text="Handles")
+        row.prop(overlay, "display_handle", text="Handles")
 
         row = col.row()
         row.prop(overlay, "show_curve_normals", text="")
