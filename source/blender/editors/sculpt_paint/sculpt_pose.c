@@ -389,9 +389,13 @@ typedef struct PoseFloodFillData {
   GSet *visited_face_sets;
 
   /* In face sets origin mode, each vertex can only be assigned to one face set. */
-  bool *is_weighted;
+  BLI_bitmap *is_weighted;
 
   bool is_first_iteration;
+
+  /* In topology mode this stores the furthest point from the stroke origin for cases when a pose
+   * origin based on the brush radius can't be set. */
+  float fallback_floodfill_origin[3];
 
   /* Fallback origin. If we can't find any face set to continue, use the position of all vertices
    * that have the current face set. */
@@ -403,12 +407,17 @@ static bool pose_topology_floodfill_cb(
     SculptSession *ss, int UNUSED(from_v), int to_v, bool is_duplicate, void *userdata)
 {
   PoseFloodFillData *data = userdata;
+  const float *co = SCULPT_vertex_co_get(ss, to_v);
 
   if (data->pose_factor) {
     data->pose_factor[to_v] = 1.0f;
   }
 
-  const float *co = SCULPT_vertex_co_get(ss, to_v);
+  if (len_squared_v3v3(data->pose_initial_co, data->fallback_floodfill_origin) <
+      len_squared_v3v3(data->pose_initial_co, co)) {
+    copy_v3_v3(data->fallback_floodfill_origin, co);
+  }
+
   if (sculpt_pose_brush_is_vertex_inside_brush_radius(
           co, data->pose_initial_co, data->radius, data->symm)) {
     return true;
@@ -441,7 +450,7 @@ static bool pose_face_sets_floodfill_cb(
   if (data->current_face_set == SCULPT_FACE_SET_NONE) {
 
     data->pose_factor[index] = 1.0f;
-    data->is_weighted[index] = true;
+    BLI_BITMAP_ENABLE(data->is_weighted, index);
 
     if (sculpt_pose_brush_is_vertex_inside_brush_radius(
             co, data->pose_initial_co, data->radius, data->symm)) {
@@ -472,9 +481,9 @@ static bool pose_face_sets_floodfill_cb(
 
   if (is_vertex_valid) {
 
-    if (!data->is_weighted[index]) {
+    if (!BLI_BITMAP_TEST(data->is_weighted, index)) {
       data->pose_factor[index] = 1.0f;
-      data->is_weighted[index] = true;
+      BLI_BITMAP_ENABLE(data->is_weighted, index);
       visit_next = true;
     }
 
@@ -547,11 +556,15 @@ void SCULPT_pose_calc_pose_data(Sculpt *sd,
   };
   zero_v3(fdata.pose_origin);
   copy_v3_v3(fdata.pose_initial_co, initial_location);
+  copy_v3_v3(fdata.fallback_floodfill_origin, initial_location);
   SCULPT_floodfill_execute(ss, &flood, pose_topology_floodfill_cb, &fdata);
   SCULPT_floodfill_free(&flood);
 
   if (fdata.tot_co > 0) {
     mul_v3_fl(fdata.pose_origin, 1.0f / (float)fdata.tot_co);
+  }
+  else {
+    copy_v3_v3(fdata.pose_origin, fdata.fallback_floodfill_origin);
   }
 
   /* Offset the pose origin. */
@@ -733,7 +746,7 @@ static SculptPoseIKChain *pose_ik_chain_init_face_sets(
 
   GSet *visited_face_sets = BLI_gset_int_new_ex("visited_face_sets", ik_chain->tot_segments);
 
-  bool *is_weighted = MEM_callocN(sizeof(bool) * totvert, "weighted");
+  BLI_bitmap *is_weighted = BLI_BITMAP_NEW(totvert, "weighted");
 
   int current_face_set = SCULPT_FACE_SET_NONE;
   int prev_face_set = SCULPT_FACE_SET_NONE;
