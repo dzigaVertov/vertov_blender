@@ -1071,6 +1071,23 @@ static void rna_def_gpencil_triangle(BlenderRNA *brna)
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 }
 
+/* Editing Curve data. */
+static void rna_def_gpencil_curve(BlenderRNA *brna)
+{
+  StructRNA *srna;
+  PropertyRNA *prop;
+
+  srna = RNA_def_struct(brna, "GPencilEditCurve", NULL);
+  RNA_def_struct_sdna(srna, "bGPDcurve");
+  RNA_def_struct_ui_text(srna, "Edit Curve", "Edition Curve");
+
+  /* Curve. */
+  prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
+  RNA_def_property_pointer_sdna(prop, NULL, "curve");
+  RNA_def_property_struct_type(prop, "Curve");
+  RNA_def_property_ui_text(prop, "Curve", "Curve data");
+}
+
 static void rna_def_gpencil_mvert_group(BlenderRNA *brna)
 {
   StructRNA *srna;
@@ -1144,6 +1161,12 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
   RNA_def_property_collection_sdna(prop, NULL, "triangles", "tot_triangles");
   RNA_def_property_struct_type(prop, "GPencilTriangle");
   RNA_def_property_ui_text(prop, "Triangles", "Triangulation data for HQ fill");
+
+  /* Edit Curve. */
+  prop = RNA_def_property(srna, "edit_curve", PROP_POINTER, PROP_NONE);
+  RNA_def_property_pointer_sdna(prop, NULL, "editcurve");
+  RNA_def_property_struct_type(prop, "GPencilEditCurve");
+  RNA_def_property_ui_text(prop, "Edit Curve", "Temporary data for Edit Curve");
 
   /* Material Index */
   prop = RNA_def_property(srna, "material_index", PROP_INT, PROP_NONE);
@@ -2134,6 +2157,7 @@ void RNA_def_gpencil(BlenderRNA *brna)
   rna_def_gpencil_stroke(brna);
   rna_def_gpencil_stroke_point(brna);
   rna_def_gpencil_triangle(brna);
+  rna_def_gpencil_curve(brna);
 
   rna_def_gpencil_mvert_group(brna);
 }

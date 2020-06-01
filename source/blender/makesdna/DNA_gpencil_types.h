@@ -30,6 +30,7 @@
 
 struct AnimData;
 struct MDeformVert;
+struct Curve;
 
 #define GP_DEFAULT_PIX_FACTOR 1.0f
 #define GP_DEFAULT_GRID_LINES 4
@@ -166,6 +167,25 @@ typedef enum eGPDpalette_Flag {
   PL_PALETTE_ACTIVE = (1 << 0),
 } eGPDpalette_Flag;
 
+/* Curve for Bezier Editing. */
+typedef struct bGPDcurve {
+  /** Bezier curve. */
+  Curve *curve;
+  /** Array of indexes of nearest stroke points. */
+  int *point_index_array;
+  /* Total elements in the point index array. */
+  int tot_index_array;
+  /** General flag */
+  short flag;
+  char _pad[2];
+} bGPDcurve;
+
+/* bGPDcurve_Flag->flag */
+typedef enum bGPDcurve_Flag {
+  /* Curve requires recalc of the Bezier editing data. */
+  GP_CURVE_RECALC_GEOMETRY = (1 << 0),
+} bGPDcurve_Flag;
+
 /* ***************************************** */
 /* GP Strokes */
 
@@ -245,6 +265,9 @@ typedef struct bGPDstroke {
 
   /** Vertex Color for Fill (one for all stroke, A=mix factor). */
   float vert_color_fill[4];
+
+  /** Curve used to edit the stroke using Bezier handlers. */
+  struct bGPDcurve *editcurve;
 
   bGPDstroke_Runtime runtime;
 } bGPDstroke;
