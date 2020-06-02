@@ -699,6 +699,9 @@ typedef enum eGPdata_Flag {
   /* Allow edit several frames at the same time */
   GP_DATA_STROKE_MULTIEDIT = (1 << 16),
 
+  /* Enable Bezier Editing Curve (a submode of Edit mode). */
+  GP_DATA_CURVE_EDIT_MODE = (1 << 17),
+
   /* Vertex Paint Mode - Toggle paint mode */
   GP_DATA_STROKE_VERTEXMODE = (1 << 18),
 
@@ -748,6 +751,9 @@ typedef enum eGP_DrawMode {
    ((gpd)->flag & (GP_DATA_STROKE_EDITMODE | GP_DATA_STROKE_SCULPTMODE | \
                    GP_DATA_STROKE_WEIGHTMODE | GP_DATA_STROKE_VERTEXMODE)) && \
    ((gpd)->flag & GP_DATA_STROKE_MULTIEDIT))
+
+#define GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) \
+  ((gpd) && ((gpd)->flag & (GP_DATA_STROKE_EDITMODE)) && ((gpd)->flag & GP_DATA_CURVE_EDIT_MODE))
 
 /* Macros to check grease pencil modes */
 #define GPENCIL_ANY_MODE(gpd) \

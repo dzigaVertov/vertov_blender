@@ -7295,6 +7295,13 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
         /* Relink geometry*/
         gps->triangles = newdataadr(fd, gps->triangles);
 
+        /* relink stroke edit curve. */
+        gps->editcurve = newdataadr(fd, gps->editcurve);
+        if (gps->editcurve != NULL) {
+          gps->editcurve->curve = newdataadr(fd, gps->editcurve->curve);
+          gps->editcurve->point_index_array = newdataadr(fd, gps->editcurve->point_index_array);
+        }
+
         /* relink weight data */
         if (gps->dvert) {
           gps->dvert = newdataadr(fd, gps->dvert);
@@ -11607,6 +11614,13 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 {
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     expand_doit(fd, mainvar, gpl->parent);
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        if ((gps->editcurve != NULL) && (gps->editcurve->curve != NULL)) {
+          expand_doit(fd, mainvar, gps->editcurve->curve);
+        }
+      }
+    }
   }
 
   for (int a = 0; a < gpd->totcol; a++) {
