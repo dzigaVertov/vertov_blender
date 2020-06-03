@@ -1081,11 +1081,11 @@ static void rna_def_gpencil_curve(BlenderRNA *brna)
   RNA_def_struct_sdna(srna, "bGPDcurve");
   RNA_def_struct_ui_text(srna, "Edit Curve", "Edition Curve");
 
-  /* Curve. */
-  prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
-  RNA_def_property_pointer_sdna(prop, NULL, "curve");
-  RNA_def_property_struct_type(prop, "Curve");
-  RNA_def_property_ui_text(prop, "Curve", "Curve data");
+  /* Curve. TODO: make BezTriple collection */
+  // prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
+  // RNA_def_property_pointer_sdna(prop, NULL, "curve");
+  // RNA_def_property_struct_type(prop, "Curve");
+  // RNA_def_property_ui_text(prop, "Curve", "Curve data");
 }
 
 static void rna_def_gpencil_mvert_group(BlenderRNA *brna)

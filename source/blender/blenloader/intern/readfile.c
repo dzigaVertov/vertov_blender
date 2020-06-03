@@ -7298,7 +7298,7 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
         /* relink stroke edit curve. */
         gps->editcurve = newdataadr(fd, gps->editcurve);
         if (gps->editcurve != NULL) {
-          gps->editcurve->curve = newdataadr(fd, gps->editcurve->curve);
+          gps->editcurve->curve_points = newdataadr(fd, gps->editcurve->curve_points);
           gps->editcurve->point_index_array = newdataadr(fd, gps->editcurve->point_index_array);
         }
 
@@ -11616,8 +11616,8 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
     expand_doit(fd, mainvar, gpl->parent);
     LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        if ((gps->editcurve != NULL) && (gps->editcurve->curve != NULL)) {
-          expand_doit(fd, mainvar, gps->editcurve->curve);
+        if ((gps->editcurve != NULL) && (gps->editcurve->curve_points != NULL)) {
+          expand_doit(fd, mainvar, gps->editcurve->curve_points);
         }
       }
     }

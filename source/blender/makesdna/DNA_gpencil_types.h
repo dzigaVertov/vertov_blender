@@ -169,13 +169,13 @@ typedef enum eGPDpalette_Flag {
 
 /* Curve for Bezier Editing. */
 typedef struct bGPDcurve {
-  /** Bezier curve. */
-  Curve *curve;
+  /** Array of BezTriple. */
+  BezTriple *curve_points;
   /** Array of indexes of nearest stroke points. */
   int *point_index_array;
-  /* Total elements in the point index array. */
-  int tot_index_array;
-  /** General flag */
+  /** Total number of curve points. */
+  int tot_curve_points;
+  /** General flag. */
   short flag;
   char _pad[2];
 } bGPDcurve;
