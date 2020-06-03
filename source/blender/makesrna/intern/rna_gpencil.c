@@ -1081,6 +1081,11 @@ static void rna_def_gpencil_curve(BlenderRNA *brna)
   RNA_def_struct_sdna(srna, "bGPDcurve");
   RNA_def_struct_ui_text(srna, "Edit Curve", "Edition Curve");
 
+  prop = RNA_def_property(srna, "curve_points", PROP_COLLECTION, PROP_NONE);
+  RNA_def_property_collection_sdna(prop, NULL, "curve_points", "tot_curve_points");
+  RNA_def_property_struct_type(prop, "BezierSplinePoint");
+  RNA_def_property_ui_text(prop, "Curve Points", "Curve data points");
+
   /* Curve. TODO: make BezTriple collection */
   // prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
   // RNA_def_property_pointer_sdna(prop, NULL, "curve");
