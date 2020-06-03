@@ -177,6 +177,16 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
   }
 }
 
+void BKE_gpencil_free_editcurve(bGPDcurve *editcurve)
+{
+  if (editcurve == NULL) {
+    return;
+  }
+  MEM_freeN(editcurve->curve_points);
+  MEM_freeN(editcurve->point_index_array);
+  MEM_freeN(editcurve);
+}
+
 /* free stroke, doesn't unlink from any listbase */
 void BKE_gpencil_free_stroke(bGPDstroke *gps)
 {
@@ -193,6 +203,9 @@ void BKE_gpencil_free_stroke(bGPDstroke *gps)
   }
   if (gps->triangles) {
     MEM_freeN(gps->triangles);
+  }
+  if (gps->editcurve) {
+    BKE_gpencil_free_editcurve(gps->editcurve);
   }
 
   MEM_freeN(gps);
