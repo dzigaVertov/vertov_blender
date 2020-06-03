@@ -636,12 +636,10 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
   BKE_defvert_array_copy(gps_dst->dvert, gps_src->dvert, gps_src->totpoints);
 }
 
-/* make a copy of a given gpencil stroke editcurve */
+/* Make a copy of a given gpencil stroke editcurve */
 bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
 {
-  bGPDcurve *gpc_dst = NULL;
-
-  gpc_dst = MEM_dupallocN(gpc_src);
+  bGPDcurve *gpc_dst = MEM_dupallocN(gpc_src);
   gpc_dst->point_index_array = MEM_dupallocN(gpc_src->point_index_array);
 
   if (gpc_src->curve_points != NULL) {
@@ -651,7 +649,7 @@ bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
   return gpc_dst;
 }
 
-/* make a copy of a given gpencil stroke */
+/* Make a copy of a given gpencil stroke */
 bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points)
 {
   bGPDstroke *gps_dst = NULL;
