@@ -89,7 +89,7 @@ struct bGPdata;
 
 void BKE_gpencil_free_point_weights(struct MDeformVert *dvert);
 void BKE_gpencil_free_stroke_weights(struct bGPDstroke *gps);
-void BKE_gpencil_free_editcurve(struct bGPDcurve *editcurve);
+void BKE_gpencil_free_stroke_editcurve(struct bGPDstroke *gps);
 void BKE_gpencil_free_stroke(struct bGPDstroke *gps);
 bool BKE_gpencil_free_strokes(struct bGPDframe *gpf);
 void BKE_gpencil_free_frames(struct bGPDlayer *gpl);

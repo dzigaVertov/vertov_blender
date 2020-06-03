@@ -177,8 +177,12 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
   }
 }
 
-void BKE_gpencil_free_editcurve(bGPDcurve *editcurve)
+void BKE_gpencil_free_stroke_editcurve(bGPDstroke *gps)
 {
+  if (gps == NULL) {
+    return;
+  }
+  bGPDcurve *editcurve = gps->editcurve;
   if (editcurve == NULL) {
     return;
   }
@@ -204,8 +208,8 @@ void BKE_gpencil_free_stroke(bGPDstroke *gps)
   if (gps->triangles) {
     MEM_freeN(gps->triangles);
   }
-  if (gps->editcurve) {
-    BKE_gpencil_free_editcurve(gps->editcurve);
+  if (gps->editcurve != NULL) {
+    BKE_gpencil_free_stroke_editcurve(gps);
   }
 
   MEM_freeN(gps);
@@ -582,6 +586,8 @@ bGPDstroke *BKE_gpencil_stroke_new(int mat_idx, int totpoints, short thickness)
 
   gps->mat_nr = mat_idx;
 
+  gps->editcurve = NULL;
+
   return gps;
 }
 
@@ -661,12 +667,13 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_poi
       gps_dst->dvert = MEM_dupallocN(gps_src->dvert);
       BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
     }
-    if (gps_src->editcurve != NULL) {
-      gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
-    }
     else {
       gps_dst->dvert = NULL;
     }
+  }
+
+  if (gps_src->editcurve != NULL) {
+    gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
   }
 
   /* return new stroke */
