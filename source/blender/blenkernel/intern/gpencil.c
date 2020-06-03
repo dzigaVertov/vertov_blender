@@ -630,6 +630,21 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
   BKE_defvert_array_copy(gps_dst->dvert, gps_src->dvert, gps_src->totpoints);
 }
 
+/* make a copy of a given gpencil stroke editcurve */
+bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
+{
+  bGPDcurve *gpc_dst = NULL;
+
+  gpc_dst = MEM_dupallocN(gpc_src);
+  gpc_dst->point_index_array = MEM_dupallocN(gpc_src->point_index_array);
+
+  if (gpc_src->curve_points != NULL) {
+    gpc_dst->curve_points = MEM_dupallocN(gpc_src->curve_points);
+  }
+
+  return gpc_dst;
+}
+
 /* make a copy of a given gpencil stroke */
 bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points)
 {
@@ -645,6 +660,9 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_poi
     if (gps_src->dvert != NULL) {
       gps_dst->dvert = MEM_dupallocN(gps_src->dvert);
       BKE_gpencil_stroke_weights_duplicate(gps_src, gps_dst);
+    }
+    if (gps_src->editcurve != NULL) {
+      gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
     }
     else {
       gps_dst->dvert = NULL;
