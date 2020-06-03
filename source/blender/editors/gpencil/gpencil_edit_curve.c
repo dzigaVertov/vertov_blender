@@ -88,7 +88,12 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
   }
 
   LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-    gps->editcurve = create_example_gp_curve();
+    if (gps->flag & GP_STROKE_SELECT) {
+      if (gps->editcurve != NULL) {
+        BKE_gpencil_free_stroke_editcurve(gps);
+      }
+      gps->editcurve = create_example_gp_curve();
+    }
   }
 
   /* notifiers */
@@ -105,7 +110,8 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   /* identifiers */
   ot->name = "Write sample stroke curve data";
   ot->idname = "GPENCIL_OT_write_stroke_curve_data";
-  ot->description = "Test operator to write to the curve data in a grease pencil stroke.";
+  ot->description =
+      "Test operator to write sample curve data to the selected grease pencil strokes.";
 
   /* api callbacks */
   ot->exec = gp_write_stroke_curve_data_exec;
