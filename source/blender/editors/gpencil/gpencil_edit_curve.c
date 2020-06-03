@@ -36,6 +36,9 @@
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 
+#include "BLI_listbase.h"
+#include "BLI_math.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
 
@@ -49,21 +52,43 @@
 /** \name Test Operator for curve editing
  * \{ */
 
-static int gp_test_stroke_curve_data_exec(bContext *C, wmOperator *op)
+static bGPDcurve *create_example_gp_curve(void)
+{
+  int num_points = 2;
+  bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
+  new_gp_curve->tot_curve_points = num_points;
+  new_gp_curve->curve_points = (BezTriple *)MEM_callocN(sizeof(BezTriple) * num_points, __func__);
+  new_gp_curve->point_index_array = (int *)MEM_callocN(sizeof(int) * num_points, __func__);
+
+  /* We just write some recognizable data to the BezTriple */
+  for (int i = 0; i < num_points; ++i) {
+    BezTriple *bezt = &new_gp_curve->curve_points[i];
+    for (int j = 0; j < 3; ++j) {
+      copy_v3_fl3(bezt->vec[j], i, j, i * j);
+    }
+    bezt->radius = 1.0f;
+    bezt->weight = 2.0f;
+  }
+  return new_gp_curve;
+}
+
+static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
-  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPdata *gpd = ob->data;
 
-  /* sanity checks */
   if (ELEM(NULL, gpd)) {
     return OPERATOR_CANCELLED;
   }
 
-  /* TODO: create new gp object with curve data */
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
-  bGPDlayer *gpf = gpl->actframe;
+  bGPDframe *gpf = gpl->actframe;
   if (ELEM(NULL, gpf)) {
     return OPERATOR_CANCELLED;
+  }
+
+  LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+    gps->editcurve = create_example_gp_curve();
   }
 
   /* notifiers */
@@ -73,17 +98,17 @@ static int gp_test_stroke_curve_data_exec(bContext *C, wmOperator *op)
   return OPERATOR_FINISHED;
 }
 
-void GPENCIL_OT_test_stroke_curve_data(wmOperatorType *ot)
+void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
 {
   PropertyRNA *prop;
 
   /* identifiers */
-  ot->name = "Test stroke curve data";
-  ot->idname = "GPENCIL_OT_test_stroke_curve_data";
-  ot->description = "Test operator to test the curve data in a grease pencil stroke.";
+  ot->name = "Write sample stroke curve data";
+  ot->idname = "GPENCIL_OT_write_stroke_curve_data";
+  ot->description = "Test operator to write to the curve data in a grease pencil stroke.";
 
   /* api callbacks */
-  ot->exec = gp_test_stroke_curve_data_exec;
+  ot->exec = gp_write_stroke_curve_data_exec;
   ot->poll = gp_active_layer_poll;
 
   /* flags */
