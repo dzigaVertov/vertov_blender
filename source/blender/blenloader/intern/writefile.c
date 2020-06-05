@@ -2905,16 +2905,9 @@ static void write_gpencil(BlendWriter *writer, bGPdata *gpd, const void *id_addr
         /* write strokes */
         BLO_write_struct_list(writer, bGPDstroke, &gpf->strokes);
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-          writestruct(wd, DATA, bGPDspoint, gps->totpoints, gps->points);
-          writestruct(wd, DATA, bGPDtriangle, gps->tot_triangles, gps->triangles);
-          writestruct(wd, DATA, bGPDcurve, 1, gps->editcurve);
-          if (gps->editcurve != NULL) {
-            writedata(wd,
-                      DATA,
-                      sizeof(int *) * gps->editcurve->tot_index_array,
-                      gps->editcurve->point_index_array);
-          }
-          write_dverts(wd, gps->totpoints, gps->dvert);
+          BLO_write_struct(writer, bGPDspoint, gps->points);
+          BLO_write_struct(writer, bGPDtriangle, gps->triangles);
+          write_dverts(writer->wd, gps->totpoints, gps->dvert);
         }
       }
     }
