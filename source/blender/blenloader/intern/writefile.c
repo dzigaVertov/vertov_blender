@@ -2894,10 +2894,14 @@ static void write_gpencil(WriteData *wd, bGPdata *gpd, const void *id_address)
           writestruct(wd, DATA, bGPDspoint, gps->totpoints, gps->points);
           writestruct(wd, DATA, bGPDtriangle, gps->tot_triangles, gps->triangles);
           if (gps->editcurve != NULL) {
-            writestruct(wd, DATA, BezTriple, gps->editcurve->tot_curve_points, gps->editcurve->curve_points);
+            writestruct(wd,
+                        DATA,
+                        BezTriple,
+                        gps->editcurve->tot_curve_points,
+                        gps->editcurve->curve_points);
             writedata(wd,
                       DATA,
-                      sizeof(int *) * gps->editcurve->tot_curve_points,
+                      sizeof(int) * gps->editcurve->tot_curve_points,
                       gps->editcurve->point_index_array);
           }
           write_dverts(wd, gps->totpoints, gps->dvert);

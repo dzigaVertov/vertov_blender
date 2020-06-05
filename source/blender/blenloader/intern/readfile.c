@@ -11614,13 +11614,6 @@ static void expand_gpencil(FileData *fd, Main *mainvar, bGPdata *gpd)
 {
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     expand_doit(fd, mainvar, gpl->parent);
-    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
-      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        if ((gps->editcurve != NULL) && (gps->editcurve->curve_points != NULL)) {
-          expand_doit(fd, mainvar, gps->editcurve->curve_points);
-        }
-      }
-    }
   }
 
   for (int a = 0; a < gpd->totcol; a++) {
