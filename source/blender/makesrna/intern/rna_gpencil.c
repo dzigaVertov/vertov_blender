@@ -1311,6 +1311,12 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Cyclic", "Enable cyclic drawing, closing the stroke");
   RNA_def_property_update(prop, 0, "rna_GPencil_update");
 
+  /* The stroke is actually using Curve Edit mode. */
+  prop = RNA_def_property(srna, "use_curve_edit", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_CURVE_MODE);
+  RNA_def_property_ui_text(prop, "Curve Edit", "Stroke is using a Curve to edit shape");
+  RNA_def_property_update(prop, 0, "rna_GPencil_update");
+
   /* Caps mode */
   prop = RNA_def_property(srna, "start_cap_mode", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_sdna(prop, NULL, "caps[0]");
