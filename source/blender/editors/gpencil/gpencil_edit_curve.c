@@ -70,6 +70,8 @@ static bGPDcurve *create_example_gp_curve(int num_points)
     }
     bezt->radius = 1.0f;
     bezt->weight = 2.0f;
+
+    new_gp_curve->point_index_array[i] = i;
   }
   return new_gp_curve;
 }
@@ -115,7 +117,7 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   ot->name = "Write sample stroke curve data";
   ot->idname = "GPENCIL_OT_write_stroke_curve_data";
   ot->description =
-      "Test operator to write sample curve data to the selected grease pencil strokes.";
+      "Test operator to write sample curve data to the selected grease pencil strokes";
 
   /* api callbacks */
   ot->exec = gp_write_stroke_curve_data_exec;

@@ -992,6 +992,41 @@ static void rna_BezTriple_ctrlpoint_set(PointerRNA *ptr, const float *values)
   copy_v3_v3(bezt->vec[1], values);
 }
 
+static int rna_point_index_array_get_length(PointerRNA *ptr, int length[RNA_MAX_ARRAY_DIMENSION])
+{
+  bGPDcurve *editcurve = (bGPDcurve *)ptr->data;
+  if (editcurve != NULL) {
+    length[0] = editcurve->tot_curve_points;
+  }
+  else {
+    length[0] = 0;
+  }
+
+  return length[0];
+}
+
+static void rna_point_index_get(PointerRNA *ptr, int *values)
+{
+  bGPDcurve *editcurve = (bGPDcurve *)ptr->data;
+  if (editcurve != NULL) {
+    int len = editcurve->tot_curve_points;
+    for (int i = 0; i < len; i++) {
+      values[i] = editcurve->point_index_array[i];
+    }
+  }
+}
+
+static void rna_point_index_set(PointerRNA *ptr, const int *values)
+{
+  bGPDcurve *editcurve = (bGPDcurve *)ptr->data;
+  if (editcurve != NULL) {
+    int len = editcurve->tot_curve_points;
+    for (int i = 0; i < len; i++) {
+      editcurve->point_index_array[i] = values[i];
+    }
+  }
+}
+
 #else
 
 static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
@@ -1193,17 +1228,12 @@ static void rna_def_gpencil_curve(BlenderRNA *brna)
   RNA_def_property_struct_type(prop, "GPencilEditCurvePoint");
   RNA_def_property_ui_text(prop, "Curve Points", "Curve data points");
 
-  // RNA_def_property_srna(prop, "GPencilStrokePoints");
-  // srna = RNA_def_struct(brna, "GPencilStrokePoints", NULL);
-  // RNA_def_struct_sdna(srna, "bGPDstroke");
-  // RNA_def_struct_ui_text(
-  //     srna, "Grease Pencil Stroke Points", "Collection of grease pencil stroke points");
-
-  /* Curve. TODO: make BezTriple collection */
-  // prop = RNA_def_property(srna, "curve", PROP_POINTER, PROP_NONE);
-  // RNA_def_property_pointer_sdna(prop, NULL, "curve");
-  // RNA_def_property_struct_type(prop, "Curve");
-  // RNA_def_property_ui_text(prop, "Curve", "Curve data");
+  prop = RNA_def_property(srna, "point_index_array", PROP_INT, PROP_NONE);
+  RNA_def_property_flag(prop, PROP_DYNAMIC);
+  RNA_def_property_multi_array(prop, 1, NULL);
+  RNA_def_property_ui_text(prop, "Index array", "Point index array");
+  RNA_def_property_dynamic_array_funcs(prop, "rna_point_index_array_get_length");
+  RNA_def_property_int_funcs(prop, "rna_point_index_get", "rna_point_index_set", NULL);
 }
 
 static void rna_def_gpencil_mvert_group(BlenderRNA *brna)
