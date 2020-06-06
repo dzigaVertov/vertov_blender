@@ -177,6 +177,20 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
   }
 }
 
+void BKE_gpencil_free_stroke_editcurve(bGPDstroke *gps)
+{
+  if (gps == NULL) {
+    return;
+  }
+  bGPDcurve *editcurve = gps->editcurve;
+  if (editcurve == NULL) {
+    return;
+  }
+  MEM_freeN(editcurve->curve_points);
+  MEM_freeN(editcurve->point_index_array);
+  MEM_freeN(editcurve);
+}
+
 /* free stroke, doesn't unlink from any listbase */
 void BKE_gpencil_free_stroke(bGPDstroke *gps)
 {
@@ -193,6 +207,9 @@ void BKE_gpencil_free_stroke(bGPDstroke *gps)
   }
   if (gps->triangles) {
     MEM_freeN(gps->triangles);
+  }
+  if (gps->editcurve != NULL) {
+    BKE_gpencil_free_stroke_editcurve(gps);
   }
 
   MEM_freeN(gps);
@@ -569,6 +586,8 @@ bGPDstroke *BKE_gpencil_stroke_new(int mat_idx, int totpoints, short thickness)
 
   gps->mat_nr = mat_idx;
 
+  gps->editcurve = NULL;
+
   return gps;
 }
 
@@ -617,7 +636,20 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
   BKE_defvert_array_copy(gps_dst->dvert, gps_src->dvert, gps_src->totpoints);
 }
 
-/* make a copy of a given gpencil stroke */
+/* Make a copy of a given gpencil stroke editcurve */
+bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
+{
+  bGPDcurve *gpc_dst = MEM_dupallocN(gpc_src);
+  gpc_dst->point_index_array = MEM_dupallocN(gpc_src->point_index_array);
+
+  if (gpc_src->curve_points != NULL) {
+    gpc_dst->curve_points = MEM_dupallocN(gpc_src->curve_points);
+  }
+
+  return gpc_dst;
+}
+
+/* Make a copy of a given gpencil stroke */
 bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points)
 {
   bGPDstroke *gps_dst = NULL;
@@ -636,6 +668,10 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_poi
     else {
       gps_dst->dvert = NULL;
     }
+  }
+
+  if (gps_src->editcurve != NULL) {
+    gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
   }
 
   /* return new stroke */

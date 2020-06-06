@@ -736,6 +736,12 @@ class VIEW3D_HT_header(Header):
                 row.prop(tool_settings, "use_gpencil_vertex_select_mask_stroke", text="")
                 row.prop(tool_settings, "use_gpencil_vertex_select_mask_segment", text="")
 
+            # Curve edit mode
+            if gpd.use_stroke_edit_mode:
+                row = layout.row(align=True)
+                row.prop(gpd, "use_curve_edit", text="",
+                         icon='IPO_BEZIER')
+
             if (
                     gpd.use_stroke_edit_mode or
                     gpd.is_stroke_sculpt_mode or

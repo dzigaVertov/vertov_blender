@@ -48,6 +48,7 @@ struct bGPDlayer;
 struct bGPDlayer_Mask;
 struct bGPDspoint;
 struct bGPDstroke;
+struct bGPDcurve;
 struct bGPdata;
 
 #define GPENCIL_SIMPLIFY(scene) ((scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_ENABLE))
@@ -89,6 +90,7 @@ struct bGPdata;
 
 void BKE_gpencil_free_point_weights(struct MDeformVert *dvert);
 void BKE_gpencil_free_stroke_weights(struct bGPDstroke *gps);
+void BKE_gpencil_free_stroke_editcurve(struct bGPDstroke *gps);
 void BKE_gpencil_free_stroke(struct bGPDstroke *gps);
 bool BKE_gpencil_free_strokes(struct bGPDframe *gpf);
 void BKE_gpencil_free_frames(struct bGPDlayer *gpl);
@@ -110,6 +112,7 @@ struct bGPdata *BKE_gpencil_data_addnew(struct Main *bmain, const char name[]);
 struct bGPDframe *BKE_gpencil_frame_duplicate(const struct bGPDframe *gpf_src);
 struct bGPDlayer *BKE_gpencil_layer_duplicate(const struct bGPDlayer *gpl_src);
 void BKE_gpencil_frame_copy_strokes(struct bGPDframe *gpf_src, struct bGPDframe *gpf_dst);
+struct bGPDcurve *BKE_gpencil_stroke_curve_duplicate(struct bGPDcurve *gpc_src);
 struct bGPDstroke *BKE_gpencil_stroke_duplicate(struct bGPDstroke *gps_src, const bool dup_points);
 
 struct bGPdata *BKE_gpencil_copy(struct Main *bmain, const struct bGPdata *gpd);

@@ -569,6 +569,8 @@ void ED_operatortypes_gpencil(void)
   WM_operatortype_append(GPENCIL_OT_sculpt_paint);
   WM_operatortype_append(GPENCIL_OT_weight_paint);
 
+  WM_operatortype_append(GPENCIL_OT_write_sample_stroke_curve_data);
+
   /* Editing (Buttons) ------------ */
 
   WM_operatortype_append(GPENCIL_OT_annotation_add);

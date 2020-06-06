@@ -2872,6 +2872,13 @@ static void write_gpencil(BlendWriter *writer, bGPdata *gpd, const void *id_addr
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           BLO_write_struct_array(writer, bGPDspoint, gps->totpoints, gps->points);
           BLO_write_struct_array(writer, bGPDtriangle, gps->tot_triangles, gps->triangles);
+          if (gps->editcurve != NULL) {
+            BLO_write_struct(writer, bGPDcurve, gps->editcurve);
+            BLO_write_struct_array(
+                writer, BezTriple, gps->editcurve->tot_curve_points, gps->editcurve->curve_points);
+            BLO_write_int32_array(
+                writer, gps->editcurve->tot_curve_points, gps->editcurve->point_index_array);
+          }
           write_dverts(writer, gps->totpoints, gps->dvert);
         }
       }
