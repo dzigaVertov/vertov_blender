@@ -2879,7 +2879,7 @@ static void write_gpencil(BlendWriter *writer, bGPdata *gpd, const void *id_addr
             BLO_write_int32_array(
                 writer, gps->editcurve->tot_curve_points, gps->editcurve->point_index_array);
           }
-          write_dverts(writer->wd, gps->totpoints, gps->dvert);
+          write_dverts(writer, gps->totpoints, gps->dvert);
         }
       }
     }

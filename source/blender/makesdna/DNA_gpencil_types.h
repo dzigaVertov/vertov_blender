@@ -699,14 +699,14 @@ typedef enum eGPdata_Flag {
   /* Allow edit several frames at the same time */
   GP_DATA_STROKE_MULTIEDIT = (1 << 16),
 
-  /* Enable Bezier Editing Curve (a submode of Edit mode). */
-  GP_DATA_CURVE_EDIT_MODE = (1 << 17),
-
   /* Vertex Paint Mode - Toggle paint mode */
   GP_DATA_STROKE_VERTEXMODE = (1 << 18),
 
   /* Autolock not active layers */
   GP_DATA_AUTOLOCK_LAYERS = (1 << 20),
+
+  /* Enable Bezier Editing Curve (a submode of Edit mode). */
+  GP_DATA_CURVE_EDIT_MODE = (1 << 21),
 } eGPdata_Flag;
 
 /* gpd->onion_flag */
