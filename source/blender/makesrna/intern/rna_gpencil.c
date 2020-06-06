@@ -150,6 +150,22 @@ static void rna_GPencil_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Pointe
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
+static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+  ToolSettings *ts = scene->toolsettings;
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
+
+  /* If the current select mode is segment and the Bezier mode is on, change
+   * to Point because segment is not supported. */
+  if ((GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) &&
+      (ts->gpencil_selectmode_edit == GP_SELECTMODE_SEGMENT)) {
+    ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
+  }
+
+  /* Standard update. */
+  rna_GPencil_update(bmain, scene, ptr);
+}
+
 static void rna_GPencil_dependency_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
   DEG_id_tag_update(ptr->owner_id, ID_RECALC_TRANSFORM);
@@ -2111,7 +2127,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   prop = RNA_def_property(srna, "use_curve_edit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_EDIT_MODE);
   RNA_def_property_ui_text(prop, "Curve Edit", "Edit strokes using curve handles");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_edit_update");
 
   prop = RNA_def_property(srna, "use_autolock_layers", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_AUTOLOCK_LAYERS);

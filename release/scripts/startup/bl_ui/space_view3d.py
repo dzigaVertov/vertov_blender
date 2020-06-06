@@ -720,7 +720,17 @@ class VIEW3D_HT_header(Header):
             # Select mode for Editing
             if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.prop(tool_settings, "gpencil_selectmode_edit", text="", expand=True)
+                row.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='POINT')
+                row.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='STROKE')
+
+                subrow = row.row(align=True)
+                subrow.enabled = not gpd.use_curve_edit
+                subrow.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='SEGMENT')
+
+                # Curve edit submode
+                row = layout.row(align=True)
+                row.prop(gpd, "use_curve_edit", text="",
+                         icon='IPO_BEZIER')
 
             # Select mode for Sculpt
             if gpd.is_stroke_sculpt_mode:
@@ -735,12 +745,6 @@ class VIEW3D_HT_header(Header):
                 row.prop(tool_settings, "use_gpencil_vertex_select_mask_point", text="")
                 row.prop(tool_settings, "use_gpencil_vertex_select_mask_stroke", text="")
                 row.prop(tool_settings, "use_gpencil_vertex_select_mask_segment", text="")
-
-            # Curve edit mode
-            if gpd.use_stroke_edit_mode:
-                row = layout.row(align=True)
-                row.prop(gpd, "use_curve_edit", text="",
-                         icon='IPO_BEZIER')
 
             if (
                     gpd.use_stroke_edit_mode or
