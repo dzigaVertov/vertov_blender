@@ -7177,10 +7177,10 @@ static void direct_link_gpencil(BlendDataReader *reader, bGPdata *gpd)
         BLO_read_data_address(reader, &gps->triangles);
 
         /* relink stroke edit curve. */
-        gps->editcurve = newdataadr(fd, gps->editcurve);
+        BLO_read_data_address(reader, &gps->editcurve);
         if (gps->editcurve != NULL) {
-          gps->editcurve->curve_points = newdataadr(fd, gps->editcurve->curve_points);
-          gps->editcurve->point_index_array = newdataadr(fd, gps->editcurve->point_index_array);
+          BLO_read_data_address(reader, &gps->editcurve->curve_points);
+          BLO_read_data_address(reader, &gps->editcurve->point_index_array);
         }
 
         /* relink weight data */
