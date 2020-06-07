@@ -1171,18 +1171,22 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
   prop = RNA_def_property(srna, "select_left_handle", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "f1", 0);
   RNA_def_property_ui_text(prop, "Handle 1 selected", "Handle 1 selection status");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "select_right_handle", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "f3", 0);
   RNA_def_property_ui_text(prop, "Handle 2 selected", "Handle 2 selection status");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "select_control_point", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "f2", 0);
   RNA_def_property_ui_text(prop, "Control Point selected", "Control point selection status");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "hide", 0);
   RNA_def_property_ui_text(prop, "Hide", "Visibility status");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   /* Vector values */
   prop = RNA_def_property(srna, "handle_left", PROP_FLOAT, PROP_TRANSLATION);
@@ -1191,6 +1195,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_handle1_get", "rna_BezTriple_handle1_set", NULL);
   RNA_def_property_ui_text(prop, "Handle 1", "Coordinates of the first handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "co", PROP_FLOAT, PROP_TRANSLATION);
   RNA_def_property_array(prop, 3);
@@ -1198,6 +1203,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_ctrlpoint_get", "rna_BezTriple_ctrlpoint_set", NULL);
   RNA_def_property_ui_text(prop, "Control Point", "Coordinates of the control point");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "handle_right", PROP_FLOAT, PROP_TRANSLATION);
   RNA_def_property_array(prop, 3);
@@ -1205,12 +1211,13 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_handle2_get", "rna_BezTriple_handle2_set", NULL);
   RNA_def_property_ui_text(prop, "Handle 2", "Coordinates of the second handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-  /* Number values */
   prop = RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
   RNA_def_property_float_sdna(prop, NULL, "radius");
   RNA_def_property_range(prop, 0.0f, FLT_MAX);
   RNA_def_property_ui_text(prop, "Radius", "Radius");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
 
 /* Editing Curve data. */
