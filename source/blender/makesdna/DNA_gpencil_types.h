@@ -201,7 +201,8 @@ typedef struct bGPDstroke_Runtime {
   int stroke_start;
   /** Triangle offset in the ibo where this fill starts. */
   int fill_start;
-  int _pad[1];
+  /** Curve Handles offset in the ibo where this fill starts. */
+  int curve_start;
 
   /** Original stroke (used to dereference evaluated data) */
   struct bGPDstroke *gps_orig;
