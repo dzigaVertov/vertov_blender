@@ -201,7 +201,8 @@ typedef struct bGPDstroke_Runtime {
   int stroke_start;
   /** Triangle offset in the ibo where this fill starts. */
   int fill_start;
-  int _pad[1];
+  /** Curve Handles offset in the ibo where this handle starts. */
+  int curve_start;
 
   /** Original stroke (used to dereference evaluated data) */
   struct bGPDstroke *gps_orig;
@@ -295,6 +296,8 @@ typedef enum eGPDstroke_Flag {
   GP_STROKE_TAG = (1 << 14),
   /* only for use with stroke-buffer (while drawing eraser) */
   GP_STROKE_ERASER = (1 << 15),
+  /* Stroke is actually using curve edition */
+  GP_STROKE_CURVE_MODE = (1 << 16),
 } eGPDstroke_Flag;
 
 /* bGPDstroke->caps */
