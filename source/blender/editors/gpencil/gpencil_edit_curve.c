@@ -55,24 +55,35 @@
 /** \name Test Operator for curve editing
  * \{ */
 
-static bGPDcurve *create_example_gp_curve(int num_points)
+static bGPDcurve *create_example_gp_curve(bGPDstroke *gps)
 {
-  bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
-  new_gp_curve->tot_curve_points = num_points;
-  new_gp_curve->curve_points = (BezTriple *)MEM_callocN(sizeof(BezTriple) * num_points, __func__);
-  new_gp_curve->point_index_array = (int *)MEM_callocN(sizeof(int) * num_points, __func__);
-
-  /* We just write some recognizable data to the BezTriple */
-  for (int i = 0; i < num_points; ++i) {
-    BezTriple *bezt = &new_gp_curve->curve_points[i];
-    for (int j = 0; j < 3; ++j) {
-      copy_v3_fl3(bezt->vec[j], i, j, i * j);
-    }
-    bezt->radius = 1.0f;
-    bezt->weight = 2.0f;
-
-    new_gp_curve->point_index_array[i] = i;
+  if (gps->totpoints < 2) {
+    return NULL;
   }
+
+  /* create curve with two points, one for each end point of the stroke */
+  bGPDcurve *new_gp_curve = BKE_gpencil_stroke_editcurve_new(2);
+
+  float offset1[3] = {1.0f, 0.0f, 0.0f};
+  float offset2[3] = {-1.0f, 0.0f, 0.0f};
+
+  bGPDspoint *first = &gps->points[0];
+  bGPDspoint *last = &gps->points[gps->totpoints - 1];
+
+  BezTriple *bezt = &new_gp_curve->curve_points[0];
+  copy_v3_v3(&bezt->vec[0], &first->x);
+  copy_v3_v3(&bezt->vec[1], &first->x);
+  copy_v3_v3(&bezt->vec[2], &first->x);
+  add_v3_v3(&bezt->vec[0], offset1);
+  add_v3_v3(&bezt->vec[2], offset2);
+
+  bezt = &new_gp_curve->curve_points[1];
+  copy_v3_v3(&bezt->vec[0], &last->x);
+  copy_v3_v3(&bezt->vec[1], &last->x);
+  copy_v3_v3(&bezt->vec[2], &last->x);
+  add_v3_v3(&bezt->vec[0], offset1);
+  add_v3_v3(&bezt->vec[2], offset2);
+
   return new_gp_curve;
 }
 
@@ -81,7 +92,7 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
 
-  int num_points = RNA_int_get(op->ptr, "num_points");
+  // int num_points = RNA_int_get(op->ptr, "num_points");
 
   if (ELEM(NULL, gpd)) {
     return OPERATOR_CANCELLED;
@@ -98,7 +109,7 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL) {
         BKE_gpencil_free_stroke_editcurve(gps);
       }
-      gps->editcurve = create_example_gp_curve(num_points);
+      gps->editcurve = create_example_gp_curve(gps);
     }
   }
 
@@ -127,8 +138,8 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
   /* properties */
-  prop = RNA_def_int(
-      ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
+  // prop = RNA_def_int(
+  //     ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
 }
 
 /** \} */
