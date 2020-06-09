@@ -461,6 +461,9 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
     return NULL;
   }
 
+  /* TODO: GPXX this should be a parameter */
+  float error_threshold = 0.1f;
+
   float *points = MEM_callocN(sizeof(float) * gps->totpoints * POINT_DIM, __func__);
   for (int i = 0; i < gps->totpoints; i++) {
     bGPDspoint *pt = &gps->points[i];
@@ -476,7 +479,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
   int r = curve_fit_cubic_to_points_fl(points,
                                        gps->totpoints,
                                        POINT_DIM,
-                                       0.1f,
+                                       error_threshold,
                                        CURVE_FIT_CALC_HIGH_QUALIY,
                                        NULL,
                                        0,
