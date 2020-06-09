@@ -56,38 +56,6 @@
 /** \name Test Operator for curve editing
  * \{ */
 
-static bGPDcurve *create_example_gp_curve(bGPDstroke *gps)
-{
-  if (gps->totpoints < 2) {
-    return NULL;
-  }
-
-  /* create curve with two points, one for each end point of the stroke */
-  bGPDcurve *new_gp_curve = BKE_gpencil_stroke_editcurve_new(2);
-
-  float offset1[3] = {1.0f, 0.0f, 0.0f};
-  float offset2[3] = {-1.0f, 0.0f, 0.0f};
-
-  bGPDspoint *first = &gps->points[0];
-  bGPDspoint *last = &gps->points[gps->totpoints - 1];
-
-  BezTriple *bezt = &new_gp_curve->curve_points[0];
-  copy_v3_v3(&bezt->vec[0], &first->x);
-  copy_v3_v3(&bezt->vec[1], &first->x);
-  copy_v3_v3(&bezt->vec[2], &first->x);
-  add_v3_v3(&bezt->vec[0], offset1);
-  add_v3_v3(&bezt->vec[2], offset2);
-
-  bezt = &new_gp_curve->curve_points[1];
-  copy_v3_v3(&bezt->vec[0], &last->x);
-  copy_v3_v3(&bezt->vec[1], &last->x);
-  copy_v3_v3(&bezt->vec[2], &last->x);
-  add_v3_v3(&bezt->vec[0], offset1);
-  add_v3_v3(&bezt->vec[2], offset2);
-
-  return new_gp_curve;
-}
-
 static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
@@ -110,7 +78,8 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL) {
         BKE_gpencil_free_stroke_editcurve(gps);
       }
-      BKE_gpencil_stroke_curve_create(gps);
+      BKE_gpencil_stroke_editcurve_update(gps);
+      gps->flag |= GP_STROKE_CURVE_MODE;
     }
   }
 

@@ -2485,18 +2485,16 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
   /* if toggle, check if we need to select or deselect */
   if (action == SEL_TOGGLE) {
     action = SEL_SELECT;
-    GP_CURVE_EDIT_STROKES_BEGIN(gps_iter, C, gpl, gps)
-    {
-      if (gps->flag & GP_STROKE_SELECT) {
+    GP_EDITABLE_STROKES_BEGIN(gps_iter, C, gpl, gps) {
+      if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         action = SEL_DESELECT;
       }
     }
-    GP_CURVE_EDIT_STROKES_END(gps_iter);
+    GP_EDITABLE_STROKES_END(gps_iter);
   }
 
   if (action == SEL_DESELECT) {
-    GP_CURVE_EDIT_STROKES_BEGIN(gps_iter, C, gpl, gps)
-    {
+    GP_EDITABLE_STROKES_BEGIN(gps_iter, C, gpl, gps) {
       if (gps->editcurve != NULL) {
         bGPDcurve *gpc = gps->editcurve;
         for (int i = 0; i < gpc->tot_curve_points; i++) {
@@ -2508,7 +2506,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
         gps->flag &= ~GP_STROKE_SELECT;
       }
     }
-    GP_CURVE_EDIT_STROKES_END(gps_iter);
+    GP_EDITABLE_STROKES_END(gps_iter);
   }
   else {
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
@@ -2516,7 +2514,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
 
       /* Make sure stroke has a curve */
       if (gps->editcurve == NULL) {
-        BKE_gpencil_stroke_curve_create(gps);
+        BKE_gpencil_stroke_editcurve_update(gps);
         gps->flag |= GP_STROKE_CURVE_MODE;
       }
 
