@@ -31,6 +31,7 @@ extern "C" {
 struct Main;
 struct Object;
 struct Scene;
+struct bGPDstroke;
 
 void BKE_gpencil_convert_curve(struct Main *bmain,
                                struct Scene *scene,
@@ -39,6 +40,8 @@ void BKE_gpencil_convert_curve(struct Main *bmain,
                                const bool gpencil_lines,
                                const bool use_collections,
                                const bool only_stroke);
+
+void BKE_gpencil_stroke_curve_create(struct bGPDstroke *gps);
 
 #ifdef __cplusplus
 }
