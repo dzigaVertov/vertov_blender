@@ -288,6 +288,8 @@ typedef enum eGPDstroke_Flag {
   /* Flag used to indicate that stroke is used for fill close and must use
    * fill color for stroke and no fill area */
   GP_STROKE_NOFILL = (1 << 8),
+  /* Stroke is actually using curve edition */
+  GP_STROKE_CURVE_MODE = (1 << 11),
   /* only for use with stroke-buffer (while drawing arrows) */
   GP_STROKE_USE_ARROW_START = (1 << 12),
   /* only for use with stroke-buffer (while drawing arrows) */
@@ -296,8 +298,6 @@ typedef enum eGPDstroke_Flag {
   GP_STROKE_TAG = (1 << 14),
   /* only for use with stroke-buffer (while drawing eraser) */
   GP_STROKE_ERASER = (1 << 15),
-  /* Stroke is actually using curve edition */
-  GP_STROKE_CURVE_MODE = (1 << 16),
 } eGPDstroke_Flag;
 
 /* bGPDstroke->caps */
