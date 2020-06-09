@@ -39,6 +39,7 @@
 #include "DNA_gpencil_types.h"
 
 #include "BKE_collection.h"
+#include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_curve.h"
@@ -452,13 +453,12 @@ void BKE_gpencil_convert_curve(Main *bmain,
 }
 
 /**
- * Creates a new editcurve for a stroke by doing a cubic curve fitting.
- * \param gps, the grease pencil stroke 
+ * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
  */
-void BKE_gpencil_stroke_curve_create(bGPDstroke *gps)
+bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
 {
-  if (gps == NULL || gps->totpoints < 0 || gps->editcurve != NULL) {
-    return;
+  if (gps->totpoints < 1) {
+    return NULL;
   }
 
   float *points = MEM_callocN(sizeof(float) * gps->totpoints * POINT_DIM, __func__);
@@ -467,6 +467,7 @@ void BKE_gpencil_stroke_curve_create(bGPDstroke *gps)
     float *to = &points[i * POINT_DIM];
     copy_v3_v3(to, &pt->x);
   }
+
   float *r_cubic_array = NULL;
   unsigned int r_cubic_array_len = 0;
   unsigned int *r_cubic_orig_index = NULL;
@@ -484,16 +485,19 @@ void BKE_gpencil_stroke_curve_create(bGPDstroke *gps)
                                        &r_cubic_orig_index,
                                        &r_corners_index_array,
                                        &r_corners_index_len);
-  if (r == 0 && r_cubic_array_len > 0) {
-    bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(r_cubic_array_len);
-    gps->editcurve = editcurve;
 
-    for (int i = 0; i < r_cubic_array_len; i++) {
-      BezTriple *bezt = &editcurve->curve_points[i];
-      for (int j = 0; j < 3; j++) {
-        copy_v3_v3(bezt->vec[j], &r_cubic_array[i * 9 + j * 3]);
-      }
+  if (r != 0 || r_cubic_array_len < 1) {
+    return NULL;
+  }
+
+  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(r_cubic_array_len);
+
+  for (int i = 0; i < r_cubic_array_len; i++) {
+    BezTriple *bezt = &editcurve->curve_points[i];
+    for (int j = 0; j < 3; j++) {
+      copy_v3_v3(bezt->vec[j], &r_cubic_array[i * 3 * POINT_DIM + j * 3]);
     }
+    editcurve->point_index_array[i] = r_cubic_orig_index[i];
   }
 
   MEM_freeN(points);
@@ -504,7 +508,57 @@ void BKE_gpencil_stroke_curve_create(bGPDstroke *gps)
     free(r_corners_index_array);
   }
   if (r_cubic_orig_index) {
-    free(r_corners_index_array);
+    free(r_cubic_orig_index);
+  }
+
+  return editcurve;
+}
+
+/**
+ * Updates the editcurve for a stroke.
+ */
+void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps)
+{
+  if (gps == NULL || gps->totpoints < 0 || gps->editcurve != NULL) {
+    return;
+  }
+
+  if (gps->editcurve != NULL) {
+    BKE_gpencil_free_stroke_editcurve(gps);
+  }
+
+  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(gps);
+  if (editcurve == NULL) {
+    return;
+  }
+  gps->editcurve = editcurve;
+}
+
+void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
+{
+  if (gpd == NULL) {
+    return;
+  }
+
+  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+
+  for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+    if (!BKE_gpencil_layer_is_editable(gpl)) {
+      continue;
+    }
+    bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+    for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+      if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
+        for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+          /* skip deselected stroke */
+          if (!(gps->flag & GP_STROKE_SELECT)) {
+            continue;
+          }
+
+          BKE_gpencil_stroke_editcurve_update(gps);
+        }
+      }
+    }
   }
 }
 
