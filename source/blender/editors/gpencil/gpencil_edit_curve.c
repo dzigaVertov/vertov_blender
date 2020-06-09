@@ -35,6 +35,7 @@
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
@@ -109,7 +110,7 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL) {
         BKE_gpencil_free_stroke_editcurve(gps);
       }
-      gps->editcurve = create_example_gp_curve(gps);
+      BKE_gpencil_stroke_curve_create(gps);
     }
   }
 
