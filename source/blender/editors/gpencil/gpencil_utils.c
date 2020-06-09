@@ -55,6 +55,7 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
@@ -2468,6 +2469,80 @@ void ED_gpencil_select_toggle_all(bContext *C, int action)
       }
 
       /* Change status of stroke */
+      if (selected) {
+        gps->flag |= GP_STROKE_SELECT;
+      }
+      else {
+        gps->flag &= ~GP_STROKE_SELECT;
+      }
+    }
+    CTX_DATA_END;
+  }
+}
+
+void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
+{
+  /* if toggle, check if we need to select or deselect */
+  if (action == SEL_TOGGLE) {
+    action = SEL_SELECT;
+    GP_CURVE_EDIT_STROKES_BEGIN(gps_iter, C, gpl, gps)
+    {
+      if (gps->flag & GP_STROKE_SELECT) {
+        action = SEL_DESELECT;
+      }
+    }
+    GP_CURVE_EDIT_STROKES_END(gps_iter);
+  }
+
+  if (action == SEL_DESELECT) {
+    GP_CURVE_EDIT_STROKES_BEGIN(gps_iter, C, gpl, gps)
+    {
+      if (gps->editcurve != NULL) {
+        bGPDcurve *gpc = gps->editcurve;
+        for (int i = 0; i < gpc->tot_curve_points; i++) {
+          BezTriple *bezt = &gpc->curve_points[i];
+          bezt->f1 &= ~SELECT;
+          bezt->f2 &= ~SELECT;
+          bezt->f3 &= ~SELECT;
+        }
+        gps->flag &= ~GP_STROKE_SELECT;
+      }
+    }
+    GP_CURVE_EDIT_STROKES_END(gps_iter);
+  }
+  else {
+    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+      bool selected = false;
+
+      /* Make sure stroke has a curve */
+      if (gps->editcurve == NULL) {
+        BKE_gpencil_stroke_curve_create(gps);
+        gps->flag |= GP_STROKE_CURVE_MODE;
+      }
+
+      bGPDcurve *gpc = gps->editcurve;
+      for (int i = 0; i < gpc->tot_curve_points; i++) {
+        BezTriple *bezt = &gpc->curve_points[i];
+        switch (action) {
+          case SEL_SELECT:
+            bezt->f1 |= SELECT;
+            bezt->f2 |= SELECT;
+            bezt->f3 |= SELECT;
+            break;
+          case SEL_INVERT:
+            bezt->f1 ^= SELECT;
+            bezt->f2 ^= SELECT;
+            bezt->f3 ^= SELECT;
+            break;
+          default:
+            break;
+        }
+
+        if (bezt->f1 & SELECT) {
+          selected = true;
+        }
+      }
+
       if (selected) {
         gps->flag |= GP_STROKE_SELECT;
       }

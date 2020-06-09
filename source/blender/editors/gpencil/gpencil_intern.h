@@ -728,6 +728,51 @@ struct GP_EditableStrokes_Iter {
   } \
   (void)0
 
+/**
+ * Iterate over all strokes in edit curve mode in the current context,
+ * to perform some operations on the stroke.
+ *
+ * \param gpl: The identifier to use for the layer of the stroke being processed.
+ *                    Choose a suitable value to avoid name clashes.
+ * \param gps: The identifier to use for current stroke being processed.
+ *                    Choose a suitable value to avoid name clashes.
+ */
+#define GP_CURVE_EDIT_STROKES_BEGIN(gpstroke_iter, C, gpl, gps) \
+  { \
+    struct GP_EditableStrokes_Iter gpstroke_iter = {{{0}}}; \
+    Depsgraph *depsgraph_ = CTX_data_ensure_evaluated_depsgraph(C); \
+    Object *obact_ = CTX_data_active_object(C); \
+    Object *ob_eval_ = (Object *)DEG_get_evaluated_id(depsgraph_, &obact_->id); \
+    bGPdata *gpd_ = (bGPdata *)ob_eval_->data; \
+    const bool is_multiedit_ = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_); \
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd_->layers) { \
+      if (BKE_gpencil_layer_is_editable(gpl)) { \
+        bGPDframe *init_gpf_ = (is_multiedit_) ? gpl->frames.first : gpl->actframe; \
+        for (bGPDframe *gpf_ = init_gpf_; gpf_; gpf_ = gpf_->next) { \
+          if ((gpf_ == gpl->actframe) || ((gpf_->flag & GP_FRAME_SELECT) && is_multiedit_)) { \
+            BKE_gpencil_parent_matrix_get(depsgraph_, obact_, gpl, gpstroke_iter.diff_mat); \
+            invert_m4_m4(gpstroke_iter.inverse_diff_mat, gpstroke_iter.diff_mat); \
+            /* loop over strokes */ \
+            LISTBASE_FOREACH (bGPDstroke *, gps, &gpf_->strokes) { \
+              /* skip strokes that are invalid for current view */ \
+              if (ED_gpencil_stroke_can_use(C, gps) == false) \
+                continue; \
+              if (gps->flag & GP_STROKE_CURVE_MODE) \
+                continue; \
+    /* ... Do Stuff With Strokes ...  */
+
+#define GP_CURVE_EDIT_STROKES_END(gpstroke_iter) \
+  } \
+  } \
+  if (!is_multiedit_) { \
+    break; \
+  } \
+  } \
+  } \
+  } \
+  } \
+  (void)0
+
 /* ****************************************************** */
 
 #endif /* __GPENCIL_INTERN_H__ */
