@@ -172,7 +172,12 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
     }
   }
 
-  ED_gpencil_select_toggle_all(C, action);
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    ED_gpencil_select_curve_toggle_all(C, action);
+  }
+  else {
+    ED_gpencil_select_toggle_all(C, action);
+  }
 
   /* updates */
   DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);

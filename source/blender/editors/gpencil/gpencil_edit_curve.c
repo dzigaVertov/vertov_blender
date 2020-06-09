@@ -35,6 +35,7 @@
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
@@ -55,33 +56,12 @@
 /** \name Test Operator for curve editing
  * \{ */
 
-static bGPDcurve *create_example_gp_curve(int num_points)
-{
-  bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
-  new_gp_curve->tot_curve_points = num_points;
-  new_gp_curve->curve_points = (BezTriple *)MEM_callocN(sizeof(BezTriple) * num_points, __func__);
-  new_gp_curve->point_index_array = (int *)MEM_callocN(sizeof(int) * num_points, __func__);
-
-  /* We just write some recognizable data to the BezTriple */
-  for (int i = 0; i < num_points; ++i) {
-    BezTriple *bezt = &new_gp_curve->curve_points[i];
-    for (int j = 0; j < 3; ++j) {
-      copy_v3_fl3(bezt->vec[j], i, j, i * j);
-    }
-    bezt->radius = 1.0f;
-    bezt->weight = 2.0f;
-
-    new_gp_curve->point_index_array[i] = i;
-  }
-  return new_gp_curve;
-}
-
 static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
 
-  int num_points = RNA_int_get(op->ptr, "num_points");
+  // int num_points = RNA_int_get(op->ptr, "num_points");
 
   if (ELEM(NULL, gpd)) {
     return OPERATOR_CANCELLED;
@@ -98,7 +78,8 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL) {
         BKE_gpencil_free_stroke_editcurve(gps);
       }
-      gps->editcurve = create_example_gp_curve(num_points);
+      BKE_gpencil_stroke_editcurve_update(gps);
+      gps->flag |= GP_STROKE_CURVE_MODE;
     }
   }
 
@@ -127,8 +108,8 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
   /* properties */
-  prop = RNA_def_int(
-      ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
+  // prop = RNA_def_int(
+  //     ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
 }
 
 /** \} */

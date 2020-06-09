@@ -189,6 +189,7 @@ void BKE_gpencil_free_stroke_editcurve(bGPDstroke *gps)
   MEM_freeN(editcurve->curve_points);
   MEM_freeN(editcurve->point_index_array);
   MEM_freeN(editcurve);
+  gps->editcurve = NULL;
 }
 
 /* free stroke, doesn't unlink from any listbase */
@@ -620,6 +621,17 @@ bGPDstroke *BKE_gpencil_stroke_add_existing_style(
    * change the copy function if interfere with future drawing implementation. */
   memcpy(&gps->runtime, &existing->runtime, sizeof(bGPDstroke_Runtime));
   return gps;
+}
+
+bGPDcurve *BKE_gpencil_stroke_editcurve_new(int tot_curve_points)
+{
+  bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
+  new_gp_curve->tot_curve_points = tot_curve_points;
+  new_gp_curve->curve_points = (BezTriple *)MEM_callocN(sizeof(BezTriple) * tot_curve_points,
+                                                        __func__);
+  new_gp_curve->point_index_array = (int *)MEM_callocN(sizeof(int) * tot_curve_points, __func__);
+
+  return new_gp_curve;
 }
 
 /* ************************************************** */
