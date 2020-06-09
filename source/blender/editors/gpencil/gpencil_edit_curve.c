@@ -79,7 +79,6 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
         BKE_gpencil_free_stroke_editcurve(gps);
       }
       BKE_gpencil_stroke_editcurve_update(gps);
-      gps->flag |= GP_STROKE_CURVE_MODE;
     }
   }
 
@@ -92,7 +91,7 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
 
 void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
 {
-  PropertyRNA *prop;
+  // PropertyRNA *prop;
 
   /* identifiers */
   ot->name = "Write sample stroke curve data";
