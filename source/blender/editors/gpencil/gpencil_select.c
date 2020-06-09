@@ -227,18 +227,34 @@ static int gpencil_select_linked_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* select all points in selected strokes */
-  CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      bGPDspoint *pt;
-      int i;
-
-      for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-        pt->flag |= GP_SPOINT_SELECT;
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+      if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
+        bGPDcurve *gpc = gps->editcurve;
+        for (int i = 0; i < gpc->tot_curve_points; i++) {
+          BezTriple *bezt = &gpc->curve_points[i];
+          bezt->f1 |= SELECT;
+          bezt->f2 |= SELECT;
+          bezt->f3 |= SELECT;
+        }
       }
     }
+    CTX_DATA_END;
   }
-  CTX_DATA_END;
+  else {
+    /* select all points in selected strokes */
+    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        bGPDspoint *pt;
+        int i;
+
+        for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+          pt->flag |= GP_SPOINT_SELECT;
+        }
+      }
+    }
+    CTX_DATA_END;
+  }
 
   /* updates */
   DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
