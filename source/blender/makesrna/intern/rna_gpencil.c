@@ -138,6 +138,7 @@ static const EnumPropertyItem rna_enum_gpencil_caps_modes_items[] = {
 #  include "BKE_action.h"
 #  include "BKE_animsys.h"
 #  include "BKE_gpencil.h"
+#  include "BKE_gpencil_curve.h"
 #  include "BKE_gpencil_geom.h"
 #  include "BKE_icons.h"
 
@@ -155,11 +156,14 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
-  /* If the current select mode is segment and the Bezier mode is on, change
-   * to Point because segment is not supported. */
-  if ((GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) &&
-      (ts->gpencil_selectmode_edit == GP_SELECTMODE_SEGMENT)) {
-    ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    /* If the current select mode is segment and the Bezier mode is on, change
+     * to Point because segment is not supported. */
+    if (ts->gpencil_selectmode_edit == GP_SELECTMODE_SEGMENT) {
+      ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
+    }
+    /* For all selected strokes, update edit curve */
+    BKE_gpencil_selected_strokes_editcurve_update(gpd);
   }
 
   /* Standard update. */
