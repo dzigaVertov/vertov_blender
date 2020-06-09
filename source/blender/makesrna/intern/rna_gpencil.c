@@ -1031,6 +1031,16 @@ static void rna_point_index_set(PointerRNA *ptr, const int *values)
   }
 }
 
+static bool rna_stroke_has_edit_curve_get(PointerRNA *ptr)
+{
+  bGPDstroke *gps = (bGPDstroke *)ptr->data;
+  if (gps->editcurve != NULL) {
+    return true;
+  }
+
+  return false;
+}
+
 #else
 
 static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
@@ -1352,11 +1362,11 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Cyclic", "Enable cyclic drawing, closing the stroke");
   RNA_def_property_update(prop, 0, "rna_GPencil_update");
 
-  /* The stroke is actually using Curve Edit mode. */
-  prop = RNA_def_property(srna, "use_curve_edit", PROP_BOOLEAN, PROP_NONE);
-  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_CURVE_MODE);
-  RNA_def_property_ui_text(prop, "Curve Edit", "Stroke is using a Curve to edit shape");
-  RNA_def_property_update(prop, 0, "rna_GPencil_update");
+  /* The stroke has Curve Edit data. */
+  prop = RNA_def_property(srna, "has_edit_curve", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_funcs(prop, "rna_stroke_has_edit_curve_get", NULL);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_ui_text(prop, "Has Curve Data", "Stroke has Curve data to edit shape");
 
   /* Caps mode */
   prop = RNA_def_property(srna, "start_cap_mode", PROP_ENUM, PROP_NONE);
