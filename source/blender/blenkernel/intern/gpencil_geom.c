@@ -1198,9 +1198,11 @@ void BKE_gpencil_stroke_geometry_update(bGPDstroke *gps)
     return;
   }
 
-  if (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
-    BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
-    gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+  if (gps->editcurve != NULL) {
+    if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
+      BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+      gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+    }
   }
 
   if (gps->totpoints > 2) {
