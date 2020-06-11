@@ -37,6 +37,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_gpencil_types.h"
+#include "DNA_meshdata_types.h"
 
 #include "BKE_collection.h"
 #include "BKE_context.h"
@@ -537,6 +538,9 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps)
   gps->editcurve = editcurve;
 }
 
+/**
+ * Update editcurve for all selected strokes.
+ */
 void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
 {
   if (gpd == NULL) {
@@ -563,6 +567,50 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
       }
     }
   }
+}
+
+/**
+ * Recalculate stroke points with the editcurve of the stroke.
+ */
+void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
+{
+  if (gps == NULL || gps->editcurve == NULL) {
+    return;
+  }
+
+  bGPDcurve *editcurve = gps->editcurve;
+  BezTriple *bezt_array = editcurve->curve_points;
+  int bezt_array_len = editcurve->tot_curve_points;
+  int resolu = 20;
+  bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+
+  const uint bezt_array_last = bezt_array_len - 1;
+  const uint points_len = BKE_curve_calc_coords_axis_len(bezt_array_len, resolu, is_cyclic, true);
+
+  float(*points)[3] = MEM_mallocN((sizeof(float[3]) * points_len), __func__);
+
+  BKE_curve_calc_coords_axis(
+      bezt_array, bezt_array_len, resolu, is_cyclic, false, 0, sizeof(float[3]), &points[0][0]);
+  BKE_curve_calc_coords_axis(
+      bezt_array, bezt_array_len, resolu, is_cyclic, false, 1, sizeof(float[3]), &points[0][1]);
+  BKE_curve_calc_coords_axis(
+      bezt_array, bezt_array_len, resolu, is_cyclic, false, 2, sizeof(float[3]), &points[0][2]);
+
+  gps->totpoints = points_len;
+  gps->points = MEM_recallocN(gps->points, sizeof(bGPDspoint) * gps->totpoints);
+  if (gps->dvert != NULL) {
+    gps->dvert = MEM_recallocN(gps->dvert, sizeof(MDeformVert) * gps->totpoints);
+  }
+
+  for (int i = 0; i < points_len; i++) {
+    bGPDspoint *pt = &gps->points[i];
+    copy_v3_v3(&pt->x, points[i]);
+
+    pt->pressure = 1.0f;
+    /* TODO: fill rest of data for point using linear interpolation */
+  }
+
+  MEM_freeN(points);
 }
 
 /** \} */
