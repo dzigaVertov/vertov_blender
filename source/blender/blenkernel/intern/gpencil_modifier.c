@@ -97,7 +97,7 @@ void BKE_gpencil_stroke_normal(const bGPDstroke *gps, float r_normal[3])
  * Ramer - Douglas - Peucker algorithm
  * by http ://en.wikipedia.org/wiki/Ramer-Douglas-Peucker_algorithm
  */
-void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
+void BKE_gpencil_stroke_simplify_adaptive(bGPdata *gpd, bGPDstroke *gps, float epsilon)
 {
   bGPDspoint *old_points = MEM_dupallocN(gps->points);
   int totpoints = gps->totpoints;
@@ -194,7 +194,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
   gps->totpoints = j;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);
@@ -202,7 +202,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
 }
 
 /* Simplify alternate vertex of stroke except extremes */
-void BKE_gpencil_stroke_simplify_fixed(bGPDstroke *gps)
+void BKE_gpencil_stroke_simplify_fixed(bGPdata *gpd, bGPDstroke *gps)
 {
   if (gps->totpoints < 5) {
     return;
@@ -256,7 +256,7 @@ void BKE_gpencil_stroke_simplify_fixed(bGPDstroke *gps)
 
   gps->totpoints = j;
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);
@@ -625,7 +625,7 @@ GpencilModifierData *BKE_gpencil_modifiers_findby_name(Object *ob, const char *n
   return BLI_findstring(&(ob->greasepencil_modifiers), name, offsetof(GpencilModifierData, name));
 }
 
-void BKE_gpencil_stroke_subdivide(bGPDstroke *gps, int level, int type)
+void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int type)
 {
   bGPDspoint *temp_points;
   MDeformVert *temp_dverts = NULL;
@@ -734,7 +734,7 @@ void BKE_gpencil_stroke_subdivide(bGPDstroke *gps, int level, int type)
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 /* Remap frame (Time modifier) */

@@ -861,7 +861,7 @@ void GPENCIL_OT_select_less(wmOperatorType *ot)
  * from gpencil_paint.c #gp_stroke_eraser_dostroke().
  * It would be great to de-duplicate the logic here sometime, but that can wait.
  */
-static bool gp_stroke_do_circle_sel(bGPdata *UNUSED(gpd),
+static bool gp_stroke_do_circle_sel(bGPdata *gpd,
                                     bGPDlayer *gpl,
                                     bGPDstroke *gps,
                                     GP_SpaceConversion *gsc,
@@ -987,7 +987,7 @@ static bool gp_stroke_do_circle_sel(bGPdata *UNUSED(gpd),
       float r_hita[3], r_hitb[3];
       bool hit_select = (bool)(pt1->flag & GP_SPOINT_SELECT);
       ED_gpencil_select_stroke_segment(
-          gpl, gps_active, pt_active, hit_select, false, scale, r_hita, r_hitb);
+          gpd, gpl, gps_active, pt_active, hit_select, false, scale, r_hita, r_hitb);
     }
 
     /* Ensure that stroke selection is in sync with its points */
@@ -1206,7 +1206,7 @@ static int gpencil_generic_select_exec(
             bool hit_select = (bool)(pt_active->flag & GP_SPOINT_SELECT);
             float r_hita[3], r_hitb[3];
             ED_gpencil_select_stroke_segment(
-                gpl, gps_active, pt_active, hit_select, false, scale, r_hita, r_hitb);
+                gpd, gpl, gps_active, pt_active, hit_select, false, scale, r_hita, r_hitb);
           }
         }
       }
@@ -1617,7 +1617,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
         float r_hita[3], r_hitb[3];
         bool hit_select = (bool)(hit_point->flag & GP_SPOINT_SELECT);
         ED_gpencil_select_stroke_segment(
-            hit_layer, hit_stroke, hit_point, hit_select, false, scale, r_hita, r_hitb);
+            gpd, hit_layer, hit_stroke, hit_point, hit_select, false, scale, r_hita, r_hitb);
       }
     }
     else {

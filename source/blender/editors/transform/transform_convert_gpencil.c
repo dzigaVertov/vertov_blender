@@ -385,13 +385,15 @@ void recalcData_gpencil_strokes(TransInfo *t)
   GHash *strokes = BLI_ghash_ptr_new(__func__);
 
   TransData *td = tc->data;
+  Object *ob = td->ob;
+  bGPdata *gpd = ob->data;
   for (int i = 0; i < tc->data_len; i++, td++) {
     bGPDstroke *gps = td->extra;
 
     if ((gps != NULL) && (!BLI_ghash_haskey(strokes, gps))) {
       BLI_ghash_insert(strokes, gps, gps);
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(gps);
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
     }
   }
   BLI_ghash_free(strokes, NULL, NULL);

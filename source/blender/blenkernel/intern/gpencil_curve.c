@@ -174,6 +174,7 @@ static void gpencil_convert_spline(Main *bmain,
                                    Nurb *nu)
 {
   Curve *cu = (Curve *)ob_cu->data;
+  bGPdata *gpd = (bGPdata *)ob_gp->data;
   bool cyclic = true;
 
   /* Create Stroke. */
@@ -388,7 +389,7 @@ static void gpencil_convert_spline(Main *bmain,
   }
 
   /* Recalc fill geometry. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 /* Convert a curve object to grease pencil stroke.
