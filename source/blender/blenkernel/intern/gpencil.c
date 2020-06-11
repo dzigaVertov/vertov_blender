@@ -507,6 +507,8 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
   gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 
+  gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
+
   gpd->zdepth_offset = 0.150f;
 
   /* grid settings */
@@ -1836,7 +1838,8 @@ void BKE_gpencil_palette_ensure(Main *bmain, Scene *scene)
   }
 }
 
-bool BKE_gpencil_from_image(SpaceImage *sima, bGPDframe *gpf, const float size, const bool mask)
+bool BKE_gpencil_from_image(
+    SpaceImage *sima, bGPdata *gpd, bGPDframe *gpf, const float size, const bool mask)
 {
   Image *image = sima->image;
   bool done = false;
@@ -1884,7 +1887,7 @@ bool BKE_gpencil_from_image(SpaceImage *sima, bGPDframe *gpf, const float size, 
           pt->flag |= GP_SPOINT_SELECT;
         }
       }
-      BKE_gpencil_stroke_geometry_update(gps);
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
     }
   }
 

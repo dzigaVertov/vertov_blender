@@ -66,6 +66,7 @@ static void deformStroke(GpencilModifierData *md,
                          bGPDstroke *gps)
 {
   SubdivGpencilModifierData *mmd = (SubdivGpencilModifierData *)md;
+  bGPdata *gpd = ob->data;
 
   /* It makes sense when adding points to a straight line */
   /* e.g. for creating thickness variation in later modifiers. */
@@ -86,7 +87,7 @@ static void deformStroke(GpencilModifierData *md,
     return;
   }
 
-  BKE_gpencil_stroke_subdivide(gps, mmd->level, mmd->type);
+  BKE_gpencil_stroke_subdivide(gpd, gps, mmd->level, mmd->type);
 }
 
 static void bakeModifier(struct Main *UNUSED(bmain),

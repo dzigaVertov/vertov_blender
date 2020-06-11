@@ -26,6 +26,7 @@
 #include "DNA_brush_types.h"
 #include "DNA_genfile.h"
 #include "DNA_gpencil_modifier_types.h"
+#include "DNA_gpencil_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
 #include "DNA_screen_types.h"
@@ -277,6 +278,13 @@ void blo_do_versions_290(FileData *fd, Library *UNUSED(lib), Main *bmain)
             md->ui_expand_flag = 0;
           }
         }
+      }
+    }
+
+    /* Init grease pencil default curve resolution. */
+    if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "editcurve_resolution")) {
+      for (bGPdata *gpd = bmain->gpencils.first; gpd; gpd = gpd->id.next) {
+        gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
       }
     }
   }

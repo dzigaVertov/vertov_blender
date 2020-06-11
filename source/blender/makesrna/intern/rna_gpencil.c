@@ -176,10 +176,9 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    LISTBASE_FOREACH(bGPDlayer *, gpl, &gpd->layers) {
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
       if (gpl->actframe != NULL) {
-        bGPDframe *gpf = gpl->actframe;
-        LISTBASE_FOREACH(bGPDstroke *, gps, &gpf->strokes) {
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
             BKE_gpencil_stroke_geometry_update(gps);
@@ -189,7 +188,17 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
     }
   }
 
-  /* Standard update. */
+  rna_GPencil_update(bmain, scene, ptr);
+}
+
+static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
+
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    /* TODO GPXX */
+    /* Update any stroke selected with different resolution */
+  }
   rna_GPencil_update(bmain, scene, ptr);
 }
 
@@ -205,11 +214,12 @@ static void rna_GPencil_dependency_update(Main *bmain, Scene *UNUSED(scene), Poi
 
 static void rna_GPencil_uv_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
   /* Force to recalc the UVs. */
   bGPDstroke *gps = (bGPDstroke *)ptr->data;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   DEG_id_tag_update(ptr->owner_id, ID_RECALC_GEOMETRY);
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
@@ -683,7 +693,7 @@ static void rna_GPencil_stroke_point_add(
     stroke->totpoints += count;
 
     /* Calc geometry data. */
-    BKE_gpencil_stroke_geometry_update(stroke);
+    BKE_gpencil_stroke_geometry_update(gpd, stroke);
 
     DEG_id_tag_update(&gpd->id,
                       ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
@@ -744,7 +754,7 @@ static void rna_GPencil_stroke_point_pop(ID *id,
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(stroke);
+  BKE_gpencil_stroke_geometry_update(gpd, stroke);
 
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 
@@ -2198,6 +2208,15 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       "Scale",
       "Scale conversion factor for pixel size (use larger values for thicker lines)");
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+  prop = RNA_def_property(srna, "edit_curve_resolution", PROP_INT, PROP_NONE);
+  RNA_def_property_int_sdna(prop, NULL, "editcurve_resolution");
+  RNA_def_property_range(prop, 1, 64);
+  RNA_def_property_int_default(prop, GP_DEFAULT_CURVE_RESOLUTION);
+  RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+  RNA_def_property_ui_text(
+      prop, "Resolution", "Number of segments generated between control points");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
 
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT);
