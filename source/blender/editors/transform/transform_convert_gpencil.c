@@ -84,6 +84,8 @@ void createTransGPencil(bContext *C, TransInfo *t)
   const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
                                       0;
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  /* TODO GPXX: Fix compiler warning while is wip. */
+  UNUSED_VARS(is_curve_edit);
 
   const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
   const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
