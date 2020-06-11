@@ -38,6 +38,8 @@ struct Curve;
 
 #define GP_MATERIAL_BUFFER_LEN 256
 
+#define GP_DEFAULT_CURVE_RESOLUTION 16
+
 /* ***************************************** */
 /* GP Stroke Points */
 
@@ -587,7 +589,8 @@ typedef struct bGPdata {
   ListBase layers;
   /** Settings for this data-block. */
   int flag;
-  char _pad1[4];
+  /** Default resolution for generated curves using curve editing method. */
+  int editcurve_resolution;
 
   /* Palettes */
   /** List of bGPDpalette's   - Deprecated (2.78 - 2.79 only). */

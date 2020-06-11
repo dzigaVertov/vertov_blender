@@ -170,6 +170,19 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
   rna_GPencil_update(bmain, scene, ptr);
 }
 
+static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
+
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    /* TODO GPXX */
+    /* Update any stroke selected with different resolution */
+  }
+
+  /* Standard update. */
+  rna_GPencil_update(bmain, scene, ptr);
+}
+
 static void rna_GPencil_dependency_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
   DEG_id_tag_update(ptr->owner_id, ID_RECALC_TRANSFORM);
@@ -2172,6 +2185,15 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       "Scale",
       "Scale conversion factor for pixel size (use larger values for thicker lines)");
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+  prop = RNA_def_property(srna, "edit_curve_resolution", PROP_INT, PROP_NONE);
+  RNA_def_property_int_sdna(prop, NULL, "editcurve_resolution");
+  RNA_def_property_range(prop, 1, 64);
+  RNA_def_property_int_default(prop, GP_DEFAULT_CURVE_RESOLUTION);
+  RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+  RNA_def_property_ui_text(
+      prop, "Resolution", "Number of segments generated between control points");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
 
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT);
