@@ -2193,7 +2193,9 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   RNA_def_property_int_default(prop, GP_DEFAULT_CURVE_RESOLUTION);
   RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
   RNA_def_property_ui_text(
-      prop, "Resolution", "Number of segments generated between control points");
+      prop,
+      "Curve Resolution",
+      "Number of segments generated between control points when editing strokes in curve mode");
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
 
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
