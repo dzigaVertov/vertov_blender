@@ -73,15 +73,17 @@ void createTransGPencil(bContext *C, TransInfo *t)
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   ToolSettings *ts = CTX_data_tool_settings(C);
 
-  bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-  bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) != 0;
-
   Object *obact = CTX_data_active_object(C);
   TransData *td = NULL;
   float mtx[3][3], smtx[3][3];
 
   const Scene *scene = CTX_data_scene(C);
   const int cfra_scene = CFRA;
+
+  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+  const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
+                                      0;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
   const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
