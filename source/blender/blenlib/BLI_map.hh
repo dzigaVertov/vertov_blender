@@ -73,6 +73,7 @@
 #include "BLI_hash.hh"
 #include "BLI_hash_tables.hh"
 #include "BLI_map_slots.hh"
+#include "BLI_optional.hh"
 #include "BLI_probing_strategies.hh"
 
 namespace blender {
@@ -388,6 +389,45 @@ class Map {
   }
 
   /**
+   * Get the value that is stored for the given key and remove it from the map. If the key is not
+   * in the map, a value-less optional is returned.
+   */
+  Optional<Value> pop_try(const Key &key)
+  {
+    return this->pop_try_as(key);
+  }
+
+  /**
+   * Same as `pop_try`, but accepts other key types that are supported by the hash function.
+   */
+  template<typename ForwardKey> Optional<Value> pop_try_as(const ForwardKey &key)
+  {
+    return this->pop_try__impl(key, m_hash(key));
+  }
+
+  /**
+   * Get the value that corresponds to the given key and remove it from the map. If the key is not
+   * in the map, return the given default value instead.
+   */
+  Value pop_default(const Key &key, const Value &default_value)
+  {
+    return this->pop_default_as(key, default_value);
+  }
+  Value pop_default(const Key &key, Value &&default_value)
+  {
+    return this->pop_default_as(key, std::move(default_value));
+  }
+
+  /**
+   * Same as `pop_default`, but accepts other key types that are supported by the hash function.
+   */
+  template<typename ForwardKey, typename ForwardValue>
+  Value pop_default_as(const ForwardKey &key, ForwardValue &&default_value)
+  {
+    return this->pop_default__impl(key, std::forward<ForwardValue>(default_value), m_hash(key));
+  }
+
+  /**
    * This method can be used to implement more complex custom behavior without having to do
    * multiple lookups
    *
@@ -430,7 +470,7 @@ class Map {
                         const ModifyValueF &modify_value) -> decltype(create_value(nullptr))
   {
     return this->add_or_modify__impl(
-        std::forward<Key>(key), create_value, modify_value, m_hash(key));
+        std::forward<ForwardKey>(key), create_value, modify_value, m_hash(key));
   }
 
   /**
@@ -514,6 +554,38 @@ class Map {
   }
 
   /**
+   * Returns a reference to the value corresponding to the given key. If the key is not in the map,
+   * a new key-value-pair is added and a reference to the value in the map is returned.
+   */
+  Value &lookup_or_add(const Key &key, const Value &value)
+  {
+    return this->lookup_or_add_as(key, value);
+  }
+  Value &lookup_or_add(const Key &key, Value &&value)
+  {
+    return this->lookup_or_add_as(key, std::move(value));
+  }
+  Value &lookup_or_add(Key &&key, const Value &value)
+  {
+    return this->lookup_or_add_as(std::move(key), value);
+  }
+  Value &lookup_or_add(Key &&key, Value &&value)
+  {
+    return this->lookup_or_add_as(std::move(key), std::move(value));
+  }
+
+  /**
+   * Same as `lookup_or_add`, but accepts other key types that are supported by the hash
+   * function.
+   */
+  template<typename ForwardKey, typename ForwardValue>
+  Value &lookup_or_add_as(ForwardKey &&key, ForwardValue &&value)
+  {
+    return this->lookup_or_add__impl(
+        std::forward<ForwardKey>(key), std::forward<ForwardValue>(value), m_hash(key));
+  }
+
+  /**
    * Returns a reference to the value that corresponds to the given key. If the key is not yet in
    * the map, it will be newly added.
    *
@@ -521,22 +593,24 @@ class Map {
    * take no parameters and return the value to be inserted.
    */
   template<typename CreateValueF>
-  Value &lookup_or_add(const Key &key, const CreateValueF &create_value)
+  Value &lookup_or_add_cb(const Key &key, const CreateValueF &create_value)
   {
-    return this->lookup_or_add_as(key, create_value);
+    return this->lookup_or_add_cb_as(key, create_value);
   }
-  template<typename CreateValueF> Value &lookup_or_add(Key &&key, const CreateValueF &create_value)
+  template<typename CreateValueF>
+  Value &lookup_or_add_cb(Key &&key, const CreateValueF &create_value)
   {
-    return this->lookup_or_add_as(std::move(key), create_value);
+    return this->lookup_or_add_cb_as(std::move(key), create_value);
   }
 
   /**
-   * Same as `lookup_or_add`, but accepts other key types that are supported by the hash function.
+   * Same as `lookup_or_add_cb`, but accepts other key types that are supported by the hash
+   * function.
    */
   template<typename ForwardKey, typename CreateValueF>
-  Value &lookup_or_add_as(ForwardKey &&key, const CreateValueF &create_value)
+  Value &lookup_or_add_cb_as(ForwardKey &&key, const CreateValueF &create_value)
   {
-    return this->lookup_or_add__impl(std::forward<ForwardKey>(key), create_value, m_hash(key));
+    return this->lookup_or_add_cb__impl(std::forward<ForwardKey>(key), create_value, m_hash(key));
   }
 
   /**
@@ -558,7 +632,7 @@ class Map {
    */
   template<typename ForwardKey> Value &lookup_or_add_default_as(ForwardKey &&key)
   {
-    return this->lookup_or_add(std::forward<ForwardKey>(key), []() { return Value(); });
+    return this->lookup_or_add_cb_as(std::forward<ForwardKey>(key), []() { return Value(); });
   }
 
   /**
@@ -671,17 +745,27 @@ class Map {
     }
   };
 
+  struct Item {
+    const Key &key;
+    const Value &value;
+  };
+
+  struct MutableItem {
+    const Key &key;
+    Value &value;
+
+    operator Item() const
+    {
+      return Item{key, value};
+    }
+  };
+
   class ItemIterator final : public BaseIterator<ItemIterator> {
    public:
     ItemIterator(const Slot *slots, uint32_t total_slots, uint32_t current_slot)
         : BaseIterator<ItemIterator>(slots, total_slots, current_slot)
     {
     }
-
-    struct Item {
-      const Key &key;
-      const Value &value;
-    };
 
     Item operator*() const
     {
@@ -697,12 +781,7 @@ class Map {
     {
     }
 
-    struct Item {
-      const Key &key;
-      Value &value;
-    };
-
-    Item operator*() const
+    MutableItem operator*() const
     {
       Slot &slot = this->current_slot();
       return {*slot.key(), *slot.value()};
@@ -764,7 +843,7 @@ class Map {
   void print_stats(StringRef name = "") const
   {
     HashTableStats stats(*this, this->keys());
-    stats.print();
+    stats.print(name);
   }
 
   /**
@@ -815,7 +894,7 @@ class Map {
    */
   uint32_t size_in_bytes() const
   {
-    return sizeof(Slot) * m_slots.size();
+    return (uint32_t)(sizeof(Slot) * m_slots.size());
   }
 
   /**
@@ -987,9 +1066,42 @@ class Map {
 
     MAP_SLOT_PROBING_BEGIN (hash, slot) {
       if (slot.contains(key, m_is_equal, hash)) {
-        Value value = *slot.value();
+        Value value = std::move(*slot.value());
         slot.remove();
         return value;
+      }
+    }
+    MAP_SLOT_PROBING_END();
+  }
+
+  template<typename ForwardKey> Optional<Value> pop_try__impl(const ForwardKey &key, uint32_t hash)
+  {
+    MAP_SLOT_PROBING_BEGIN (hash, slot) {
+      if (slot.contains(key, m_is_equal, hash)) {
+        Optional<Value> value = std::move(*slot.value());
+        slot.remove();
+        m_removed_slots++;
+        return value;
+      }
+      if (slot.is_empty()) {
+        return {};
+      }
+    }
+    MAP_SLOT_PROBING_END();
+  }
+
+  template<typename ForwardKey, typename ForwardValue>
+  Value pop_default__impl(const ForwardKey &key, ForwardValue &&default_value, uint32_t hash)
+  {
+    MAP_SLOT_PROBING_BEGIN (hash, slot) {
+      if (slot.contains(key, m_is_equal, hash)) {
+        Value value = std::move(*slot.value());
+        slot.remove();
+        m_removed_slots++;
+        return value;
+      }
+      if (slot.is_empty()) {
+        return std::forward<ForwardValue>(default_value);
       }
     }
     MAP_SLOT_PROBING_END();
@@ -1024,7 +1136,7 @@ class Map {
   }
 
   template<typename ForwardKey, typename CreateValueF>
-  Value &lookup_or_add__impl(ForwardKey &&key, const CreateValueF &create_value, uint32_t hash)
+  Value &lookup_or_add_cb__impl(ForwardKey &&key, const CreateValueF &create_value, uint32_t hash)
   {
     this->ensure_can_add();
 
@@ -1042,10 +1154,28 @@ class Map {
   }
 
   template<typename ForwardKey, typename ForwardValue>
+  Value &lookup_or_add__impl(ForwardKey &&key, ForwardValue &&value, uint32_t hash)
+  {
+    this->ensure_can_add();
+
+    MAP_SLOT_PROBING_BEGIN (hash, slot) {
+      if (slot.is_empty()) {
+        slot.occupy(std::forward<ForwardKey>(key), std::forward<ForwardValue>(value), hash);
+        m_occupied_and_removed_slots++;
+        return *slot.value();
+      }
+      if (slot.contains(key, m_is_equal, hash)) {
+        return *slot.value();
+      }
+    }
+    MAP_SLOT_PROBING_END();
+  }
+
+  template<typename ForwardKey, typename ForwardValue>
   bool add_overwrite__impl(ForwardKey &&key, ForwardValue &&value, uint32_t hash)
   {
     auto create_func = [&](Value *ptr) {
-      new (ptr) Value(std::forward<ForwardValue>(value));
+      new ((void *)ptr) Value(std::forward<ForwardValue>(value));
       return true;
     };
     auto modify_func = [&](Value *ptr) {

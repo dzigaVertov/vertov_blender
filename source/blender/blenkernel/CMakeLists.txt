@@ -104,6 +104,7 @@ set(SRC
   intern/customdata_file.c
   intern/data_transfer.c
   intern/deform.c
+  intern/derived_node_tree.cc
   intern/displist.c
   intern/displist_tangent.c
   intern/dynamicpaint.c
@@ -183,6 +184,7 @@ set(SRC
   intern/multires_unsubdivide.c
   intern/nla.c
   intern/node.c
+  intern/node_tree_ref.cc
   intern/object.c
   intern/object_deform.c
   intern/object_dupli.c
@@ -291,6 +293,7 @@ set(SRC
   BKE_customdata_file.h
   BKE_data_transfer.h
   BKE_deform.h
+  BKE_derived_node_tree.hh
   BKE_displist.h
   BKE_displist_tangent.h
   BKE_duplilist.h
@@ -344,11 +347,13 @@ set(SRC
   BKE_mesh_remesh_voxel.h
   BKE_mesh_runtime.h
   BKE_mesh_tangent.h
+  BKE_mesh_wrapper.h
   BKE_modifier.h
   BKE_movieclip.h
   BKE_multires.h
   BKE_nla.h
   BKE_node.h
+  BKE_node_tree_ref.hh
   BKE_object.h
   BKE_object_deform.h
   BKE_object_facemap.h
