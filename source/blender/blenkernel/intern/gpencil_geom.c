@@ -40,6 +40,7 @@
 
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
 #include "BKE_object.h"
 
@@ -1195,6 +1196,11 @@ void BKE_gpencil_stroke_geometry_update(bGPDstroke *gps)
 {
   if (gps == NULL) {
     return;
+  }
+
+  if (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
+    BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+    gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
   }
 
   if (gps->totpoints > 2) {
