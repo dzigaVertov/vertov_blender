@@ -731,6 +731,12 @@ class VIEW3D_HT_header(Header):
                 row = layout.row(align=True)
                 row.prop(gpd, "use_curve_edit", text="",
                          icon='IPO_BEZIER')
+                sub = row.row(align=True)
+                sub.enabled = gpd.use_curve_edit
+                sub.popover(
+                    panel="VIEW3D_PT_gpencil_curve_edit",
+                    text="Curve Editing",
+                )
 
             # Select mode for Sculpt
             if gpd.is_stroke_sculpt_mode:
@@ -756,7 +762,7 @@ class VIEW3D_HT_header(Header):
                 row.prop(gpd, "use_multiedit", text="", icon='GP_MULTIFRAME_EDITING')
 
                 sub = row.row(align=True)
-                sub.active = gpd.use_multiedit
+                sub.enabled = gpd.use_multiedit
                 sub.popover(
                     panel="VIEW3D_PT_gpencil_multi_frame",
                     text="Multiframe",
@@ -6960,6 +6966,20 @@ class VIEW3D_PT_gpencil_multi_frame(Panel):
             layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
 
 
+# Grease Pencil Object - Curve Editing tools
+class VIEW3D_PT_gpencil_curve_edit(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Curve Editing"
+
+    def draw(self, context):
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(settings, "curve_edit_threshold")
+
+
 class VIEW3D_MT_gpencil_edit_context_menu(Menu):
     bl_label = ""
 
@@ -7592,6 +7612,7 @@ classes = (
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_annotation_onion,
     VIEW3D_PT_gpencil_multi_frame,
+    VIEW3D_PT_gpencil_curve_edit,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,

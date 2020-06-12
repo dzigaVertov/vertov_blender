@@ -1498,6 +1498,14 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
   RNA_def_property_float_default(prop, 0.1f);
   RNA_def_property_ui_text(prop, "Threshold", "Threshold for stroke intersections");
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+
+  /* Curve editing error threshold. */
+  prop = RNA_def_property(srna, "curve_edit_threshold", PROP_FLOAT, PROP_FACTOR);
+  RNA_def_property_float_sdna(prop, NULL, "curve_edit_threshold");
+  RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_float_default(prop, GP_DEFAULT_CURVE_ERROR);
+  RNA_def_property_ui_text(prop, "Threshold", "Curve conversion error threshold");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 }
 
 void RNA_def_sculpt_paint(BlenderRNA *brna)
