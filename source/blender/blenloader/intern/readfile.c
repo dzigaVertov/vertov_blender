@@ -7180,8 +7180,8 @@ static void direct_link_gpencil(BlendDataReader *reader, bGPdata *gpd)
         /* relink stroke edit curve. */
         BLO_read_data_address(reader, &gps->editcurve);
         if (gps->editcurve != NULL) {
+          /* relink curve point array */
           BLO_read_data_address(reader, &gps->editcurve->curve_points);
-          BLO_read_data_address(reader, &gps->editcurve->point_index_array);
         }
 
         /* relink weight data */

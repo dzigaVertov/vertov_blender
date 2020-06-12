@@ -187,7 +187,6 @@ void BKE_gpencil_free_stroke_editcurve(bGPDstroke *gps)
     return;
   }
   MEM_freeN(editcurve->curve_points);
-  MEM_freeN(editcurve->point_index_array);
   MEM_freeN(editcurve);
   gps->editcurve = NULL;
 }
@@ -629,9 +628,8 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_new(int tot_curve_points)
 {
   bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
   new_gp_curve->tot_curve_points = tot_curve_points;
-  new_gp_curve->curve_points = (BezTriple *)MEM_callocN(sizeof(BezTriple) * tot_curve_points,
-                                                        __func__);
-  new_gp_curve->point_index_array = (int *)MEM_callocN(sizeof(int) * tot_curve_points, __func__);
+  new_gp_curve->curve_points = (bGPDcurve_point *)MEM_callocN(
+      sizeof(bGPDcurve_point) * tot_curve_points, __func__);
 
   return new_gp_curve;
 }
@@ -654,7 +652,6 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
 bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
 {
   bGPDcurve *gpc_dst = MEM_dupallocN(gpc_src);
-  gpc_dst->point_index_array = MEM_dupallocN(gpc_src->point_index_array);
 
   if (gpc_src->curve_points != NULL) {
     gpc_dst->curve_points = MEM_dupallocN(gpc_src->curve_points);
