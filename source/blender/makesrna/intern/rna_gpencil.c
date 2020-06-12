@@ -2319,7 +2319,8 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "edit_curve_resolution", PROP_INT, PROP_NONE);
   RNA_def_property_int_sdna(prop, NULL, "editcurve_resolution");
-  RNA_def_property_range(prop, 1, 64);
+  RNA_def_property_range(prop, 1, 256);
+  RNA_def_property_ui_range(prop, 1, 64, 1, 1);
   RNA_def_property_int_default(prop, GP_DEFAULT_CURVE_RESOLUTION);
   RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
   RNA_def_property_ui_text(
