@@ -568,6 +568,9 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
           }
 
           BKE_gpencil_stroke_editcurve_update(gps);
+          if (gps->editcurve != NULL) {
+            gps->editcurve->resolution = gpd->editcurve_resolution;
+          }
         }
       }
     }
@@ -586,7 +589,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   bGPDcurve *editcurve = gps->editcurve;
   BezTriple *bezt_array = editcurve->curve_points;
   int bezt_array_len = editcurve->tot_curve_points;
-  int resolu = 10;  // editcurve->resolution;
+  int resolu = editcurve->resolution;
   bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
 
   const uint bezt_array_last = bezt_array_len - 1;
@@ -645,6 +648,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     copy_v3_v3(&pt->x, points[i]);
 
     pt->pressure = 1.0f;
+    pt->strength = 1.0f;
     /* TODO: fill rest of data for point using interpolation */
   }
 

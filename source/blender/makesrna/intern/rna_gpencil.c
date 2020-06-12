@@ -178,10 +178,11 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
     LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
       if (gpl->actframe != NULL) {
+        bGPDframe *gpf = gpl->actframe;
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-            BKE_gpencil_stroke_geometry_update(gps);
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
       }
@@ -196,8 +197,18 @@ static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, Point
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    /* TODO GPXX */
-    /* Update any stroke selected with different resolution */
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (gpl->actframe != NULL) {
+        bGPDframe *gpf = gpl->actframe;
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          if (gps->editcurve != NULL) {
+            gps->editcurve->resolution = gpd->editcurve_resolution;
+            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+      }
+    }
   }
   rna_GPencil_update(bmain, scene, ptr);
 }

@@ -79,6 +79,9 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
         BKE_gpencil_free_stroke_editcurve(gps);
       }
       BKE_gpencil_stroke_editcurve_update(gps);
+      if (gps->editcurve != NULL) {
+        gps->editcurve->resolution = gpd->editcurve_resolution;
+      }
     }
   }
 
