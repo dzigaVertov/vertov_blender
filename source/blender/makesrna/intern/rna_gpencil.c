@@ -76,6 +76,35 @@ static EnumPropertyItem rna_enum_gpencil_onion_modes_items[] = {
     {0, NULL, 0, NULL, NULL},
 };
 
+static const EnumPropertyItem rna_enum_keyframe_type_items[] = {
+    {BEZT_KEYTYPE_KEYFRAME,
+     "KEYFRAME",
+     ICON_KEYTYPE_KEYFRAME_VEC,
+     "Keyframe",
+     "Normal keyframe - e.g. for key poses"},
+    {BEZT_KEYTYPE_BREAKDOWN,
+     "BREAKDOWN",
+     ICON_KEYTYPE_BREAKDOWN_VEC,
+     "Breakdown",
+     "A breakdown pose - e.g. for transitions between key poses"},
+    {BEZT_KEYTYPE_MOVEHOLD,
+     "MOVING_HOLD",
+     ICON_KEYTYPE_MOVING_HOLD_VEC,
+     "Moving Hold",
+     "A keyframe that is part of a moving hold"},
+    {BEZT_KEYTYPE_EXTREME,
+     "EXTREME",
+     ICON_KEYTYPE_EXTREME_VEC,
+     "Extreme",
+     "An 'extreme' pose, or some other purpose as needed"},
+    {BEZT_KEYTYPE_JITTER,
+     "JITTER",
+     ICON_KEYTYPE_JITTER_VEC,
+     "Jitter",
+     "A filler or baked keyframe for keying on ones, or some other purpose as needed"},
+    {0, NULL, 0, NULL, NULL},
+};
+
 static const EnumPropertyItem rna_enum_onion_keyframe_type_items[] = {
     {-1, "ALL", ICON_ACTION, "All Types", "Include all Keyframe types"},
     {BEZT_KEYTYPE_KEYFRAME,
@@ -182,7 +211,7 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-            BKE_gpencil_stroke_geometry_update(gpd, gps);
+            BKE_gpencil_stroke_geometry_update(gps);
           }
         }
       }
@@ -204,7 +233,7 @@ static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, Point
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-            BKE_gpencil_stroke_geometry_update(gpd, gps);
+            BKE_gpencil_stroke_geometry_update(gps);
           }
         }
       }
@@ -225,12 +254,11 @@ static void rna_GPencil_dependency_update(Main *bmain, Scene *UNUSED(scene), Poi
 
 static void rna_GPencil_uv_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-  bGPdata *gpd = (bGPdata *)ptr->owner_id;
   /* Force to recalc the UVs. */
   bGPDstroke *gps = (bGPDstroke *)ptr->data;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   DEG_id_tag_update(ptr->owner_id, ID_RECALC_GEOMETRY);
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
@@ -704,7 +732,7 @@ static void rna_GPencil_stroke_point_add(
     stroke->totpoints += count;
 
     /* Calc geometry data. */
-    BKE_gpencil_stroke_geometry_update(gpd, stroke);
+    BKE_gpencil_stroke_geometry_update(stroke);
 
     DEG_id_tag_update(&gpd->id,
                       ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
@@ -765,7 +793,7 @@ static void rna_GPencil_stroke_point_pop(ID *id,
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, stroke);
+  BKE_gpencil_stroke_geometry_update(stroke);
 
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 
@@ -1630,6 +1658,13 @@ static void rna_def_gpencil_frame(BlenderRNA *brna)
   /* XXX note: this cannot occur on the same frame as another sketch */
   RNA_def_property_range(prop, -MAXFRAME, MAXFRAME);
   RNA_def_property_ui_text(prop, "Frame Number", "The frame on which this sketch appears");
+
+  prop = RNA_def_property(srna, "keyframe_type", PROP_ENUM, PROP_NONE);
+  RNA_def_property_enum_sdna(prop, NULL, "key_type");
+  RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+  RNA_def_property_enum_items(prop, rna_enum_keyframe_type_items);
+  RNA_def_property_ui_text(prop, "Keyframe Type", "Type of keyframe");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   /* Flags */
   prop = RNA_def_property(srna, "is_edited", PROP_BOOLEAN, PROP_NONE);

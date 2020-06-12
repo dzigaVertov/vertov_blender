@@ -340,8 +340,7 @@ struct GHash *gp_copybuf_validate_colormap(struct bContext *C);
 
 /* Stroke Editing ------------------------------------ */
 
-void gp_stroke_delete_tagged_points(bGPdata *gpd,
-                                    bGPDframe *gpf,
+void gp_stroke_delete_tagged_points(bGPDframe *gpf,
                                     bGPDstroke *gps,
                                     bGPDstroke *next_stroke,
                                     int tag_flags,
@@ -349,7 +348,7 @@ void gp_stroke_delete_tagged_points(bGPdata *gpd,
                                     int limit);
 int gp_delete_selected_point_wrap(bContext *C);
 
-void gp_subdivide_stroke(bGPdata *gpd, bGPDstroke *gps, const int subdivide);
+void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide);
 
 /* Layers Enums -------------------------------------- */
 

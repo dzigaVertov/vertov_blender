@@ -110,8 +110,7 @@ static void gpf_clear_all_strokes(bGPDframe *gpf)
  * Note: This won't be called if all points are present/removed
  * TODO: Allow blending of growing/shrinking tip (e.g. for more gradual transitions)
  */
-static void reduce_stroke_points(bGPdata *gpd,
-                                 bGPDstroke *gps,
+static void reduce_stroke_points(bGPDstroke *gps,
                                  const int num_points,
                                  const eBuildGpencil_Transition transition)
 {
@@ -177,7 +176,7 @@ static void reduce_stroke_points(bGPdata *gpd,
   gps->totpoints = num_points;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 }
 
 /* --------------------------------------------- */
@@ -194,10 +193,7 @@ typedef struct tStrokeBuildDetails {
 } tStrokeBuildDetails;
 
 /* Sequential - Show strokes one after the other */
-static void build_sequential(BuildGpencilModifierData *mmd,
-                             bGPdata *gpd,
-                             bGPDframe *gpf,
-                             float fac)
+static void build_sequential(BuildGpencilModifierData *mmd, bGPDframe *gpf, float fac)
 {
   const size_t tot_strokes = BLI_listbase_count(&gpf->strokes);
   bGPDstroke *gps;
@@ -279,12 +275,12 @@ static void build_sequential(BuildGpencilModifierData *mmd,
       else if (first_visible > cell->start_idx) {
         /* Starts partway through this stroke */
         int num_points = cell->end_idx - first_visible;
-        reduce_stroke_points(gpd, cell->gps, num_points, mmd->transition);
+        reduce_stroke_points(cell->gps, num_points, mmd->transition);
       }
       else {
         /* Ends partway through this stroke */
         int num_points = last_visible - cell->start_idx;
-        reduce_stroke_points(gpd, cell->gps, num_points, mmd->transition);
+        reduce_stroke_points(cell->gps, num_points, mmd->transition);
       }
     }
   }
@@ -298,10 +294,7 @@ static void build_sequential(BuildGpencilModifierData *mmd,
 /* Concurrent - Show multiple strokes at once */
 // TODO: Allow random offsets to start times
 // TODO: Allow varying speeds? Scaling of progress?
-static void build_concurrent(BuildGpencilModifierData *mmd,
-                             bGPdata *gpd,
-                             bGPDframe *gpf,
-                             float fac)
+static void build_concurrent(BuildGpencilModifierData *mmd, bGPDframe *gpf, float fac)
 {
   bGPDstroke *gps, *gps_next;
   int max_points = 0;
@@ -400,14 +393,16 @@ static void build_concurrent(BuildGpencilModifierData *mmd,
     }
     else if (num_points < gps->totpoints) {
       /* Remove some points */
-      reduce_stroke_points(gpd, gps, num_points, mmd->transition);
+      reduce_stroke_points(gps, num_points, mmd->transition);
     }
   }
 }
 
 /* --------------------------------------------- */
-static void generate_geometry(
-    GpencilModifierData *md, Depsgraph *depsgraph, bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf)
+static void generate_geometry(GpencilModifierData *md,
+                              Depsgraph *depsgraph,
+                              bGPDlayer *gpl,
+                              bGPDframe *gpf)
 {
   BuildGpencilModifierData *mmd = (BuildGpencilModifierData *)md;
   const bool reverse = (mmd->transition != GP_BUILD_TRANSITION_GROW);
@@ -512,11 +507,11 @@ static void generate_geometry(
   /* Time management mode */
   switch (mmd->mode) {
     case GP_BUILD_MODE_SEQUENTIAL:
-      build_sequential(mmd, gpd, gpf, fac);
+      build_sequential(mmd, gpf, fac);
       break;
 
     case GP_BUILD_MODE_CONCURRENT:
-      build_concurrent(mmd, gpd, gpf, fac);
+      build_concurrent(mmd, gpf, fac);
       break;
 
     default:
@@ -538,7 +533,7 @@ static void generateStrokes(GpencilModifierData *md, Depsgraph *depsgraph, Objec
     if (gpf == NULL) {
       continue;
     }
-    generate_geometry(md, depsgraph, gpd, gpl, gpf);
+    generate_geometry(md, depsgraph, gpl, gpf);
   }
 }
 

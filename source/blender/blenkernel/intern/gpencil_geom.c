@@ -374,11 +374,10 @@ static void stroke_interpolate_deform_weights(
 
 /**
  * Resample a stroke
- * \param: gpd: datablock
  * \param gps: Stroke to sample
  * \param dist: Distance of one segment
  */
-bool BKE_gpencil_stroke_sample(bGPdata *gpd, bGPDstroke *gps, const float dist, const bool select)
+bool BKE_gpencil_stroke_sample(bGPDstroke *gps, const float dist, const bool select)
 {
   bGPDspoint *pt = gps->points;
   bGPDspoint *pt1 = NULL;
@@ -476,7 +475,7 @@ bool BKE_gpencil_stroke_sample(bGPdata *gpd, bGPDstroke *gps, const float dist, 
   gps->totpoints = i;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   return true;
 }
@@ -588,8 +587,7 @@ bool BKE_gpencil_stroke_trim_points(bGPDstroke *gps, const int index_from, const
   return true;
 }
 
-bool BKE_gpencil_stroke_split(bGPdata *gpd,
-                              bGPDframe *gpf,
+bool BKE_gpencil_stroke_split(bGPDframe *gpf,
                               bGPDstroke *gps,
                               const int before_index,
                               bGPDstroke **remaining_gps)
@@ -639,7 +637,7 @@ bool BKE_gpencil_stroke_split(bGPdata *gpd,
    * Keep the end point. */
 
   BKE_gpencil_stroke_trim_points(gps, 0, old_count);
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
   return true;
 }
 
@@ -1195,7 +1193,7 @@ void BKE_gpencil_stroke_uv_update(bGPDstroke *gps)
 }
 
 /* Recalc the internal geometry caches for fill and uvs. */
-void BKE_gpencil_stroke_geometry_update(bGPdata *UNUSED(gpd), bGPDstroke *gps)
+void BKE_gpencil_stroke_geometry_update(bGPDstroke *gps)
 {
   if (gps == NULL) {
     return;
@@ -1249,7 +1247,7 @@ float BKE_gpencil_stroke_length(const bGPDstroke *gps, bool use_3d)
  * Trim stroke to the first intersection or loop
  * \param gps: Stroke data
  */
-bool BKE_gpencil_stroke_trim(bGPdata *gpd, bGPDstroke *gps)
+bool BKE_gpencil_stroke_trim(bGPDstroke *gps)
 {
   if (gps->totpoints < 4) {
     return false;
@@ -1336,7 +1334,7 @@ bool BKE_gpencil_stroke_trim(bGPdata *gpd, bGPDstroke *gps)
     MEM_SAFE_FREE(old_dvert);
   }
 
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   return intersect;
 }
@@ -1430,7 +1428,7 @@ bool BKE_gpencil_stroke_close(bGPDstroke *gps)
   return true;
 }
 /* Dissolve points in stroke */
-void BKE_gpencil_dissolve_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps, const short tag)
+void BKE_gpencil_dissolve_points(bGPDframe *gpf, bGPDstroke *gps, const short tag)
 {
   bGPDspoint *pt;
   MDeformVert *dvert = NULL;
@@ -1506,7 +1504,7 @@ void BKE_gpencil_dissolve_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps, 
     gps->totpoints = tot;
 
     /* triangles cache needs to be recalculated */
-    BKE_gpencil_stroke_geometry_update(gpd, gps);
+    BKE_gpencil_stroke_geometry_update(gps);
   }
 }
 
@@ -1514,14 +1512,12 @@ void BKE_gpencil_dissolve_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps, 
 /* Reduce a series of points when the distance is below a threshold.
  * Special case for first and last points (both are keeped) for other points,
  * the merge point always is at first point.
- * \param: gpd: Datablock
  * \param gpf: Grease Pencil frame
  * \param gps: Grease Pencil stroke
  * \param threshold: Distance between points
  * \param use_unselected: Set to true to analyze all stroke and not only selected points
  */
-void BKE_gpencil_stroke_merge_distance(bGPdata *gpd,
-                                       bGPDframe *gpf,
+void BKE_gpencil_stroke_merge_distance(bGPDframe *gpf,
                                        bGPDstroke *gps,
                                        const float threshold,
                                        const bool use_unselected)
@@ -1586,11 +1582,11 @@ void BKE_gpencil_stroke_merge_distance(bGPdata *gpd,
 
   /* Dissolve tagged points */
   if (tagged) {
-    BKE_gpencil_dissolve_points(gpd, gpf, gps, GP_SPOINT_TAG);
+    BKE_gpencil_dissolve_points(gpf, gps, GP_SPOINT_TAG);
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 }
 
 /* Apply Transforms */
@@ -1621,19 +1617,18 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
         }
 
         /* Distortion may mean we need to re-triangulate. */
-        BKE_gpencil_stroke_geometry_update(gpd, gps);
+        BKE_gpencil_stroke_geometry_update(gps);
       }
     }
   }
 }
 /**
  * Subdivide a stroke
- * \param gpd Datablock
  * \param gps Stroke
  * \param level Level of subdivision
  * \param type Type of subdivision
  */
-void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int type)
+void BKE_gpencil_stroke_subdivide(bGPDstroke *gps, int level, int type)
 {
   bGPDspoint *temp_points;
   MDeformVert *temp_dverts = NULL;
@@ -1742,7 +1737,7 @@ void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int 
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 }
 
 /* calculate stroke normal using some points */
@@ -1784,7 +1779,7 @@ void BKE_gpencil_stroke_normal(const bGPDstroke *gps, float r_normal[3])
  * Ramer - Douglas - Peucker algorithm
  * by http ://en.wikipedia.org/wiki/Ramer-Douglas-Peucker_algorithm
  */
-void BKE_gpencil_stroke_simplify_adaptive(bGPdata *gpd, bGPDstroke *gps, float epsilon)
+void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
 {
   bGPDspoint *old_points = MEM_dupallocN(gps->points);
   int totpoints = gps->totpoints;
@@ -1881,7 +1876,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPdata *gpd, bGPDstroke *gps, float e
   gps->totpoints = j;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);
@@ -1889,7 +1884,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPdata *gpd, bGPDstroke *gps, float e
 }
 
 /* Simplify alternate vertex of stroke except extremes */
-void BKE_gpencil_stroke_simplify_fixed(bGPdata *gpd, bGPDstroke *gps)
+void BKE_gpencil_stroke_simplify_fixed(bGPDstroke *gps)
 {
   if (gps->totpoints < 5) {
     return;
@@ -1943,7 +1938,7 @@ void BKE_gpencil_stroke_simplify_fixed(bGPdata *gpd, bGPDstroke *gps)
 
   gps->totpoints = j;
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);

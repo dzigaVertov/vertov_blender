@@ -1836,8 +1836,7 @@ void BKE_gpencil_palette_ensure(Main *bmain, Scene *scene)
   }
 }
 
-bool BKE_gpencil_from_image(
-    SpaceImage *sima, bGPdata *gpd, bGPDframe *gpf, const float size, const bool mask)
+bool BKE_gpencil_from_image(SpaceImage *sima, bGPDframe *gpf, const float size, const bool mask)
 {
   Image *image = sima->image;
   bool done = false;
@@ -1885,7 +1884,7 @@ bool BKE_gpencil_from_image(
           pt->flag |= GP_SPOINT_SELECT;
         }
       }
-      BKE_gpencil_stroke_geometry_update(gpd, gps);
+      BKE_gpencil_stroke_geometry_update(gps);
     }
   }
 

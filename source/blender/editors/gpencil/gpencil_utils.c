@@ -1328,11 +1328,10 @@ void ED_gp_project_point_to_plane(const Scene *scene,
 
 /**
  * Subdivide a stroke once, by adding a point half way between each pair of existing points
- * \param gpd: Datablock
  * \param gps: Stroke data
  * \param subdivide: Number of times to subdivide
  */
-void gp_subdivide_stroke(bGPdata *gpd, bGPDstroke *gps, const int subdivide)
+void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide)
 {
   bGPDspoint *temp_points;
   int totnewpoints, oldtotpoints;
@@ -1422,7 +1421,7 @@ void gp_subdivide_stroke(bGPdata *gpd, bGPDstroke *gps, const int subdivide)
     MEM_SAFE_FREE(temp_points);
   }
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 }
 
 /* Reset parent matrix for all layers. */
@@ -2246,12 +2245,8 @@ static void gp_copy_points(bGPDstroke *gps, bGPDspoint *pt, bGPDspoint *pt_final
   }
 }
 
-static void gp_insert_point(bGPdata *gpd,
-                            bGPDstroke *gps,
-                            bGPDspoint *a_pt,
-                            bGPDspoint *b_pt,
-                            const float co_a[3],
-                            float co_b[3])
+static void gp_insert_point(
+    bGPDstroke *gps, bGPDspoint *a_pt, bGPDspoint *b_pt, const float co_a[3], float co_b[3])
 {
   bGPDspoint *temp_points;
   int totnewpoints, oldtotpoints;
@@ -2311,7 +2306,7 @@ static void gp_insert_point(bGPdata *gpd,
     i2++;
   }
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
+  BKE_gpencil_stroke_geometry_update(gps);
 
   MEM_SAFE_FREE(temp_points);
 }
@@ -2333,8 +2328,7 @@ static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
 }
 
 /* extend selection to stroke intersections */
-int ED_gpencil_select_stroke_segment(bGPdata *gpd,
-                                     bGPDlayer *gpl,
+int ED_gpencil_select_stroke_segment(bGPDlayer *gpl,
                                      bGPDstroke *gps,
                                      bGPDspoint *pt,
                                      bool select,
@@ -2489,7 +2483,7 @@ int ED_gpencil_select_stroke_segment(bGPdata *gpd,
 
   /* insert new point in the collision points */
   if (insert) {
-    gp_insert_point(gpd, gps, hit_pointa, hit_pointb, r_hita, r_hitb);
+    gp_insert_point(gps, hit_pointa, hit_pointb, r_hita, r_hitb);
   }
 
   /* free memory */
