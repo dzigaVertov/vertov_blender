@@ -6979,7 +6979,7 @@ class VIEW3D_PT_gpencil_curve_edit(Panel):
         layout = self.layout
         col = layout.column(align=True)
         col.prop(gpd, "edit_curve_resolution")
-        col.prop(settings, "curve_edit_threshold")
+        col.prop(gpd, "curve_edit_threshold")
 
 
 class VIEW3D_MT_gpencil_edit_context_menu(Menu):

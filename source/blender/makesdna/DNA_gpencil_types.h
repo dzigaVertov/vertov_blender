@@ -594,6 +594,9 @@ typedef struct bGPdata {
   int flag;
   /** Default resolution for generated curves using curve editing method. */
   int editcurve_resolution;
+  /** Curve Editing error threshold */
+  float curve_edit_threshold;
+  char _pad[4];
 
   /* Palettes */
   /** List of bGPDpalette's   - Deprecated (2.78 - 2.79 only). */

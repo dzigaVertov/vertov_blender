@@ -508,6 +508,7 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
   gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 
   gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
+  gpd->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
 
   gpd->zdepth_offset = 0.150f;
 

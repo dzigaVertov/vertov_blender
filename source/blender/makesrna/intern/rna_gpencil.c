@@ -2231,6 +2231,14 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       "Number of segments generated between control points when editing strokes in curve mode");
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
 
+  /* Curve editing error threshold. */
+  prop = RNA_def_property(srna, "curve_edit_threshold", PROP_FLOAT, PROP_FACTOR);
+  RNA_def_property_float_sdna(prop, NULL, "curve_edit_threshold");
+  RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_float_default(prop, GP_DEFAULT_CURVE_ERROR);
+  RNA_def_property_ui_text(prop, "Threshold", "Curve conversion error threshold");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT);
   RNA_def_property_ui_text(prop,
