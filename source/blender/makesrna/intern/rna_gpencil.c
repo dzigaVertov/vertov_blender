@@ -1274,6 +1274,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
                                "rna_GpencilCurvePoint_BezTriple_handle1_get",
                                "rna_GpencilCurvePoint_BezTriple_handle1_set",
                                NULL);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "Handle 1", "Coordinates of the first handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
@@ -1284,6 +1285,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
                                "rna_GpencilCurvePoint_BezTriple_ctrlpoint_get",
                                "rna_GpencilCurvePoint_BezTriple_ctrlpoint_set",
                                NULL);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "Control Point", "Coordinates of the control point");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
@@ -1294,6 +1296,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
                                "rna_GpencilCurvePoint_BezTriple_handle2_get",
                                "rna_GpencilCurvePoint_BezTriple_handle2_set",
                                NULL);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "Handle 2", "Coordinates of the second handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
@@ -1301,37 +1304,42 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
   /* Pressure */
   prop = RNA_def_property(srna, "pressure", PROP_FLOAT, PROP_FACTOR);
   RNA_def_property_float_sdna(prop, NULL, "pressure");
-  RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_range(prop, 0.0f, FLT_MAX);
+  RNA_def_property_ui_range(prop, 0.0f, 1.0f, 1, RNA_TRANSLATION_PREC_DEFAULT);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "Pressure", "Pressure of the grease pencil stroke point");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
 
   /* Strength */
   prop = RNA_def_property(srna, "strength", PROP_FLOAT, PROP_FACTOR);
   RNA_def_property_float_sdna(prop, NULL, "strength");
   RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(
       prop, "Strength", "Color intensity (alpha factor) of the grease pencil stroke point");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
 
   /* read-only index */
   prop = RNA_def_property(srna, "point_index", PROP_INT, PROP_UNSIGNED);
   RNA_def_property_int_sdna(prop, NULL, "point_index");
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(
       prop, "Point Index", "Index of the corresponding grease pencil stroke point");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "uv_factor", PROP_FLOAT, PROP_FACTOR);
   RNA_def_property_float_sdna(prop, NULL, "uv_fac");
   RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "UV Factor", "Internal UV factor");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
 
   prop = RNA_def_property(srna, "uv_rotation", PROP_FLOAT, PROP_ANGLE);
   RNA_def_property_float_sdna(prop, NULL, "uv_rot");
   RNA_def_property_range(prop, -M_PI_2, M_PI_2);
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "UV Rotation", "Internal UV factor for dot mode");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
 
   prop = RNA_def_property(srna, "vertex_color", PROP_FLOAT, PROP_COLOR);
   RNA_def_property_float_sdna(prop, NULL, "vert_color");
@@ -1339,7 +1347,7 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
   RNA_def_property_range(prop, 0.0f, 1.0f);
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_ui_text(prop, "Vertex Color", "Vertex color of the grease pencil stroke point");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
 }
 
 /* Editing Curve data. */
