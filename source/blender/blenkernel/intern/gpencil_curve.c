@@ -497,15 +497,17 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
   bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(r_cubic_array_len);
 
   for (int i = 0; i < r_cubic_array_len; i++) {
-    BezTriple *bezt = &editcurve->curve_points[i];
+    bGPDcurve_point *cpt = &editcurve->curve_points[i];
+    BezTriple *bezt = &cpt->bezt;
     bGPDspoint *orig_pt = &gps->points[r_cubic_orig_index[i]];
     for (int j = 0; j < 3; j++) {
       copy_v3_v3(bezt->vec[j], &r_cubic_array[i * 3 * POINT_DIM + j * 3]);
     }
-    bezt->radius = orig_pt->pressure;
-    bezt->weight = orig_pt->strength;
+    cpt->pressure = orig_pt->pressure;
+    cpt->strength = orig_pt->strength;
+    copy_v4_v4(cpt->vert_color, orig_pt->vert_color);
 
-    editcurve->point_index_array[i] = r_cubic_orig_index[i];
+    cpt->point_index = r_cubic_orig_index[i];
   }
 
   MEM_freeN(points);
@@ -576,6 +578,30 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
   }
 }
 
+static void gp_interpolate_fl_from_to(
+    float from, float to, float *point_offset, int it, int stride)
+{
+  /* linear interpolation */
+  float *r = point_offset;
+  for (int i = 0; i <= it; i++) {
+    float fac = (float)i / (float)it;
+    *r = interpf(to, from, fac);
+    r = POINTER_OFFSET(r, stride);
+  }
+}
+
+static void gp_interpolate_v4_from_to(
+    float from[4], float to[4], float *point_offset, int it, int stride)
+{
+  /* linear interpolation */
+  float *r = point_offset;
+  for (int i = 0; i <= it; i++) {
+    float fac = (float)i / (float)it;
+    interp_v4_v4v4(r, from, to, fac);
+    r = POINTER_OFFSET(r, stride);
+  }
+}
+
 /**
  * Recalculate stroke points with the editcurve of the stroke.
  */
@@ -586,69 +612,92 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   }
 
   bGPDcurve *editcurve = gps->editcurve;
-  BezTriple *bezt_array = editcurve->curve_points;
-  int bezt_array_len = editcurve->tot_curve_points;
+  bGPDcurve_point *curve_point_array = editcurve->curve_points;
+  int curve_point_array_len = editcurve->tot_curve_points;
   int resolu = editcurve->resolution;
   bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
 
-  const uint bezt_array_last = bezt_array_len - 1;
-  const uint stride = sizeof(float[3]);
+  const uint array_last = curve_point_array_len - 1;
+  /* One stride contains: x, y, z, pressure, strength, Vr, Vg, Vb, Vmix_factor */
+  const uint stride = sizeof(float[9]);
   const uint resolu_stride = resolu * stride;
-  const uint points_len = BKE_curve_calc_coords_axis_len(bezt_array_len, resolu, is_cyclic, true);
+  const uint points_len = BKE_curve_calc_coords_axis_len(
+      curve_point_array_len, resolu, is_cyclic, true);
 
-  float(*points)[3] = MEM_mallocN((sizeof(float[3]) * points_len * (is_cyclic ? 2 : 1)), __func__);
-  float *points_offset;
-  for (int axis = 0; axis < 3; axis++) {
-    points_offset = &points[0][axis];
-    for (unsigned int i = 0; i < bezt_array_last; i++) {
-      const BezTriple *bezt_curr = &bezt_array[i];
-      const BezTriple *bezt_next = &bezt_array[i + 1];
-      BKE_curve_forward_diff_bezier(bezt_curr->vec[1][axis],
-                                    bezt_curr->vec[2][axis],
-                                    bezt_next->vec[0][axis],
-                                    bezt_next->vec[1][axis],
-                                    points_offset,
+  float(*points)[9] = MEM_callocN((stride * points_len * (is_cyclic ? 2 : 1)), __func__);
+  float *points_offset = &points[0][0];
+  for (unsigned int i = 0; i < array_last; i++) {
+    bGPDcurve_point *cpt_curr = &curve_point_array[i];
+    bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
+
+    for (uint axis = 0; axis < 3; axis++) {
+      BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
+                                    cpt_curr->bezt.vec[2][axis],
+                                    cpt_next->bezt.vec[0][axis],
+                                    cpt_next->bezt.vec[1][axis],
+                                    POINTER_OFFSET(points_offset, sizeof(float) * axis),
                                     (int)resolu,
                                     stride);
-      points_offset = POINTER_OFFSET(points_offset, resolu_stride);
     }
 
-    if (is_cyclic) {
-      const BezTriple *bezt_curr = &bezt_array[bezt_array_last];
-      const BezTriple *bezt_next = &bezt_array[0];
-      BKE_curve_forward_diff_bezier(bezt_curr->vec[1][axis],
-                                    bezt_curr->vec[2][axis],
-                                    bezt_next->vec[0][axis],
-                                    bezt_next->vec[1][axis],
-                                    points_offset,
-                                    (int)resolu,
-                                    stride);
-      points_offset = POINTER_OFFSET(points_offset, stride);
-    }
-    else {
-      float *points_last = POINTER_OFFSET(&points[0][axis], bezt_array_last * resolu_stride);
-      *points_last = bezt_array[bezt_array_last].vec[1][axis];
-      points_offset = POINTER_OFFSET(points_offset, stride);
-    }
+    gp_interpolate_fl_from_to(cpt_curr->pressure,
+                              cpt_next->pressure,
+                              POINTER_OFFSET(points_offset, sizeof(float) * 3),
+                              resolu,
+                              stride);
+    gp_interpolate_fl_from_to(cpt_curr->strength,
+                              cpt_next->strength,
+                              POINTER_OFFSET(points_offset, sizeof(float) * 4),
+                              resolu,
+                              stride);
+    gp_interpolate_v4_from_to(cpt_curr->vert_color,
+                              cpt_next->vert_color,
+                              POINTER_OFFSET(points_offset, sizeof(float) * 5),
+                              resolu,
+                              stride);
+
+    points_offset = POINTER_OFFSET(points_offset, resolu_stride);
   }
+
+  /* TODO: make cyclic strokes work */
+  // if (is_cyclic) {
+  //   bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
+  //   bGPDcurve_point *cpt_next = &curve_point_array[0];
+  //   BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
+  //                                 cpt_curr->bezt.vec[2][axis],
+  //                                 cpt_next->bezt.vec[0][axis],
+  //                                 cpt_next->bezt.vec[1][axis],
+  //                                 points_offset,
+  //                                 (int)resolu,
+  //                                 stride);
+  //   points_offset = POINTER_OFFSET(points_offset, stride);
+  // }
+  // else {
+  //   float *points_last = POINTER_OFFSET(&points[0][axis], array_last * resolu_stride);
+  //   *points_last = curve_point_array[array_last].bezt.vec[1][axis];
+  //   points_offset = POINTER_OFFSET(points_offset, stride);
+  // }
 
   if (is_cyclic) {
-    memcpy(points[points_len], points[0], sizeof(float[3]) * points_len);
+    memcpy(points[points_len], points[0], stride * points_len);
   }
 
+  /* resize stroke point array */
   gps->totpoints = points_len;
   gps->points = MEM_recallocN(gps->points, sizeof(bGPDspoint) * gps->totpoints);
   if (gps->dvert != NULL) {
     gps->dvert = MEM_recallocN(gps->dvert, sizeof(MDeformVert) * gps->totpoints);
   }
 
+  /* write new data to stroke point array */
   for (int i = 0; i < points_len; i++) {
     bGPDspoint *pt = &gps->points[i];
-    copy_v3_v3(&pt->x, points[i]);
+    copy_v3_v3(&pt->x, &points[i][0]);
 
-    pt->pressure = 1.0f;
-    pt->strength = 1.0f;
-    /* TODO: fill rest of data for point using interpolation */
+    pt->pressure = points[i][3];
+    pt->strength = points[i][4];
+
+    copy_v4_v4(pt->vert_color, &points[i][5]);
   }
 
   MEM_freeN(points);

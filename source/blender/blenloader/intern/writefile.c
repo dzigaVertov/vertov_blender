@@ -2875,10 +2875,10 @@ static void write_gpencil(BlendWriter *writer, bGPdata *gpd, const void *id_addr
           BLO_write_struct_array(writer, bGPDtriangle, gps->tot_triangles, gps->triangles);
           if (gps->editcurve != NULL) {
             BLO_write_struct(writer, bGPDcurve, gps->editcurve);
-            BLO_write_struct_array(
-                writer, BezTriple, gps->editcurve->tot_curve_points, gps->editcurve->curve_points);
-            BLO_write_int32_array(
-                writer, gps->editcurve->tot_curve_points, gps->editcurve->point_index_array);
+            BLO_write_struct_array(writer,
+                                   bGPDcurve_point,
+                                   gps->editcurve->tot_curve_points,
+                                   gps->editcurve->curve_points);
           }
           write_dverts(writer, gps->totpoints, gps->dvert);
         }

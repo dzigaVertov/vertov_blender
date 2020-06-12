@@ -170,12 +170,46 @@ typedef enum eGPDpalette_Flag {
   PL_PALETTE_ACTIVE = (1 << 0),
 } eGPDpalette_Flag;
 
+/* ***************************************** */
+/* GP Curve Point */
+
+typedef struct bGPDcurve_point {
+  /** Bezier Triple for the handles and control points */
+  BezTriple bezt;
+  /** Pressure of input device (from 0 to 1) at this point. */
+  float pressure;
+  /** Color strength (used for alpha factor). */
+  float strength;
+  /** Index of corresponding point in gps->points */
+  int point_index;
+
+  /** Additional options. */
+  int flag;
+
+  /** Factor of uv along the stroke. */
+  float uv_fac;
+  /** Uv rotation for dot mode. */
+  float uv_rot;
+  /** Uv for fill mode */
+  float uv_fill[2];
+
+  /** Vertex Color RGBA (A=mix factor). */
+  float vert_color[4];
+  char _pad2[4];
+} bGPDcurve_point;
+
+/* bGPDcurve_point->flag */
+typedef enum eGPDcurve_point_Flag {
+  GP_CURVE_POINT_SELECT = (1 << 0),
+} eGPDcurve_point_Flag;
+
+/* ***************************************** */
+/* GP Curve */
+
 /* Curve for Bezier Editing. */
 typedef struct bGPDcurve {
   /** Array of BezTriple. */
-  BezTriple *curve_points;
-  /** Array of indexes of nearest stroke points. */
-  int *point_index_array;
+  bGPDcurve_point *curve_points;
   /** Total number of curve points. */
   int tot_curve_points;
   /** Resolution for curve sampling */
