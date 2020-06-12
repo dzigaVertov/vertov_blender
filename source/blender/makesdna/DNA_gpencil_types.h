@@ -178,9 +178,11 @@ typedef struct bGPDcurve {
   int *point_index_array;
   /** Total number of curve points. */
   int tot_curve_points;
+  /** Resolution for curve sampling */
+  int resolution;
   /** General flag. */
   short flag;
-  char _pad[2];
+  char _pad[6];
 } bGPDcurve;
 
 /* bGPDcurve_Flag->flag */

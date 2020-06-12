@@ -131,6 +131,7 @@ static const EnumPropertyItem rna_enum_gpencil_caps_modes_items[] = {
 #ifdef RNA_RUNTIME
 
 #  include "BLI_ghash.h"
+#  include "BLI_listbase.h"
 #  include "BLI_string_utils.h"
 
 #  include "WM_api.h"
@@ -170,16 +171,45 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
   rna_GPencil_update(bmain, scene, ptr);
 }
 
+static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
+
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (gpl->actframe != NULL) {
+        bGPDframe *gpf = gpl->actframe;
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          if (gps->editcurve != NULL) {
+            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+      }
+    }
+  }
+
+  rna_GPencil_update(bmain, scene, ptr);
+}
+
 static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    /* TODO GPXX */
-    /* Update any stroke selected with different resolution */
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (gpl->actframe != NULL) {
+        bGPDframe *gpf = gpl->actframe;
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          if (gps->editcurve != NULL) {
+            gps->editcurve->resolution = gpd->editcurve_resolution;
+            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+      }
+    }
   }
-
-  /* Standard update. */
   rna_GPencil_update(bmain, scene, ptr);
 }
 
@@ -1223,7 +1253,8 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_handle1_get", "rna_BezTriple_handle1_set", NULL);
   RNA_def_property_ui_text(prop, "Handle 1", "Coordinates of the first handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
+  // RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "co", PROP_FLOAT, PROP_TRANSLATION);
   RNA_def_property_array(prop, 3);
@@ -1231,7 +1262,8 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_ctrlpoint_get", "rna_BezTriple_ctrlpoint_set", NULL);
   RNA_def_property_ui_text(prop, "Control Point", "Coordinates of the control point");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
+  // RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "handle_right", PROP_FLOAT, PROP_TRANSLATION);
   RNA_def_property_array(prop, 3);
@@ -1239,7 +1271,8 @@ static void rna_def_gpencil_curve_point(BlenderRNA *brna)
       prop, "rna_BezTriple_handle2_get", "rna_BezTriple_handle2_set", NULL);
   RNA_def_property_ui_text(prop, "Handle 2", "Coordinates of the second handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_update");
+  // RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
   prop = RNA_def_property(srna, "radius", PROP_FLOAT, PROP_NONE);
   RNA_def_property_float_sdna(prop, NULL, "radius");
