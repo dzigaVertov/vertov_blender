@@ -287,5 +287,15 @@ void blo_do_versions_290(FileData *fd, Library *UNUSED(lib), Main *bmain)
         gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
       }
     }
+    /* Init grease pencil curve editing error threshold. */
+    if (!DNA_struct_elem_find(
+            fd->filesdna, "GP_Sculpt_Settings", "float", "curve_edit_threshold")) {
+      for (Scene *scene = bmain->scenes.first; scene; scene = scene->id.next) {
+        GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
+        if (gset) {
+          gset->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
+        }
+      }
+    }
   }
 }

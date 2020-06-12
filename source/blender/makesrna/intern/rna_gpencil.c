@@ -152,7 +152,7 @@ static void rna_GPencil_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Pointe
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
-static void rna_GPencil_curve_edit_mode_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
@@ -2226,7 +2226,9 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   RNA_def_property_int_default(prop, GP_DEFAULT_CURVE_RESOLUTION);
   RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
   RNA_def_property_ui_text(
-      prop, "Resolution", "Number of segments generated between control points");
+      prop,
+      "Curve Resolution",
+      "Number of segments generated between control points when editing strokes in curve mode");
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
 
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
@@ -2239,8 +2241,8 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "use_curve_edit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_EDIT_MODE);
-  RNA_def_property_ui_text(prop, "Curve Edit", "Edit strokes using curve handles");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_edit_mode_update");
+  RNA_def_property_ui_text(prop, "Curve Editing", "Edit strokes using curve handles");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_edit_update");
 
   prop = RNA_def_property(srna, "use_autolock_layers", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_AUTOLOCK_LAYERS);
