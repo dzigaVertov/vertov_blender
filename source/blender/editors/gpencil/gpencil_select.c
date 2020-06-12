@@ -232,7 +232,7 @@ static int gpencil_select_linked_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         bGPDcurve *gpc = gps->editcurve;
         for (int i = 0; i < gpc->tot_curve_points; i++) {
-          BezTriple *bezt = &gpc->curve_points[i];
+          BezTriple *bezt = &gpc->curve_points[i].bezt;
           BEZT_SEL_ALL(bezt);
         }
       }
@@ -709,7 +709,6 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
     GP_EDITABLE_STROKES_BEGIN (gp_iter, C, gpl, gps) {
       if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         bGPDcurve *editcurve = gps->editcurve;
-        BezTriple *bezt;
         int i;
 
         /* First Pass: Go in forward order,
@@ -717,7 +716,8 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
          * - This pass covers the "after" edges of selection islands
          */
         bool prev_sel = false;
-        for (i = 0, bezt = editcurve->curve_points; i < editcurve->tot_curve_points; i++, bezt++) {
+        for (i = 0; i < editcurve->tot_curve_points; i++) {
+          BezTriple *bezt = &editcurve->curve_points[i].bezt;
           if (bezt->f2 & SELECT) {
             /* selected point - just set flag for next point */
             prev_sel = true;
@@ -735,7 +735,8 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
          * - This pass covers the "before" edges of selection islands
          */
         prev_sel = false;
-        for (bezt -= 1; i > 0; i--, bezt--) {
+        for (i = editcurve->tot_curve_points - 1; i > 0; i--) {
+          BezTriple *bezt = &editcurve->curve_points[i].bezt;
           if (bezt->f2 & SELECT) {
             prev_sel = true;
           }
@@ -842,11 +843,11 @@ static int gpencil_select_less_exec(bContext *C, wmOperator *UNUSED(op))
     GP_EDITABLE_STROKES_BEGIN (gp_iter, C, gpl, gps) {
       if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         bGPDcurve *editcurve = gps->editcurve;
-        BezTriple *bezt;
         int i;
 
         bool prev_sel = false;
-        for (i = 0, bezt = editcurve->curve_points; i < editcurve->tot_curve_points; i++, bezt++) {
+        for (i = 0; i < editcurve->tot_curve_points; i++) {
+          BezTriple *bezt = &editcurve->curve_points[i].bezt;
           if (bezt->f2 & SELECT) {
             /* shrink if previous wasn't selected */
             if (prev_sel == false) {
@@ -864,7 +865,8 @@ static int gpencil_select_less_exec(bContext *C, wmOperator *UNUSED(op))
          * - This pass covers the "before" edges of selection islands
          */
         prev_sel = false;
-        for (bezt -= 1; i > 0; i--, bezt--) {
+        for (i = editcurve->tot_curve_points - 1; i > 0; i--) {
+          BezTriple *bezt = &editcurve->curve_points[i].bezt;
           if (bezt->f2 & SELECT) {
             /* shrink if previous wasn't selected */
             if (prev_sel == false) {
