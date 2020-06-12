@@ -776,7 +776,7 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
   gpEditCurveVert *vert_ptr = iter->verts + v;
 
   for (int i = 0; i < editcurve->tot_curve_points; i++) {
-    BezTriple *bezt = &editcurve->curve_points[i];
+    BezTriple *bezt = &editcurve->curve_points[i].bezt;
     const bool handle_selected = BEZT_ISSEL_ANY(bezt);
     const char vflag[3] = {
         gpencil_beztriple_vflag_get(bezt->f1, bezt->h1, true, handle_selected),
