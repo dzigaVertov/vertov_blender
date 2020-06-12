@@ -732,7 +732,7 @@ class VIEW3D_HT_header(Header):
                 row.prop(gpd, "use_curve_edit", text="",
                          icon='IPO_BEZIER')
                 sub = row.row(align=True)
-                sub.enabled = gpd.use_curve_edit
+                sub.active = gpd.use_curve_edit
                 sub.popover(
                     panel="VIEW3D_PT_gpencil_curve_edit",
                     text="Curve Editing",
@@ -6979,7 +6979,7 @@ class VIEW3D_PT_gpencil_curve_edit(Panel):
         layout = self.layout
         col = layout.column(align=True)
         col.prop(gpd, "edit_curve_resolution")
-        col.prop(settings, "curve_edit_threshold")
+        col.prop(gpd, "curve_edit_threshold")
 
 
 class VIEW3D_MT_gpencil_edit_context_menu(Menu):

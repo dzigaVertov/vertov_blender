@@ -70,14 +70,15 @@ void createTransGPencil(bContext *C, TransInfo *t)
   }
 
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-  bGPdata *gpd = ED_gpencil_data_get_active(C);
-  ToolSettings *ts = CTX_data_tool_settings(C);
-
+  const Scene *scene = CTX_data_scene(C);
+  ToolSettings *ts = scene->toolsettings;
   Object *obact = CTX_data_active_object(C);
+  bGPdata *gpd = obact->data;
+  BLI_assert(gpd != NULL);
+
   TransData *td = NULL;
   float mtx[3][3], smtx[3][3];
 
-  const Scene *scene = CTX_data_scene(C);
   const int cfra_scene = CFRA;
 
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
@@ -94,17 +95,8 @@ void createTransGPencil(bContext *C, TransInfo *t)
 
   TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
 
-  /* == Grease Pencil Strokes to Transform Data ==
-   * Grease Pencil stroke points can be a mixture of 2D (screen-space),
-   * or 3D coordinates. However, they're always saved as 3D points.
-   * For now, we just do these without creating TransData2D for the 2D
-   * strokes. This may cause issues in future though.
-   */
+  /* .Grease Pencil Strokes to Transform Data.  */
   tc->data_len = 0;
-
-  if (gpd == NULL) {
-    return;
-  }
 
   /* initialize falloff curve */
   if (is_multiedit) {
@@ -118,12 +110,11 @@ void createTransGPencil(bContext *C, TransInfo *t)
     /* Only editable and visible layers are considered. */
     if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
       bGPDframe *gpf;
-      bGPDstroke *gps;
       bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
       for (gpf = init_gpf; gpf; gpf = gpf->next) {
         if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
-          for (gps = gpf->strokes.first; gps; gps = gps->next) {
+          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
             /* skip strokes that are invalid for current view */
             if (ED_gpencil_stroke_can_use(C, gps) == false) {
               continue;
@@ -344,11 +335,10 @@ void createTransGPencil(bContext *C, TransInfo *t)
                   copy_m3_m4(td->mtx, diff_mat);          /* display position */
                   copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
 
-                  /* Triangulation must be calculated again,
-                   * so save the stroke for recalc function */
+                  /* Save the stroke for recalc geometry function. */
                   td->extra = gps;
 
-                  /* save pointer to object */
+                  /* Save pointer to object. */
                   td->ob = obact;
 
                   td++;
@@ -356,14 +346,14 @@ void createTransGPencil(bContext *C, TransInfo *t)
                 }
               }
 
-              /* March over these points, and calculate the proportional editing distances */
+              /* March over these points, and calculate the proportional editing distances. */
               if (is_prop_edit && (head != tail)) {
                 calc_distanceCurveVerts(head, tail - 1);
               }
             }
           }
         }
-        /* if not multiedit out of loop */
+        /* If not multiedit out of loop. */
         if (!is_multiedit) {
           break;
         }
