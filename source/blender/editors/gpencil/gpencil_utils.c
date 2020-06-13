@@ -2654,9 +2654,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
             BEZT_SEL_ALL(bezt);
             break;
           case SEL_INVERT:
-            bezt->f1 ^= SELECT;
-            bezt->f2 ^= SELECT;
-            bezt->f3 ^= SELECT;
+            BEZT_SEL_INVERT(bezt);
             break;
           default:
             break;

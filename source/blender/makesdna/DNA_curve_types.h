@@ -518,6 +518,13 @@ typedef enum eBezTriple_KeyframeType {
     (bezt)->f3 &= ~SELECT; \
   } \
   ((void)0)
+#define BEZT_SEL_INVERT(bezt) \
+  { \
+    (bezt)->f1 ^= SELECT; \
+    (bezt)->f2 ^= SELECT; \
+    (bezt)->f3 ^= SELECT; \
+  } \
+  ((void)0)
 
 #define BEZT_IS_AUTOH(bezt) \
   (ELEM((bezt)->h1, HD_AUTO, HD_AUTO_ANIM) && ELEM((bezt)->h2, HD_AUTO, HD_AUTO_ANIM))
