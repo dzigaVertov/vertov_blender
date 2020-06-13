@@ -2629,7 +2629,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
       if (gps->editcurve != NULL) {
         bGPDcurve *gpc = gps->editcurve;
         for (int i = 0; i < gpc->tot_curve_points; i++) {
-          BezTriple *bezt = &gpc->curve_points[i];
+          BezTriple *bezt = &gpc->curve_points[i].bezt;
           BEZT_DESEL_ALL(bezt);
         }
         gps->flag &= ~GP_STROKE_SELECT;
@@ -2648,7 +2648,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
 
       bGPDcurve *gpc = gps->editcurve;
       for (int i = 0; i < gpc->tot_curve_points; i++) {
-        BezTriple *bezt = &gpc->curve_points[i];
+        BezTriple *bezt = &gpc->curve_points[i].bezt;
         switch (action) {
           case SEL_SELECT:
             BEZT_SEL_ALL(bezt);
