@@ -571,6 +571,7 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
           BKE_gpencil_stroke_editcurve_update(gps);
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
+            BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
           }
         }
       }
@@ -630,6 +631,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     bGPDcurve_point *cpt_curr = &curve_point_array[i];
     bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
 
+    /* sample points on all 3 axis between two curve points */
     for (uint axis = 0; axis < 3; axis++) {
       BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
                                     cpt_curr->bezt.vec[2][axis],
@@ -640,6 +642,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
                                     stride);
     }
 
+    /* interpolate other attributes */
     gp_interpolate_fl_from_to(cpt_curr->pressure,
                               cpt_next->pressure,
                               POINTER_OFFSET(points_offset, sizeof(float) * 3),
