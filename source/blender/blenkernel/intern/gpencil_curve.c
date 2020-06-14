@@ -555,14 +555,14 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
 
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
-  for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+  LISTBASE_FOREACH(bGPDlayer *, gpl, &gpd->layers) {
     if (!BKE_gpencil_layer_is_editable(gpl)) {
       continue;
     }
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
     for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
       if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
-        for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+        LISTBASE_FOREACH(bGPDstroke *, gps, &gpf->strokes) {
           /* skip deselected stroke */
           if (!(gps->flag & GP_STROKE_SELECT)) {
             continue;
@@ -571,8 +571,9 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
           BKE_gpencil_stroke_editcurve_update(gps);
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
-            BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
           }
+          BKE_gpencil_stroke_geometry_update(gps);
         }
       }
     }
