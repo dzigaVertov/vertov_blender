@@ -571,8 +571,9 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
           BKE_gpencil_stroke_editcurve_update(gps);
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
-            BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
           }
+          BKE_gpencil_stroke_geometry_update(gps);
         }
       }
     }
