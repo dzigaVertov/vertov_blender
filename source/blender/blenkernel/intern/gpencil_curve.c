@@ -555,14 +555,14 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
 
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
-  LISTBASE_FOREACH(bGPDlayer *, gpl, &gpd->layers) {
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     if (!BKE_gpencil_layer_is_editable(gpl)) {
       continue;
     }
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
     for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
       if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
-        LISTBASE_FOREACH(bGPDstroke *, gps, &gpf->strokes) {
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           /* skip deselected stroke */
           if (!(gps->flag & GP_STROKE_SELECT)) {
             continue;
