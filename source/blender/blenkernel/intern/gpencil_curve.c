@@ -456,14 +456,11 @@ void BKE_gpencil_convert_curve(Main *bmain,
 /**
  * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
  */
-bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
+bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_threshold)
 {
   if (gps->totpoints < 1) {
     return NULL;
   }
-
-  /* TODO: GPXX this should be a parameter */
-  float error_threshold = 0.1f;
 
   float *points = MEM_callocN(sizeof(float) * gps->totpoints * POINT_DIM, __func__);
   for (int i = 0; i < gps->totpoints; i++) {
@@ -527,9 +524,9 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps)
 /**
  * Updates the editcurve for a stroke.
  */
-void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps)
+void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold)
 {
-  if (gps == NULL || gps->totpoints < 0 || gps->editcurve != NULL) {
+  if (gps == NULL || gps->totpoints < 0) {
     return;
   }
 
@@ -537,7 +534,7 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps)
     BKE_gpencil_free_stroke_editcurve(gps);
   }
 
-  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(gps);
+  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(gps, error_threshold);
   if (editcurve == NULL) {
     return;
   }
@@ -568,7 +565,7 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
             continue;
           }
 
-          BKE_gpencil_stroke_editcurve_update(gps);
+          BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
