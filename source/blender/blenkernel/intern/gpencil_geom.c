@@ -42,6 +42,8 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 
+#include "BLT_translation.h"
+
 #include "BKE_deform.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_curve.h"
