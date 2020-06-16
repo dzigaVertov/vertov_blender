@@ -2332,9 +2332,10 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   /* Curve editing error threshold. */
   prop = RNA_def_property(srna, "curve_edit_threshold", PROP_FLOAT, PROP_FACTOR);
   RNA_def_property_float_sdna(prop, NULL, "curve_edit_threshold");
-  RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_range(prop, FLT_MIN, 10.0);
   RNA_def_property_float_default(prop, GP_DEFAULT_CURVE_ERROR);
   RNA_def_property_ui_text(prop, "Threshold", "Curve conversion error threshold");
+  RNA_def_property_ui_range(prop, FLT_MIN, 10.0, 2, 5);
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
