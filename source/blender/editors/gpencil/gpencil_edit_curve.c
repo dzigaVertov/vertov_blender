@@ -36,6 +36,7 @@
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_curve.h"
+#include "BKE_gpencil_geom.h"
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
@@ -78,7 +79,7 @@ static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
       if (gps->editcurve != NULL) {
         BKE_gpencil_free_stroke_editcurve(gps);
       }
-      BKE_gpencil_stroke_editcurve_update(gps);
+      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
       if (gps->editcurve != NULL) {
         gps->editcurve->resolution = gpd->editcurve_resolution;
       }
@@ -112,6 +113,74 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   /* properties */
   // prop = RNA_def_int(
   //     ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
+}
+
+static int gp_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
+{
+  Object *ob = CTX_data_active_object(C);
+  bGPdata *gpd = ob->data;
+
+  float error_threshold = RNA_float_get(op->ptr, "error_threshold");
+  gpd->curve_edit_threshold = error_threshold;
+
+  if (ELEM(NULL, gpd)) {
+    return OPERATOR_CANCELLED;
+  }
+
+  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      if (gpf == gpl->actframe) {
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          /* only allow selected and non-converted strokes to be transformed */
+          if (gps->flag & GP_STROKE_SELECT && gps->editcurve == NULL) {
+            BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+            if (gps->editcurve != NULL) {
+              gps->editcurve->resolution = gpd->editcurve_resolution;
+              gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            }
+            BKE_gpencil_stroke_geometry_update(gps);
+          }
+        }
+      }
+    }
+  }
+
+  /* notifiers */
+  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+  return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_stroke_enter_editcurve_mode(wmOperatorType *ot)
+{
+  PropertyRNA *prop;
+
+  /* identifiers */
+  ot->name = "Enter curve edit mode";
+  ot->idname = "GPENCIL_OT_stroke_enter_editcurve_mode";
+  ot->description = "Called to transform a stroke into a curve";
+
+  /* api callbacks */
+  ot->exec = gp_stroke_enter_editcurve_mode;
+  ot->poll = gp_active_layer_poll;
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* properties */
+  prop = RNA_def_float(ot->srna,
+                       "error_threshold",
+                       0.1f,
+                       FLT_MIN,
+                       100.0f,
+                       "Error Threshold",
+                       "Threshold on the maximum deviation from the actual stroke",
+                       FLT_MIN,
+                       10.f);
+  RNA_def_property_ui_range(prop, FLT_MIN, 10.0f, 0.1f, 5);
 }
 
 /** \} */
