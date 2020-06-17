@@ -2611,7 +2611,7 @@ void ED_gpencil_select_toggle_all(bContext *C, int action)
   }
 }
 
-void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
+void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_threshold)
 {
   /* if toggle, check if we need to select or deselect */
   if (action == SEL_TOGGLE) {
@@ -2639,11 +2639,16 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
   }
   else {
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+      Object *ob = CTX_data_active_object(C);
+      bGPdata *gpd = ob->data;
       bool selected = false;
 
       /* Make sure stroke has a curve */
       if (gps->editcurve == NULL) {
-        BKE_gpencil_stroke_editcurve_update(gps);
+        BKE_gpencil_stroke_editcurve_update(gps, error_threshold);
+        gps->editcurve->resolution = gpd->editcurve_resolution;
+        gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+        BKE_gpencil_stroke_geometry_update(gps);
       }
 
       bGPDcurve *gpc = gps->editcurve;
