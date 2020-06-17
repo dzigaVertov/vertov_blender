@@ -272,16 +272,18 @@ static int gpencil_select_linked_exec(bContext *C, wmOperator *op)
   }
 
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-      if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
-        bGPDcurve *gpc = gps->editcurve;
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if (gpc->flag & GP_CURVE_SELECT) {
         for (int i = 0; i < gpc->tot_curve_points; i++) {
-          BezTriple *bezt = &gpc->curve_points[i].bezt;
+          bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+          BezTriple *bezt = &gpc_pt->bezt;
+          gpc_pt->flag |= GP_CURVE_POINT_SELECT;
           BEZT_SEL_ALL(bezt);
         }
       }
     }
-    CTX_DATA_END;
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
   else {
     /* select all points in selected strokes */

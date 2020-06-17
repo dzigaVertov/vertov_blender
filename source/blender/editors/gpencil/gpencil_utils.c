@@ -2616,26 +2616,27 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_thr
   /* if toggle, check if we need to select or deselect */
   if (action == SEL_TOGGLE) {
     action = SEL_SELECT;
-    GP_EDITABLE_STROKES_BEGIN (gps_iter, C, gpl, gps) {
-      if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if (gpc->flag & GP_CURVE_SELECT) {
         action = SEL_DESELECT;
       }
     }
-    GP_EDITABLE_STROKES_END(gps_iter);
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
 
   if (action == SEL_DESELECT) {
-    GP_EDITABLE_STROKES_BEGIN (gps_iter, C, gpl, gps) {
-      if (gps->editcurve != NULL) {
-        bGPDcurve *gpc = gps->editcurve;
-        for (int i = 0; i < gpc->tot_curve_points; i++) {
-          BezTriple *bezt = &gpc->curve_points[i].bezt;
-          BEZT_DESEL_ALL(bezt);
-        }
-        gps->flag &= ~GP_STROKE_SELECT;
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      for (int i = 0; i < gpc->tot_curve_points; i++) {
+        bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+        BezTriple *bezt = &gpc_pt->bezt;
+        gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(bezt);
       }
+      gpc->flag &= ~GP_CURVE_SELECT;
     }
-    GP_EDITABLE_STROKES_END(gps_iter);
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
   else {
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
@@ -2653,28 +2654,31 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_thr
 
       bGPDcurve *gpc = gps->editcurve;
       for (int i = 0; i < gpc->tot_curve_points; i++) {
-        BezTriple *bezt = &gpc->curve_points[i].bezt;
+        bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+        BezTriple *bezt = &gpc_pt->bezt;
         switch (action) {
           case SEL_SELECT:
+            gpc_pt->flag |= GP_CURVE_POINT_SELECT;
             BEZT_SEL_ALL(bezt);
             break;
           case SEL_INVERT:
+            gpc_pt->flag ^= GP_CURVE_POINT_SELECT;
             BEZT_SEL_INVERT(bezt);
             break;
           default:
             break;
         }
 
-        if (BEZT_ISSEL_ANY(bezt)) {
+        if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
           selected = true;
         }
       }
 
       if (selected) {
-        gps->flag |= GP_STROKE_SELECT;
+        gpc->flag |= GP_CURVE_SELECT;
       }
       else {
-        gps->flag &= ~GP_STROKE_SELECT;
+        gpc->flag &= ~GP_CURVE_SELECT;
       }
     }
     CTX_DATA_END;

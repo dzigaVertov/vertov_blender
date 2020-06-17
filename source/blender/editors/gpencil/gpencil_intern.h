@@ -685,6 +685,55 @@ struct GP_EditableStrokes_Iter {
   (void)0
 
 /**
+ * Iterate over all editable editcurves in the current context,
+ * stopping on each usable layer + stroke + curve pair (i.e. gpl, gps and gpc)
+ * to perform some operations on the curve.
+ *
+ * \param gpl: The identifier to use for the layer of the stroke being processed.
+ *                    Choose a suitable value to avoid name clashes.
+ * \param gps: The identifier to use for current stroke being processed.
+ *                    Choose a suitable value to avoid name clashes.
+ * \param gpc: The identifier to use for current editcurve being processed.
+ *                    Choose a suitable value to avoid name clashes.
+ */
+#define GP_EDITABLE_CURVES_BEGIN(gpstroke_iter, C, gpl, gps, gpc) \
+  { \
+    struct GP_EditableStrokes_Iter gpstroke_iter = {{{0}}}; \
+    Depsgraph *depsgraph_ = CTX_data_ensure_evaluated_depsgraph(C); \
+    Object *obact_ = CTX_data_active_object(C); \
+    bGPdata *gpd_ = CTX_data_gpencil_data(C); \
+    const bool is_multiedit_ = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_); \
+    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) { \
+      bGPDframe *init_gpf_ = (is_multiedit_) ? gpl->frames.first : gpl->actframe; \
+      for (bGPDframe *gpf_ = init_gpf_; gpf_; gpf_ = gpf_->next) { \
+        if ((gpf_ == gpl->actframe) || ((gpf_->flag & GP_FRAME_SELECT) && is_multiedit_)) { \
+          BKE_gpencil_parent_matrix_get(depsgraph_, obact_, gpl, gpstroke_iter.diff_mat); \
+          invert_m4_m4(gpstroke_iter.inverse_diff_mat, gpstroke_iter.diff_mat); \
+          /* loop over strokes */ \
+          bGPDstroke *gpsn_; \
+          for (bGPDstroke *gps = gpf_->strokes.first; gps; gps = gpsn_) { \
+            gpsn_ = gps->next; \
+            /* skip strokes that are invalid for current view */ \
+            if (ED_gpencil_stroke_can_use(C, gps) == false) \
+              continue; \
+            if (gps->editcurve == NULL) \
+              continue; \
+            bGPDcurve *gpc = gps->editcurve;\
+    /* ... Do Stuff With Strokes ...  */
+
+#define GP_EDITABLE_CURVES_END(gpstroke_iter) \
+  } \
+  } \
+  if (!is_multiedit_) { \
+    break; \
+  } \
+  } \
+  } \
+  CTX_DATA_END; \
+  } \
+  (void)0
+
+/**
  * Iterate over all editable strokes using evaluated data in the current context,
  * stopping on each usable layer + stroke pair (i.e. gpl and gps)
  * to perform some operations on the stroke.
