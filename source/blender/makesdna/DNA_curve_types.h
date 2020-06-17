@@ -526,6 +526,42 @@ typedef enum eBezTriple_KeyframeType {
   } \
   ((void)0)
 
+#define BEZT_SEL_IDX(bezt, i) \
+  { \
+    switch (i) { \
+      case 0: \
+        (bezt)->f1 |= SELECT; \
+        break; \
+      case 1: \
+        (bezt)->f2 |= SELECT; \
+        break; \
+      case 2: \
+        (bezt)->f3 |= SELECT; \
+        break; \
+      default: \
+        break; \
+    } \
+  } \
+  ((void)0)
+
+#define BEZT_DESEL_IDX(bezt, i) \
+  { \
+    switch (i) { \
+      case 0: \
+        (bezt)->f1 &= ~SELECT; \
+        break; \
+      case 1: \
+        (bezt)->f2 &= ~SELECT; \
+        break; \
+      case 2: \
+        (bezt)->f3 &= ~SELECT; \
+        break; \
+      default: \
+        break; \
+    } \
+  } \
+  ((void)0)
+
 #define BEZT_IS_AUTOH(bezt) \
   (ELEM((bezt)->h1, HD_AUTO, HD_AUTO_ANIM) && ELEM((bezt)->h2, HD_AUTO, HD_AUTO_ANIM))
 

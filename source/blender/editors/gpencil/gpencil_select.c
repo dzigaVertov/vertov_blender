@@ -1683,6 +1683,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   bGPDspoint *hit_point = NULL;
   bGPDcurve *hit_curve = NULL;
   bGPDcurve_point *hit_curve_point = NULL;
+  char hit_curve_handle = 0;
   int hit_distance = radius_squared;
 
   /* sanity checks */
@@ -1705,8 +1706,8 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   }
 
   if (is_curve_edit) {
-    char handle = 0;
-    gpencil_select_curve_point(C, mval, radius_squared, &hit_curve, &hit_curve_point, &handle);
+    gpencil_select_curve_point(
+        C, mval, radius_squared, &hit_curve, &hit_curve_point, &hit_curve_handle);
   }
 
   if (hit_curve_point == NULL) {
@@ -1800,7 +1801,13 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   /* adjust selection behavior - for toggle option */
   if (toggle) {
     if (hit_curve_point != NULL) {
-      deselect = (hit_curve_point->flag & GP_CURVE_POINT_SELECT) != 0;
+      BezTriple *bezt = &hit_curve_point->bezt;
+      if (bezt->f1 & SELECT && hit_curve_handle == 0)
+        deselect = true;
+      if (bezt->f2 & SELECT && hit_curve_handle == 1)
+        deselect = true;
+      if (bezt->f3 & SELECT && hit_curve_handle == 2)
+        deselect = true;
     }
     else {
       deselect = (hit_point->flag & GP_SPOINT_SELECT) != 0;
@@ -1864,7 +1871,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
     if (deselect == false) {
       if (hit_curve_point != NULL) {
         hit_curve_point->flag |= GP_CURVE_POINT_SELECT;
-        BEZT_SEL_ALL(&hit_curve_point->bezt);
+        BEZT_SEL_IDX(&hit_curve_point->bezt, hit_curve_handle);
         hit_curve->flag |= GP_CURVE_SELECT;
       }
       else {
@@ -1894,8 +1901,10 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
     }
     else {
       if (hit_curve_point != NULL) {
-        hit_curve_point->flag &= ~GP_CURVE_POINT_SELECT;
-        BEZT_DESEL_ALL(&hit_curve_point->bezt);
+        BEZT_DESEL_IDX(&hit_curve_point->bezt, hit_curve_handle);
+        if (!BEZT_ISSEL_ANY(&hit_curve_point->bezt)) {
+          hit_curve_point->flag &= ~GP_CURVE_POINT_SELECT;
+        }
         BKE_gpencil_curve_sync_selection(hit_curve);
       }
       else {
