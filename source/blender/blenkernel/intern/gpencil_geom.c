@@ -1517,7 +1517,9 @@ void BKE_gpencil_dissolve_points(bGPDframe *gpf, bGPDstroke *gps, const short ta
 }
 
 /* Merge by distance ------------------------------------- */
-/* Reduce a series of points when the distance is below a threshold.
+
+/**
+ * Reduce a series of points when the distance is below a threshold.
  * Special case for first and last points (both are keeped) for other points,
  * the merge point always is at first point.
  * \param gpf: Grease Pencil frame
@@ -1820,7 +1822,7 @@ static void gpencil_generate_edgeloops(Object *ob,
 /* Helper: Add gpencil material using material as base. */
 static Material *gpencil_add_material(Main *bmain,
                                       Object *ob_gp,
-                                      char *name,
+                                      const char *name,
                                       const float color[4],
                                       const bool use_stroke,
                                       const bool use_fill,
@@ -1854,9 +1856,10 @@ static Material *gpencil_add_material(Main *bmain,
   return mat_gp;
 }
 
-/* Convert a mesh object to grease pencil stroke.
+/**
+ * Convert a mesh object to grease pencil stroke.
  *
- * \param bmain: Main thread pointer
+ * \param bmain: Main thread pointer.
  * \param depsgraph: Original depsgraph.
  * \param scene: Original scene.
  * \param ob_gp: Grease pencil object to add strokes.
