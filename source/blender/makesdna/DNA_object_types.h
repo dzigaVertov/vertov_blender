@@ -58,8 +58,9 @@ typedef struct bDeformGroup {
   struct bDeformGroup *next, *prev;
   /** MAX_VGROUP_NAME. */
   char name[64];
+  unsigned int bone_group;
   /* need this flag for locking weights */
-  char flag, _pad0[7];
+  char flag, _pad0[3];
 } bDeformGroup;
 
 /* Face Maps*/
