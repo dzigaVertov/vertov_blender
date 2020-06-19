@@ -190,6 +190,7 @@ void OBJECT_OT_gpencil_modifier_add(struct wmOperatorType *ot);
 void OBJECT_OT_gpencil_modifier_remove(struct wmOperatorType *ot);
 void OBJECT_OT_gpencil_modifier_move_up(struct wmOperatorType *ot);
 void OBJECT_OT_gpencil_modifier_move_down(struct wmOperatorType *ot);
+void OBJECT_OT_gpencil_modifier_move_to_index(struct wmOperatorType *ot);
 void OBJECT_OT_gpencil_modifier_apply(struct wmOperatorType *ot);
 void OBJECT_OT_gpencil_modifier_copy(struct wmOperatorType *ot);
 
@@ -198,6 +199,7 @@ void OBJECT_OT_shaderfx_add(struct wmOperatorType *ot);
 void OBJECT_OT_shaderfx_remove(struct wmOperatorType *ot);
 void OBJECT_OT_shaderfx_move_up(struct wmOperatorType *ot);
 void OBJECT_OT_shaderfx_move_down(struct wmOperatorType *ot);
+void OBJECT_OT_shaderfx_move_to_index(struct wmOperatorType *ot);
 
 /* object_constraint.c */
 void OBJECT_OT_constraint_add(struct wmOperatorType *ot);
