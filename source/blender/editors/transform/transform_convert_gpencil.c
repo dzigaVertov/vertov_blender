@@ -51,8 +51,19 @@ static void createTransGPencil_curve_center_get(bGPDcurve *gpc, float r_center[3
   for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-      add_v3_v3(r_center, gpc_pt->bezt.vec[1]);
-      tot_sel++;
+      BezTriple *bezt = &gpc_pt->bezt;
+      if (bezt->f1 & SELECT) {
+        add_v3_v3(r_center, bezt->vec[0]);
+        tot_sel++;
+      }
+      if (bezt->f2 & SELECT) {
+        add_v3_v3(r_center, bezt->vec[0]);
+        tot_sel++;
+      }
+      if (bezt->f3 & SELECT) {
+        add_v3_v3(r_center, bezt->vec[0]);
+        tot_sel++;
+      }
     }
   }
 
@@ -148,19 +159,28 @@ void createTransGPencil(bContext *C, TransInfo *t)
                 if (is_prop_edit_connected) {
                   /* Connected only - so only if selected. */
                   if (gpc->flag & GP_CURVE_SELECT) {
-                    tc->data_len += gpc->tot_curve_points;
+                    tc->data_len += gpc->tot_curve_points * 3;
                   }
                 }
                 else {
                   /* Everything goes - connection status doesn't matter. */
-                  tc->data_len += gpc->tot_curve_points;
+                  tc->data_len += gpc->tot_curve_points * 3;
                 }
               }
               else {
                 for (int i = 0; i < gpc->tot_curve_points; i++) {
                   bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
                   if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-                    tc->data_len++;
+                    BezTriple *bezt = &gpc_pt->bezt;
+                    if (bezt->f1 & SELECT) {
+                      tc->data_len++;
+                    }
+                    if (bezt->f2 & SELECT) {
+                      tc->data_len++;
+                    }
+                    if (bezt->f3 & SELECT) {
+                      tc->data_len++;
+                    }
                   }
                 }
               }
@@ -319,12 +339,71 @@ void createTransGPencil(bContext *C, TransInfo *t)
 
             /* Do stroke... */
             if (stroke_ok && tot_points > 0) {
-              bGPDcurve_point *gpc_pt;
-              bGPDspoint *pt;
               float center[3];
+              bool point_ok;
+
               if (is_curve_edit) {
                 gps->runtime.multi_frame_falloff = falloff;
                 createTransGPencil_curve_center_get(gpc, center);
+
+                for (int i = 0; i < tot_points; i++) {
+                  bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+                  if (is_prop_edit) {
+                    point_ok = true;
+                  }
+                  else {
+                    point_ok = (gpc_pt->flag & GP_CURVE_POINT_SELECT) != 0;
+                  }
+
+                  if (point_ok) {
+                    BezTriple *bezt = &gpc_pt->bezt;
+                    for (int j = 0; j < 3; j++) {
+                      td->flag = 0;
+                      if (BEZT_ISSEL_IDX(bezt, j)) {
+                        copy_v3_v3(td->iloc, bezt->vec[j]);
+                        if ((gpc->flag & GP_CURVE_SELECT) &&
+                            (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
+                          copy_v3_v3(td->center, center);
+                        }
+                        else {
+                          copy_v3_v3(td->center, bezt->vec[j]);
+                        }
+
+                        td->loc = bezt->vec[j];
+                        td->flag |= TD_SELECTED;
+
+                        if (j == 1) {
+                          if (t->mode != TFM_MIRROR) {
+                            if (t->mode != TFM_GPENCIL_OPACITY) {
+                              if (is_scale_thickness) {
+                                td->val = &gpc_pt->pressure;
+                                td->ival = gpc_pt->pressure;
+                              }
+                            }
+                            else {
+                              td->val = &gpc_pt->strength;
+                              td->ival = gpc_pt->strength;
+                            }
+                          }
+                        }
+
+                        /* apply parent transformations */
+                        copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                        copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                        copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+
+                        /* Save the stroke for recalc geometry function. */
+                        td->extra = gps;
+
+                        /* Save pointer to object. */
+                        td->ob = obact;
+
+                        td++;
+                        tail++;
+                      }
+                    }
+                  }
+                }
               }
               else {
                 /* save falloff factor */
@@ -332,23 +411,10 @@ void createTransGPencil(bContext *C, TransInfo *t)
 
                 /* calculate stroke center */
                 createTransGPencil_center_get(gps, center);
-              }
 
-              /* add all necessary points... */
-              for (int i = 0; i < tot_points; i++) {
-                bool point_ok;
+                for (int i = 0; i < tot_points; i++) {
+                  bGPDspoint *pt = &gps->points[i];
 
-                if (is_curve_edit) {
-                  gpc_pt = &gpc->curve_points[i];
-                  if (is_prop_edit) {
-                    point_ok = true;
-                  }
-                  else {
-                    point_ok = (gpc_pt->flag & GP_CURVE_POINT_SELECT) != 0;
-                  }
-                }
-                else {
-                  pt = &gps->points[i];
                   /* include point? */
                   if (is_prop_edit) {
                     /* Always all points in strokes that get included. */
@@ -358,110 +424,74 @@ void createTransGPencil(bContext *C, TransInfo *t)
                     /* Only selected points in selected strokes. */
                     point_ok = (pt->flag & GP_SPOINT_SELECT) != 0;
                   }
-                }
 
-                /* do point... */
-                if (point_ok) {
-
-                  if (is_curve_edit) {
-                    BezTriple *bezt = &gpc_pt->bezt;
-                    copy_v3_v3(td->iloc, bezt->vec[1]);
-
-                    if ((gpc->flag & GP_CURVE_SELECT) &&
-                        (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
-                      copy_v3_v3(td->center, center);
-                    }
-                    else {
-                      copy_v3_v3(td->center, bezt->vec[1]);
-                    }
-
-                    td->loc = bezt->vec[1];
-                    td->flag = 0;
-
-                    if (bezt->f2 & SELECT) {
-                      td->flag |= TD_SELECTED;
-                    }
-
-                    if (t->mode != TFM_MIRROR) {
-                      if (t->mode != TFM_GPENCIL_OPACITY) {
-                        if (is_scale_thickness) {
-                          td->val = &gpc_pt->pressure;
-                          td->ival = gpc_pt->pressure;
-                        }
+                  /* do point... */
+                  if (point_ok) {
+                      copy_v3_v3(td->iloc, &pt->x);
+                      /* Only copy center in local origins.
+                      * This allows get interesting effects also when move
+                      * using proportional editing. */
+                      if ((gps->flag & GP_STROKE_SELECT) &&
+                          (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
+                        copy_v3_v3(td->center, center);
                       }
                       else {
-                        td->val = &gpc_pt->strength;
-                        td->ival = gpc_pt->strength;
+                        copy_v3_v3(td->center, &pt->x);
                       }
-                    }
-                  }
-                  else {
-                    copy_v3_v3(td->iloc, &pt->x);
-                    /* Only copy center in local origins.
-                     * This allows get interesting effects also when move
-                     * using proportional editing. */
-                    if ((gps->flag & GP_STROKE_SELECT) &&
-                        (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
-                      copy_v3_v3(td->center, center);
-                    }
-                    else {
-                      copy_v3_v3(td->center, &pt->x);
-                    }
 
-                    td->loc = &pt->x;
+                      td->loc = &pt->x;
 
-                    td->flag = 0;
+                      td->flag = 0;
 
-                    if (pt->flag & GP_SPOINT_SELECT) {
-                      td->flag |= TD_SELECTED;
-                    }
+                      if (pt->flag & GP_SPOINT_SELECT) {
+                        td->flag |= TD_SELECTED;
+                      }
 
-                    /* For other transform modes (e.g. shrink-fatten), need to additional data
-                     * but never for mirror.
-                     */
-                    if (t->mode != TFM_MIRROR) {
-                      if (t->mode != TFM_GPENCIL_OPACITY) {
-                        if (is_scale_thickness) {
-                          td->val = &pt->pressure;
-                          td->ival = pt->pressure;
+                      /* For other transform modes (e.g. shrink-fatten), need to additional data
+                      * but never for mirror.
+                      */
+                      if (t->mode != TFM_MIRROR) {
+                        if (t->mode != TFM_GPENCIL_OPACITY) {
+                          if (is_scale_thickness) {
+                            td->val = &pt->pressure;
+                            td->ival = pt->pressure;
+                          }
+                        }
+                        else {
+                          td->val = &pt->strength;
+                          td->ival = pt->strength;
                         }
                       }
-                      else {
-                        td->val = &pt->strength;
-                        td->ival = pt->strength;
-                      }
                     }
-                  }
-#if 0
-                  /* screenspace needs special matrices... */
-                  if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
-                      0) {
-                    /* screenspace */
-                    td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
-                  }
-                  else {
-                    /* configure 2D dataspace points so that they don't play up... */
-                    if (gps->flag & (GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) {
+  #if 0
+                    /* screenspace needs special matrices... */
+                    if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
+                        0) {
+                      /* screenspace */
                       td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
                     }
-                  }
-#endif
-                  /* apply parent transformations */
-                  copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                  copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                  copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+                    else {
+                      /* configure 2D dataspace points so that they don't play up... */
+                      if (gps->flag & (GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) {
+                        td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
+                      }
+                    }
+  #endif
+                    /* apply parent transformations */
+                    copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                    copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                    copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
 
-                  /* Save the stroke for recalc geometry function. */
-                  td->extra = gps;
+                    /* Save the stroke for recalc geometry function. */
+                    td->extra = gps;
 
-                  /* Save pointer to object. */
-                  td->ob = obact;
+                    /* Save pointer to object. */
+                    td->ob = obact;
 
-                  td++;
-                  tail++;
+                    td++;
+                    tail++;
                 }
               }
-
               /* March over these points, and calculate the proportional editing distances. */
               if (is_prop_edit && (head != tail)) {
                 calc_distanceCurveVerts(head, tail - 1);
@@ -497,7 +527,7 @@ void recalcData_gpencil_strokes(TransInfo *t)
       BKE_gpencil_stroke_geometry_update(gps);
     }
   }
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
+  // DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
   BLI_ghash_free(strokes, NULL, NULL);
 }
 
