@@ -186,6 +186,7 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
+  /* curve edit mode is turned on */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
     /* If the current select mode is segment and the Bezier mode is on, change
      * to Point because segment is not supported. */
@@ -194,6 +195,23 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
     }
     /* For all selected strokes, update edit curve */
     BKE_gpencil_selected_strokes_editcurve_update(gpd);
+  }
+  /* curve edit mode is turned off */
+  else {
+    /* deselect all strokes for now */
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (gpl->actframe != NULL) {
+        bGPDframe *gpf = gpl->actframe;
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          bGPDspoint *pt;
+          int i;
+          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+            pt->flag &= ~GP_SPOINT_SELECT;
+          }
+          gps->flag &= ~GP_STROKE_SELECT;
+        }
+      }
+    }
   }
 
   /* Standard update. */

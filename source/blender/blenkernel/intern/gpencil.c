@@ -842,6 +842,22 @@ void BKE_gpencil_stroke_sync_selection(bGPDstroke *gps)
   }
 }
 
+void BKE_gpencil_curve_sync_selection(bGPDcurve *gpc)
+{
+  if (gpc == NULL) {
+    return;
+  }
+
+  gpc->flag &= ~GP_CURVE_SELECT;
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    if (gpc_pt->flag & GP_SPOINT_SELECT) {
+      gpc->flag |= GP_STROKE_SELECT;
+      break;
+    }
+  }
+}
+
 /* ************************************************** */
 /* GP Frame API */
 

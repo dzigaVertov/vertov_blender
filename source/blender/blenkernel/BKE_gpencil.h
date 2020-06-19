@@ -103,6 +103,7 @@ void BKE_gpencil_batch_cache_dirty_tag(struct bGPdata *gpd);
 void BKE_gpencil_batch_cache_free(struct bGPdata *gpd);
 
 void BKE_gpencil_stroke_sync_selection(struct bGPDstroke *gps);
+void BKE_gpencil_curve_sync_selection(struct bGPDcurve *gpc);
 
 struct bGPDframe *BKE_gpencil_frame_addnew(struct bGPDlayer *gpl, int cframe);
 struct bGPDframe *BKE_gpencil_frame_addcopy(struct bGPDlayer *gpl, int cframe);

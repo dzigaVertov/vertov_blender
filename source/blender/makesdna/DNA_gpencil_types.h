@@ -223,6 +223,8 @@ typedef struct bGPDcurve {
 typedef enum bGPDcurve_Flag {
   /* Curve requires recalc of the Bezier editing data. */
   GP_CURVE_RECALC_GEOMETRY = (1 << 0),
+  /* Curve is selected */
+  GP_CURVE_SELECT = (1 << 1),
 } bGPDcurve_Flag;
 
 /* ***************************************** */
