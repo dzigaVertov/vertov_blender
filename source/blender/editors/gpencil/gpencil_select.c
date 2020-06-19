@@ -151,9 +151,9 @@ static void gpencil_select_ui(bContext *C, wmOperator *op)
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
 
-  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) && error_threshold_display_poll(C)) {
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {  // && error_threshold_display_poll(C)) {
     RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
-    uiItemR(layout, &ptr, "error_threshold", 0, NULL, ICON_NONE);
+    uiItemR(layout, &ptr, "error_threshold", 0, "Error Threshold", ICON_NONE);
   }
 }
 
@@ -1822,7 +1822,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   /* Perform selection operations... */
   if (whole) {
     /* select all curve points */
-    if (hit_curve != NULL || (is_curve_edit && hit_point != NULL)) {
+    if (hit_curve != NULL) {
       for (int i = 0; i < hit_curve->tot_curve_points; i++) {
         bGPDcurve_point *gpc_pt = &hit_curve->curve_points[i];
         BezTriple *bezt = &gpc_pt->bezt;
