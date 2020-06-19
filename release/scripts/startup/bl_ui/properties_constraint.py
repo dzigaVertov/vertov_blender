@@ -954,7 +954,7 @@ class ConstraintButtonsSubPanel(Panel):
         if context.pose_bone:
             con = context.pose_bone.constraints[self.list_panel_index]
         else:
-            con = context.active.constraints[self.list_panel_index]
+            con = context.object.constraints[self.list_panel_index]
         self.layout.context_pointer_set("constraint", con)
         return con
 
@@ -1160,7 +1160,7 @@ class BONE_PT_bFollowPathConstraint(BoneConstraintPanel, ConstraintButtonsPanel)
         self.draw_follow_path(context)
 
 
-# Roation Limit Constraint
+# Rotation Limit Constraint
 
 class OBJECT_PT_bRotLimitConstraint(ObjectConstraintPanel, ConstraintButtonsPanel):
     def draw(self, context):
