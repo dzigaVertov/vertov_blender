@@ -23,6 +23,7 @@
 #include "BLI_math.h"
 
 #include "DNA_brush_types.h"
+#include "DNA_curve_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
@@ -889,6 +890,32 @@ static void rna_GPencil_stroke_select_set(PointerRNA *ptr, const bool value)
   }
 }
 
+static void rna_GPencil_curve_select_set(PointerRNA *ptr, const bool value)
+{
+  bGPDcurve *gpc = ptr->data;
+
+  /* Set new value. */
+  if (value) {
+    gpc->flag |= GP_CURVE_SELECT;
+  }
+  else {
+    gpc->flag &= ~GP_CURVE_SELECT;
+  }
+  /* Ensure that the curves's points are selected in the same way. */
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    BezTriple *bezt = &gpc_pt->bezt;
+    if (value) {
+      gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+      BEZT_SEL_ALL(bezt);
+    }
+    else {
+      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(bezt);
+    }
+  }
+}
+
 static bGPDframe *rna_GPencil_frame_new(bGPDlayer *layer,
                                         ReportList *reports,
                                         int frame_number,
@@ -1416,6 +1443,12 @@ static void rna_def_gpencil_curve(BlenderRNA *brna)
   RNA_def_property_collection_sdna(prop, NULL, "curve_points", "tot_curve_points");
   RNA_def_property_struct_type(prop, "GPencilEditCurvePoint");
   RNA_def_property_ui_text(prop, "Curve Points", "Curve data points");
+
+  prop = RNA_def_property(srna, "select", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_CURVE_SELECT);
+  RNA_def_property_boolean_funcs(prop, NULL, "rna_GPencil_curve_select_set");
+  RNA_def_property_ui_text(prop, "Select", "Curve is selected for viewport editing");
+  RNA_def_property_update(prop, 0, "rna_GPencil_update");
 }
 
 static void rna_def_gpencil_mvert_group(BlenderRNA *brna)
