@@ -774,13 +774,16 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
   gpEditCurveIterData *iter = (gpEditCurveIterData *)thunk;
   const int v = gps->runtime.curve_start;
   gpEditCurveVert *vert_ptr = iter->verts + v;
+  /* Hide points when the curve is unselected. Passing the control point
+   * as handle produces the point shader skip it if you are not in ALL mode. */
+  const bool hide = !(editcurve->flag & GP_CURVE_SELECT);
 
   for (int i = 0; i < editcurve->tot_curve_points; i++) {
     BezTriple *bezt = &editcurve->curve_points[i].bezt;
     const bool handle_selected = BEZT_ISSEL_ANY(bezt);
     const char vflag[3] = {
         gpencil_beztriple_vflag_get(bezt->f1, bezt->h1, true, handle_selected),
-        gpencil_beztriple_vflag_get(bezt->f2, bezt->h1, false, handle_selected),
+        gpencil_beztriple_vflag_get(bezt->f2, bezt->h1, hide, handle_selected),
         gpencil_beztriple_vflag_get(bezt->f3, bezt->h2, true, handle_selected),
     };
 

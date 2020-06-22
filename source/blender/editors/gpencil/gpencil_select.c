@@ -1657,7 +1657,6 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   ToolSettings *ts = CTX_data_tool_settings(C);
   const float scale = ts->gp_sculpt.isect_threshold;
-  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   /* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
@@ -1670,7 +1669,6 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   bool toggle = RNA_boolean_get(op->ptr, "toggle");
   bool whole = RNA_boolean_get(op->ptr, "entire_strokes");
   const bool deselect_all = RNA_boolean_get(op->ptr, "deselect_all") && !use_shift_extend;
-  float error_threshold = RNA_float_get(op->ptr, "error_threshold");
 
   int mval[2] = {0};
   /* get mouse location */
@@ -1731,9 +1729,6 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
       /* firstly, check for hit-point */
       for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
         int xy[2];
-        if ((!is_multiedit) && (pt->runtime.pt_orig == NULL)) {
-          continue;
-        }
 
         bGPDspoint pt2;
         gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
@@ -1749,25 +1744,10 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
             if (pt_distance < hit_distance) {
               hit_layer = gpl;
               hit_stroke = gps_active;
-              hit_point = (!is_multiedit) ? pt->runtime.pt_orig : pt;
+              hit_point = (pt->runtime.pt_orig) ? pt->runtime.pt_orig : pt;
               hit_distance = pt_distance;
             }
           }
-        }
-      }
-      if (ELEM(NULL, hit_stroke, hit_point)) {
-        /* If nothing hit, check if the mouse is inside any filled stroke.
-         * Only check filling materials. */
-        MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
-        if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
-          continue;
-        }
-        bool hit_fill = ED_gpencil_stroke_point_is_inside(gps, &gsc, mval, gpstroke_iter.diff_mat);
-        if (hit_fill) {
-          hit_stroke = gps_active;
-          hit_point = &gps_active->points[0];
-          /* Extend selection to all stroke. */
-          whole = true;
         }
       }
     }
