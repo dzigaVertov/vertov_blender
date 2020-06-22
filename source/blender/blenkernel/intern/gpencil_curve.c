@@ -539,7 +539,32 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold)
   if (editcurve == NULL) {
     return;
   }
+  /* update the selection based on the selected points in the stroke */
+  BKE_gpencil_editcurve_sync_selection(gps, editcurve);
   gps->editcurve = editcurve;
+}
+
+void BKE_gpencil_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
+{
+  if (gps->flag & GP_STROKE_SELECT) {
+    gpc->flag |= GP_CURVE_SELECT;
+  }
+  else {
+    gpc->flag &= ~GP_CURVE_SELECT;
+  }
+
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+    if (pt->flag & GP_SPOINT_SELECT) {
+      gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+      BEZT_SEL_ALL(&gpc_pt->bezt);
+    }
+    else {
+      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&gpc_pt->bezt);
+    }
+  }
 }
 
 /**
