@@ -1727,9 +1727,9 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
         continue;
       }
 
-    /* firstly, check for hit-point */
-    for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-      int xy[2];
+      /* firstly, check for hit-point */
+      for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+        int xy[2];
 
         bGPDspoint pt2;
         gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
@@ -1745,25 +1745,10 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
             if (pt_distance < hit_distance) {
               hit_layer = gpl;
               hit_stroke = gps_active;
-              hit_point = (!is_multiedit) ? pt->runtime.pt_orig : pt;
+              hit_point = (pt->runtime.pt_orig) ? pt->runtime.pt_orig : pt;
               hit_distance = pt_distance;
             }
           }
-        }
-      }
-      if (ELEM(NULL, hit_stroke, hit_point)) {
-        /* If nothing hit, check if the mouse is inside any filled stroke.
-         * Only check filling materials. */
-        MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
-        if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
-          continue;
-        }
-        bool hit_fill = ED_gpencil_stroke_point_is_inside(gps, &gsc, mval, gpstroke_iter.diff_mat);
-        if (hit_fill) {
-          hit_stroke = gps_active;
-          hit_point = &gps_active->points[0];
-          /* Extend selection to all stroke. */
-          whole = true;
         }
       }
     }
