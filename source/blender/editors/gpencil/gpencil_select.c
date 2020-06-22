@@ -1669,7 +1669,6 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   bool toggle = RNA_boolean_get(op->ptr, "toggle");
   bool whole = RNA_boolean_get(op->ptr, "entire_strokes");
   const bool deselect_all = RNA_boolean_get(op->ptr, "deselect_all") && !use_shift_extend;
-  float error_threshold = RNA_float_get(op->ptr, "error_threshold");
 
   int mval[2] = {0};
   /* get mouse location */
