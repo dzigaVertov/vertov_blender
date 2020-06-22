@@ -1657,7 +1657,6 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   ToolSettings *ts = CTX_data_tool_settings(C);
   const float scale = ts->gp_sculpt.isect_threshold;
-  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   /* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
@@ -1728,12 +1727,9 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
         continue;
       }
 
-      /* firstly, check for hit-point */
-      for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-        int xy[2];
-        if ((!is_multiedit) && (pt->runtime.pt_orig == NULL)) {
-          continue;
-        }
+    /* firstly, check for hit-point */
+    for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+      int xy[2];
 
         bGPDspoint pt2;
         gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
