@@ -738,27 +738,40 @@ class _defs_edit_mesh:
     def bevel():
         def draw_settings(context, layout, tool, *, extra=False):
             props = tool.operator_properties("mesh.bevel")
-            region_type = context.region.type
+
+            region_is_header = context.region.type == 'TOOL_HEADER'
 
             if not extra:
-                if region_type == 'TOOL_HEADER':
+                if region_is_header:
                     layout.prop(props, "offset_type", text="")
                 else:
                     layout.prop(props, "offset_type")
 
                 layout.prop(props, "segments")
-                layout.prop(props, "profile", slider=True)
 
-                if region_type == 'TOOL_HEADER':
+                row = layout.row()
+                row.prop(props, "profile_type", text="" if region_is_header else None)
+                if props.profile_type == 'SUPERELLIPSE':
+                    layout.prop(props, "profile", text="Shape", slider=True)
+
+                if region_is_header:
                     layout.popover("TOPBAR_PT_tool_settings_extra", text="...")
                 else:
                     extra = True
 
-            if extra or region_type != 'TOOL_HEADER':
-                layout.prop(props, "vertex_only")
-                layout.prop(props, "clamp_overlap")
-                layout.prop(props, "loop_slide")
-                layout.prop(props, "harden_normals")
+            if extra:
+                layout.use_property_split = True
+                layout.use_property_decorate = False
+
+                if props.profile_type == 'CUSTOM':
+                    layout.prop(props, "profile", text="Miter Shape", slider=True)
+
+                col = layout.column()
+                col.prop(props, "vertex_only")
+                col.prop(props, "clamp_overlap")
+                col.prop(props, "loop_slide")
+                col.prop(props, "harden_normals")
+
                 col = layout.column(heading="Mark")
                 col.prop(props, "mark_seam", text="Seam")
                 col.prop(props, "mark_sharp", text="Sharp")
@@ -770,8 +783,7 @@ class _defs_edit_mesh:
                 if props.miter_inner == 'ARC':
                     layout.prop(props, "spread")
 
-                layout.prop(props, "use_custom_profile")
-                if props.use_custom_profile:
+                if props.profile_type == 'CUSTOM':
                     tool_settings = context.tool_settings
                     layout.template_curveprofile(tool_settings, "custom_bevel_profile_preset")
 

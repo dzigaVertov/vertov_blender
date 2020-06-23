@@ -310,7 +310,7 @@ void blo_reportf_wrap(ReportList *reports, ReportType type, const char *format, 
 /* for reporting linking messages */
 static const char *library_parent_filepath(Library *lib)
 {
-  return lib->parent ? lib->parent->filepath : "<direct>";
+  return lib->parent ? lib->parent->filepath_abs : "<direct>";
 }
 
 /* -------------------------------------------------------------------- */
@@ -673,7 +673,7 @@ static Main *blo_find_main(FileData *fd, const char *filepath, const char *relab
   //  printf("blo_find_main: converted to %s\n", name1);
 
   for (m = mainlist->first; m; m = m->next) {
-    const char *libname = (m->curlib) ? m->curlib->filepath : m->name;
+    const char *libname = (m->curlib) ? m->curlib->filepath_abs : m->name;
 
     if (BLI_path_cmp(name1, libname) == 0) {
       if (G.debug & G_DEBUG) {
@@ -696,8 +696,8 @@ static Main *blo_find_main(FileData *fd, const char *filepath, const char *relab
   /* Matches direct_link_library(). */
   id_us_ensure_real(&lib->id);
 
-  BLI_strncpy(lib->name, filepath, sizeof(lib->name));
-  BLI_strncpy(lib->filepath, name1, sizeof(lib->filepath));
+  BLI_strncpy(lib->filepath, filepath, sizeof(lib->filepath));
+  BLI_strncpy(lib->filepath_abs, name1, sizeof(lib->filepath_abs));
 
   m->curlib = lib;
 
@@ -4242,7 +4242,7 @@ static void direct_link_text(BlendDataReader *reader, Text *text)
 {
   TextLine *ln;
 
-  BLO_read_data_address(reader, &text->name);
+  BLO_read_data_address(reader, &text->filepath);
 
   text->compiled = NULL;
 
@@ -5206,7 +5206,7 @@ static void lib_link_object(FileData *fd, Main *bmain, Object *ob)
       ob->proxy = NULL;
 
       if (ob->id.lib) {
-        printf("Proxy lost from  object %s lib %s\n", ob->id.name + 2, ob->id.lib->name);
+        printf("Proxy lost from  object %s lib %s\n", ob->id.name + 2, ob->id.lib->filepath);
       }
       else {
         printf("Proxy lost from  object %s lib <NONE>\n", ob->id.name + 2);
@@ -5224,7 +5224,7 @@ static void lib_link_object(FileData *fd, Main *bmain, Object *ob)
 
   if (ob->data == NULL && poin != NULL) {
     if (ob->id.lib) {
-      printf("Can't find obdata of %s lib %s\n", ob->id.name + 2, ob->id.lib->name);
+      printf("Can't find obdata of %s lib %s\n", ob->id.name + 2, ob->id.lib->filepath);
     }
     else {
       printf("Object %s lost data.\n", ob->id.name + 2);
@@ -8363,12 +8363,12 @@ static void direct_link_library(FileData *fd, Library *lib, Main *main)
   /* check if the library was already read */
   for (newmain = fd->mainlist->first; newmain; newmain = newmain->next) {
     if (newmain->curlib) {
-      if (BLI_path_cmp(newmain->curlib->filepath, lib->filepath) == 0) {
+      if (BLI_path_cmp(newmain->curlib->filepath_abs, lib->filepath_abs) == 0) {
         blo_reportf_wrap(fd->reports,
                          RPT_WARNING,
                          TIP_("Library '%s', '%s' had multiple instances, save and reload!"),
-                         lib->name,
-                         lib->filepath);
+                         lib->filepath,
+                         lib->filepath_abs);
 
         change_link_placeholder_to_real_ID_pointer(fd->mainlist, fd, lib, newmain->curlib);
         /*              change_link_placeholder_to_real_ID_pointer_fd(fd, lib, newmain->curlib); */
@@ -8390,12 +8390,12 @@ static void direct_link_library(FileData *fd, Library *lib, Main *main)
     }
   }
 
-  /* make sure we have full path in lib->filepath */
-  BLI_strncpy(lib->filepath, lib->name, sizeof(lib->name));
-  BLI_path_normalize(fd->relabase, lib->filepath);
+  /* Make sure we have full path in lib->filepath_abs */
+  BLI_strncpy(lib->filepath_abs, lib->filepath, sizeof(lib->filepath));
+  BLI_path_normalize(fd->relabase, lib->filepath_abs);
 
-  //  printf("direct_link_library: name %s\n", lib->name);
   //  printf("direct_link_library: filepath %s\n", lib->filepath);
+  //  printf("direct_link_library: filepath_abs %s\n", lib->filepath_abs);
 
   BlendDataReader reader = {fd};
   lib->packedfile = direct_link_packedfile(&reader, lib->packedfile);
@@ -8427,8 +8427,8 @@ static void fix_relpaths_library(const char *basepath, Main *main)
        * it absolute. This can happen when appending an object with a relative
        * link into an unsaved blend file. See [#27405].
        * The remap relative option will make it relative again on save - campbell */
-      if (BLI_path_is_rel(lib->name)) {
-        BLI_strncpy(lib->name, lib->filepath, sizeof(lib->name));
+      if (BLI_path_is_rel(lib->filepath)) {
+        BLI_strncpy(lib->filepath, lib->filepath_abs, sizeof(lib->filepath));
       }
     }
   }
@@ -8437,9 +8437,9 @@ static void fix_relpaths_library(const char *basepath, Main *main)
       /* Libraries store both relative and abs paths, recreate relative paths,
        * relative to the blend file since indirectly linked libs will be
        * relative to their direct linked library. */
-      if (BLI_path_is_rel(lib->name)) { /* if this is relative to begin with? */
-        BLI_strncpy(lib->name, lib->filepath, sizeof(lib->name));
-        BLI_path_rel(lib->name, basepath);
+      if (BLI_path_is_rel(lib->filepath)) { /* if this is relative to begin with? */
+        BLI_strncpy(lib->filepath, lib->filepath_abs, sizeof(lib->filepath));
+        BLI_path_rel(lib->filepath, basepath);
       }
     }
   }
@@ -9455,7 +9455,7 @@ static bool read_libblock_undo_restore_linked(FileData *fd, Main *main, const ID
   DEBUG_PRINTF("UNDO: restore linked datablock %s\n", id->name);
   DEBUG_PRINTF("  from %s (%s): ",
                main->curlib ? main->curlib->id.name : "<NULL>",
-               main->curlib ? main->curlib->name : "<NULL>");
+               main->curlib ? main->curlib->filepath : "<NULL>");
 
   ID *id_old = BKE_libblock_find_name(main, GS(id->name), id->name + 2);
   if (id_old != NULL) {
@@ -9892,8 +9892,8 @@ static void do_versions(FileData *fd, Library *lib, Main *main)
 
 static void do_versions_after_linking(Main *main, ReportList *reports)
 {
-  //  printf("%s for %s (%s), %d.%d\n", __func__, main->curlib ? main->curlib->name : main->name,
-  //         main->curlib ? "LIB" : "MAIN", main->versionfile, main->subversionfile);
+  //  printf("%s for %s (%s), %d.%d\n", __func__, main->curlib ? main->curlib->filepath :
+  //         main->name, main->curlib ? "LIB" : "MAIN", main->versionfile, main->subversionfile);
 
   /* Don't allow versioning to create new data-blocks. */
   main->is_locked_for_linking = true;
@@ -10543,7 +10543,7 @@ static void expand_doit_library(void *fdhandle, Main *mainvar, void *old)
     }
 
     Library *lib = read_struct(fd, bheadlib, "Library");
-    Main *libmain = blo_find_main(fd, lib->name, fd->relabase);
+    Main *libmain = blo_find_main(fd, lib->filepath, fd->relabase);
 
     if (libmain->curlib == NULL) {
       const char *idname = blo_bhead_id_name(fd, bhead);
@@ -10552,7 +10552,7 @@ static void expand_doit_library(void *fdhandle, Main *mainvar, void *old)
                        RPT_WARNING,
                        TIP_("LIB: Data refers to main .blend file: '%s' from %s"),
                        idname,
-                       mainvar->curlib->filepath);
+                       mainvar->curlib->filepath_abs);
       return;
     }
 
@@ -10563,7 +10563,7 @@ static void expand_doit_library(void *fdhandle, Main *mainvar, void *old)
        * library it belongs to, so that it will be read later. */
       read_libblock(fd, libmain, bhead, LIB_TAG_INDIRECT, false, NULL);
       // commented because this can print way too much
-      // if (G.debug & G_DEBUG) printf("expand_doit: other lib %s\n", lib->name);
+      // if (G.debug & G_DEBUG) printf("expand_doit: other lib %s\n", lib->filepath);
 
       /* for outliner dependency only */
       libmain->curlib->parent = mainvar->curlib;
@@ -10600,7 +10600,7 @@ static void expand_doit_library(void *fdhandle, Main *mainvar, void *old)
       /* Commented because this can print way too much. */
 #if 0
       if (G.debug & G_DEBUG) {
-        printf("expand_doit: already linked: %s lib: %s\n", id->name, lib->name);
+        printf("expand_doit: already linked: %s lib: %s\n", id->name, lib->filepath);
       }
 #endif
     }
@@ -12051,7 +12051,7 @@ static Main *library_link_begin(Main *mainvar, FileData **fd, const char *filepa
  * \param mainvar: The current main database, e.g. #G_MAIN or #CTX_data_main(C).
  * \param bh: A blender file handle as returned by
  * #BLO_blendhandle_from_file or #BLO_blendhandle_from_memory.
- * \param filepath: Used for relative linking, copied to the \a lib->name.
+ * \param filepath: Used for relative linking, copied to the `lib->filepath`.
  * \return the library Main, to be passed to #BLO_library_append_named_part as \a mainl.
  */
 Main *BLO_library_link_begin(Main *mainvar, BlendHandle **bh, const char *filepath)
@@ -12112,10 +12112,10 @@ static void library_link_end(Main *mainl,
   /* make the lib path relative if required */
   if (flag & FILE_RELPATH) {
     /* use the full path, this could have been read by other library even */
-    BLI_strncpy(curlib->name, curlib->filepath, sizeof(curlib->name));
+    BLI_strncpy(curlib->filepath, curlib->filepath_abs, sizeof(curlib->filepath));
 
     /* uses current .blend file as reference */
-    BLI_path_rel(curlib->name, BKE_main_blendfile_path_from_global());
+    BLI_path_rel(curlib->filepath, BKE_main_blendfile_path_from_global());
   }
 
   blo_join_main((*fd)->mainlist);
@@ -12262,7 +12262,7 @@ static void read_library_linked_id(
                           "non-linkable data type"),
                      BKE_idtype_idcode_to_name(GS(id->name)),
                      id->name + 2,
-                     mainvar->curlib->filepath,
+                     mainvar->curlib->filepath_abs,
                      library_parent_filepath(mainvar->curlib));
   }
 
@@ -12280,7 +12280,7 @@ static void read_library_linked_id(
                      TIP_("LIB: %s: '%s' missing from '%s', parent '%s'"),
                      BKE_idtype_idcode_to_name(GS(id->name)),
                      id->name + 2,
-                     mainvar->curlib->filepath,
+                     mainvar->curlib->filepath_abs,
                      library_parent_filepath(mainvar->curlib));
 
     /* Generate a placeholder for this ID (simplified version of read_libblock actually...). */
@@ -12383,22 +12383,22 @@ static FileData *read_library_file_data(FileData *basefd,
     blo_reportf_wrap(basefd->reports,
                      RPT_INFO,
                      TIP_("Read packed library:  '%s', parent '%s'"),
-                     mainptr->curlib->name,
+                     mainptr->curlib->filepath,
                      library_parent_filepath(mainptr->curlib));
     fd = blo_filedata_from_memory(pf->data, pf->size, basefd->reports);
 
     /* Needed for library_append and read_libraries. */
-    BLI_strncpy(fd->relabase, mainptr->curlib->filepath, sizeof(fd->relabase));
+    BLI_strncpy(fd->relabase, mainptr->curlib->filepath_abs, sizeof(fd->relabase));
   }
   else {
     /* Read file on disk. */
     blo_reportf_wrap(basefd->reports,
                      RPT_INFO,
                      TIP_("Read library:  '%s', '%s', parent '%s'"),
+                     mainptr->curlib->filepath_abs,
                      mainptr->curlib->filepath,
-                     mainptr->curlib->name,
                      library_parent_filepath(mainptr->curlib));
-    fd = blo_filedata_from_file(mainptr->curlib->filepath, basefd->reports);
+    fd = blo_filedata_from_file(mainptr->curlib->filepath_abs, basefd->reports);
   }
 
   if (fd) {
@@ -12435,7 +12435,7 @@ static FileData *read_library_file_data(FileData *basefd,
 
   if (fd == NULL) {
     blo_reportf_wrap(
-        basefd->reports, RPT_WARNING, TIP_("Cannot find lib '%s'"), mainptr->curlib->filepath);
+        basefd->reports, RPT_WARNING, TIP_("Cannot find lib '%s'"), mainptr->curlib->filepath_abs);
   }
 
   return fd;
@@ -12467,7 +12467,7 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 #if 0
         printf("Reading linked data-blocks from %s (%s)\n",
           mainptr->curlib->id.name,
-          mainptr->curlib->name);
+          mainptr->curlib->filepath);
 #endif
 
         /* Open file if it has not been done yet. */
