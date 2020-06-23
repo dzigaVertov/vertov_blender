@@ -712,7 +712,8 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
                               POINTER_OFFSET(points_offset, sizeof(float) * 5),
                               resolu,
                               stride);
-
+    /* update the index */
+    cpt_curr->point_index = i * resolu;
     points_offset = POINTER_OFFSET(points_offset, resolu_stride);
   }
 
