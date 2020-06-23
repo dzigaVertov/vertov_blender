@@ -186,6 +186,7 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
 {
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
+  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
   /* curve edit mode is turned on */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
@@ -201,15 +202,14 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
   else {
     /* deselect all strokes for now */
     LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-      if (gpl->actframe != NULL) {
-        bGPDframe *gpf = gpl->actframe;
-        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-          bGPDspoint *pt;
-          int i;
-          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-            pt->flag &= ~GP_SPOINT_SELECT;
+      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
+          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+            if (gps->editcurve != NULL) {
+              BKE_gpencil_stroke_editcurve_sync_selection(gps, gps->editcurve);
+            }
           }
-          gps->flag &= ~GP_STROKE_SELECT;
         }
       }
     }
