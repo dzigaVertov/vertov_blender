@@ -2094,7 +2094,8 @@ static bool set_bones_positions(bContext *C,
 static bool add_curve(bContext *C,
 		      uint cubic_spline_len,
 		      float *cubic_spline,
-		      char *name)
+		      char *name,
+		      Object *gp_ob)
 {
   struct Main *bmain = CTX_data_main(C);
   Collection *collection = CTX_data_collection(C);
@@ -2112,11 +2113,15 @@ static bool add_curve(bContext *C,
   DEG_relations_tag_update(bmain); /* added object */
   cu->flag |= CU_3D;
 
+  /* Copy the gp_ob transforms */
+  copy_m4_m4(ob->obmat, gp_ob->obmat);
+  copy_v3_v3(ob->loc, gp_ob->loc);
+  copy_v3_v3(ob->rot, gp_ob->rot);
+
   /* Agregar los puntos fiteados a la curva */
   add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
   ED_object_base_select(base_new, BA_SELECT);
-  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
-  
+  DEG_id_tag_update(&ob->id,ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
   return true;
 }
 
@@ -2169,7 +2174,7 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
 
   int target = RNA_enum_get(op->ptr, "target");
   if (target==CURVE){
-    add_curve(C, cubic_spline_len, cubic_spline, gpl->info);    
+    add_curve(C, cubic_spline_len, cubic_spline, gpl->info, obgp);    
   }
   else {
     set_bones_positions(C, cubic_spline_len, cubic_spline, stroke_idx);
