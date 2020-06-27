@@ -1511,6 +1511,14 @@ void OBJECT_OT_speaker_add(wmOperatorType *ot)
 /** \name Add Hair Operator
  * \{ */
 
+static bool object_hair_add_poll(bContext *C)
+{
+  if (!U.experimental.use_new_hair_type) {
+    return false;
+  }
+  return ED_operator_objectmode(C);
+}
+
 static int object_hair_add_exec(bContext *C, wmOperator *op)
 {
   ushort local_view_bits;
@@ -1534,7 +1542,7 @@ void OBJECT_OT_hair_add(wmOperatorType *ot)
 
   /* api callbacks */
   ot->exec = object_hair_add_exec;
-  ot->poll = ED_operator_objectmode;
+  ot->poll = object_hair_add_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -1547,6 +1555,14 @@ void OBJECT_OT_hair_add(wmOperatorType *ot)
 /* -------------------------------------------------------------------- */
 /** \name Add Point Cloud Operator
  * \{ */
+
+static bool object_pointcloud_add_poll(bContext *C)
+{
+  if (!U.experimental.use_new_particle_system) {
+    return false;
+  }
+  return ED_operator_objectmode(C);
+}
 
 static int object_pointcloud_add_exec(bContext *C, wmOperator *op)
 {
@@ -1571,7 +1587,7 @@ void OBJECT_OT_pointcloud_add(wmOperatorType *ot)
 
   /* api callbacks */
   ot->exec = object_pointcloud_add_exec;
-  ot->poll = ED_operator_objectmode;
+  ot->poll = object_pointcloud_add_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -2797,8 +2813,12 @@ void OBJECT_OT_convert(wmOperatorType *ot)
 /* used below, assumes id.new is correct */
 /* leaves selection of base/object unaltered */
 /* Does set ID->newid pointers. */
-static Base *object_add_duplicate_internal(
-    Main *bmain, Scene *scene, ViewLayer *view_layer, Object *ob, const eDupli_ID_Flags dupflag)
+static Base *object_add_duplicate_internal(Main *bmain,
+                                           Scene *scene,
+                                           ViewLayer *view_layer,
+                                           Object *ob,
+                                           const eDupli_ID_Flags dupflag,
+                                           const eLibIDDuplicateFlags duplicate_options)
 {
   Base *base, *basen = NULL;
   Object *obn;
@@ -2807,7 +2827,7 @@ static Base *object_add_duplicate_internal(
     /* nothing? */
   }
   else {
-    obn = ID_NEW_SET(ob, BKE_object_duplicate(bmain, ob, dupflag));
+    obn = ID_NEW_SET(ob, BKE_object_duplicate(bmain, ob, dupflag, duplicate_options));
     DEG_id_tag_update(&obn->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
     base = BKE_view_layer_base_find(view_layer, ob);
@@ -2851,7 +2871,8 @@ Base *ED_object_add_duplicate(
   Base *basen;
   Object *ob;
 
-  basen = object_add_duplicate_internal(bmain, scene, view_layer, base->object, dupflag);
+  basen = object_add_duplicate_internal(
+      bmain, scene, view_layer, base->object, dupflag, LIB_ID_DUPLICATE_IS_SUBPROCESS);
   if (basen == NULL) {
     return NULL;
   }
@@ -2882,7 +2903,8 @@ static int duplicate_exec(bContext *C, wmOperator *op)
   const eDupli_ID_Flags dupflag = (linked) ? 0 : (eDupli_ID_Flags)U.dupflag;
 
   CTX_DATA_BEGIN (C, Base *, base, selected_bases) {
-    Base *basen = object_add_duplicate_internal(bmain, scene, view_layer, base->object, dupflag);
+    Base *basen = object_add_duplicate_internal(
+        bmain, scene, view_layer, base->object, dupflag, 0);
 
     /* note that this is safe to do with this context iterator,
      * the list is made in advance */
@@ -2976,7 +2998,7 @@ static int object_add_named_exec(bContext *C, wmOperator *op)
   }
 
   /* prepare dupli */
-  basen = object_add_duplicate_internal(bmain, scene, view_layer, ob, dupflag);
+  basen = object_add_duplicate_internal(bmain, scene, view_layer, ob, dupflag, 0);
 
   if (basen == NULL) {
     BKE_report(op->reports, RPT_ERROR, "Object could not be duplicated");

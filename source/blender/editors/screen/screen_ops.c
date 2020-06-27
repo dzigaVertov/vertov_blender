@@ -1761,7 +1761,7 @@ static void area_move_apply_do(const bContext *C,
           screen->do_refresh = true;
           redraw_all = true;
         }
-        ED_area_tag_redraw(area);
+        ED_area_tag_redraw_no_rebuild(area);
       }
     }
     if (redraw_all) {
@@ -4273,68 +4273,67 @@ static void SCREEN_OT_region_context_menu(wmOperatorType *ot)
  *
  * Animation Step.
  * \{ */
-
-static int match_region_with_redraws(int spacetype,
-                                     int regiontype,
-                                     int redraws,
-                                     bool from_anim_edit)
+static bool screen_animation_region_supports_time_follow(eSpace_Type spacetype,
+                                                         eRegionType regiontype)
 {
+  return (regiontype == RGN_TYPE_WINDOW &&
+          ELEM(spacetype, SPACE_SEQ, SPACE_GRAPH, SPACE_ACTION, SPACE_NLA)) ||
+         (spacetype == SPACE_CLIP && regiontype == RGN_TYPE_PREVIEW);
+}
+
+static bool match_region_with_redraws(const ScrArea *area,
+                                      eRegionType regiontype,
+                                      eScreen_Redraws_Flag redraws,
+                                      bool from_anim_edit)
+{
+  const eSpace_Type spacetype = area->spacetype;
   if (regiontype == RGN_TYPE_WINDOW) {
 
     switch (spacetype) {
       case SPACE_VIEW3D:
         if ((redraws & TIME_ALL_3D_WIN) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_GRAPH:
       case SPACE_NLA:
         if ((redraws & TIME_ALL_ANIM_WIN) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_ACTION:
         /* if only 1 window or 3d windows, we do timeline too
          * NOTE: Now we do action editor in all these cases, since timeline is here. */
         if ((redraws & (TIME_ALL_ANIM_WIN | TIME_REGION | TIME_ALL_3D_WIN)) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_PROPERTIES:
         if (redraws & TIME_ALL_BUTS_WIN) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_SEQ:
         if ((redraws & (TIME_SEQ | TIME_ALL_ANIM_WIN)) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_NODE:
-        if (redraws & (TIME_NODES)) {
-          return 1;
+        if (redraws & TIME_NODES) {
+          return true;
         }
         break;
       case SPACE_IMAGE:
         if ((redraws & TIME_ALL_IMAGE_WIN) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_CLIP:
         if ((redraws & TIME_CLIPS) || from_anim_edit) {
-          return 1;
+          return true;
         }
         break;
-    }
-  }
-  else if (regiontype == RGN_TYPE_CHANNELS) {
-    switch (spacetype) {
-      case SPACE_GRAPH:
-      case SPACE_ACTION:
-      case SPACE_NLA:
-        if (redraws & TIME_ALL_ANIM_WIN) {
-          return 1;
-        }
+      default:
         break;
     }
   }
@@ -4345,30 +4344,66 @@ static int match_region_with_redraws(int spacetype,
        * during playback, so asking people to enable special option
        * for this is a bit tricky, so add exception here for refreshing
        * Properties Editor for SpaceClip always */
-      return 1;
+      return true;
     }
 
     if (redraws & TIME_ALL_BUTS_WIN) {
-      return 1;
+      return true;
     }
   }
-  else if (ELEM(regiontype, RGN_TYPE_HEADER, RGN_TYPE_TOOL_HEADER)) {
+  else if (regiontype == RGN_TYPE_HEADER) {
     if (spacetype == SPACE_ACTION) {
-      return 1;
+      /* The timeline shows the current frame in the header. Other headers
+       * don't need to be updated. */
+      SpaceAction *saction = (SpaceAction *)area->spacedata.first;
+      return saction->mode == SACTCONT_TIMELINE;
     }
   }
   else if (regiontype == RGN_TYPE_PREVIEW) {
     switch (spacetype) {
       case SPACE_SEQ:
         if (redraws & (TIME_SEQ | TIME_ALL_ANIM_WIN)) {
-          return 1;
+          return true;
         }
         break;
       case SPACE_CLIP:
-        return 1;
+        return true;
+      default:
+        break;
     }
   }
-  return 0;
+  return false;
+}
+
+static void screen_animation_region_tag_redraw(ScrArea *area,
+                                               ARegion *region,
+                                               const Scene *scene,
+                                               eScreen_Redraws_Flag redraws)
+{
+  /* Do follow time here if editor type supports it */
+  if ((redraws & TIME_FOLLOW) &&
+      (screen_animation_region_supports_time_follow(area->spacetype, region->regiontype))) {
+    float w = BLI_rctf_size_x(&region->v2d.cur);
+    if (scene->r.cfra < region->v2d.cur.xmin) {
+      region->v2d.cur.xmax = scene->r.cfra;
+      region->v2d.cur.xmin = region->v2d.cur.xmax - w;
+      ED_region_tag_redraw(region);
+      return;
+    }
+    else if (scene->r.cfra > region->v2d.cur.xmax) {
+      region->v2d.cur.xmin = scene->r.cfra;
+      region->v2d.cur.xmax = region->v2d.cur.xmin + w;
+      ED_region_tag_redraw(region);
+      return;
+    }
+  }
+
+  if ((region->regiontype == RGN_TYPE_WINDOW) &&
+      (ELEM(area->spacetype, SPACE_GRAPH, SPACE_NLA, SPACE_ACTION, SPACE_SEQ))) {
+    /* No need to do a full redraw as the playhead is only updated. */
+    return;
+  }
+  ED_region_tag_redraw(region);
 }
 
 //#define PROFILE_AUDIO_SYNCH
@@ -4409,7 +4444,8 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
     }
 
     if (scene_eval == NULL) {
-      /* Happens when undo/redo system is used during playback, nothing meaningful we can do here.
+      /* Happens when undo/redo system is used during playback, nothing meaningful we can do
+       * here.
        */
     }
     else if (scene_eval->id.recalc & ID_RECALC_AUDIO_SEEK) {
@@ -4549,28 +4585,12 @@ static int screen_animation_step(bContext *C, wmOperator *UNUSED(op), const wmEv
             redraw = true;
           }
           else if (match_region_with_redraws(
-                       area->spacetype, region->regiontype, sad->redraws, sad->from_anim_edit)) {
+                       area, region->regiontype, sad->redraws, sad->from_anim_edit)) {
             redraw = true;
           }
 
           if (redraw) {
-            ED_region_tag_redraw(region);
-            /* do follow here if editor type supports it */
-            if ((sad->redraws & TIME_FOLLOW)) {
-              if ((region->regiontype == RGN_TYPE_WINDOW &&
-                   ELEM(area->spacetype, SPACE_SEQ, SPACE_GRAPH, SPACE_ACTION, SPACE_NLA)) ||
-                  (area->spacetype == SPACE_CLIP && region->regiontype == RGN_TYPE_PREVIEW)) {
-                float w = BLI_rctf_size_x(&region->v2d.cur);
-                if (scene->r.cfra < region->v2d.cur.xmin) {
-                  region->v2d.cur.xmax = scene->r.cfra;
-                  region->v2d.cur.xmin = region->v2d.cur.xmax - w;
-                }
-                else if (scene->r.cfra > region->v2d.cur.xmax) {
-                  region->v2d.cur.xmin = scene->r.cfra;
-                  region->v2d.cur.xmax = region->v2d.cur.xmin + w;
-                }
-              }
-            }
+            screen_animation_region_tag_redraw(area, region, scene, sad->redraws);
           }
         }
       }

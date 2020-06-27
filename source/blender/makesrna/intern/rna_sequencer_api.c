@@ -114,7 +114,7 @@ static Sequence *rna_Sequences_new_clip(ID *id,
   Scene *scene = (Scene *)id;
   Sequence *seq;
 
-  seq = alloc_generic_sequence(ed, name, frame_start, channel, SEQ_TYPE_MOVIECLIP, clip->name);
+  seq = alloc_generic_sequence(ed, name, frame_start, channel, SEQ_TYPE_MOVIECLIP, clip->filepath);
   seq->clip = clip;
   seq->len = BKE_movieclip_get_duration(clip);
   id_us_plus((ID *)clip);
@@ -265,7 +265,8 @@ static Sequence *rna_Sequences_new_sound(ID *id,
     BKE_report(reports, RPT_ERROR, "Sequences.new_sound: unable to open sound file");
     return NULL;
   }
-  seq = alloc_generic_sequence(ed, name, frame_start, channel, SEQ_TYPE_SOUND_RAM, sound->name);
+  seq = alloc_generic_sequence(
+      ed, name, frame_start, channel, SEQ_TYPE_SOUND_RAM, sound->filepath);
   seq->sound = sound;
   seq->len = ceil((double)info.length * FPS);
 
@@ -447,12 +448,34 @@ static void rna_SequenceElements_pop(ID *id, Sequence *seq, ReportList *reports,
   WM_main_add_notifier(NC_SCENE | ND_SEQUENCER, scene);
 }
 
+static void rna_Sequence_invalidate_cache_rnafunc(ID *id, Sequence *self, int type)
+{
+  switch (type) {
+    case SEQ_CACHE_STORE_RAW:
+      BKE_sequence_invalidate_cache_raw((Scene *)id, self);
+      break;
+    case SEQ_CACHE_STORE_PREPROCESSED:
+      BKE_sequence_invalidate_cache_preprocessed((Scene *)id, self);
+      break;
+    case SEQ_CACHE_STORE_COMPOSITE:
+      BKE_sequence_invalidate_cache_composite((Scene *)id, self);
+      break;
+  }
+}
+
 #else
 
 void RNA_api_sequence_strip(StructRNA *srna)
 {
   FunctionRNA *func;
   PropertyRNA *parm;
+
+  static const EnumPropertyItem seq_cahce_type_items[] = {
+      {SEQ_CACHE_STORE_RAW, "RAW", 0, "Raw", ""},
+      {SEQ_CACHE_STORE_PREPROCESSED, "PREPROCESSED", 0, "Preprocessed", ""},
+      {SEQ_CACHE_STORE_COMPOSITE, "COMPOSITE", 0, "Composite", ""},
+      {0, NULL, 0, NULL, NULL},
+  };
 
   func = RNA_def_function(srna, "update", "rna_Sequence_update_rnafunc");
   RNA_def_function_flag(func, FUNC_USE_SELF_ID);
@@ -478,6 +501,13 @@ void RNA_api_sequence_strip(StructRNA *srna)
   func = RNA_def_function(srna, "swap", "rna_Sequence_swap_internal");
   RNA_def_function_flag(func, FUNC_USE_REPORTS);
   parm = RNA_def_pointer(func, "other", "Sequence", "Other", "");
+  RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
+
+  func = RNA_def_function(srna, "invalidate_cache", "rna_Sequence_invalidate_cache_rnafunc");
+  RNA_def_function_flag(func, FUNC_USE_SELF_ID);
+  RNA_def_function_ui_description(func,
+                                  "Invalidate Cached images for strip and all dependant strips. ");
+  parm = RNA_def_enum(func, "type", seq_cahce_type_items, 0, "Type", "Cache Type");
   RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 }
 

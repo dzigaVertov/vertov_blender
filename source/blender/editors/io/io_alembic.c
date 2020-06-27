@@ -410,8 +410,11 @@ void WM_OT_alembic_export(wmOperatorType *ot)
                   "Use Subdivision Schema",
                   "Export meshes using Alembic's subdivision schema");
 
-  RNA_def_boolean(
-      ot->srna, "apply_subdiv", 0, "Apply Subdivision Surface", "Export subdivision surfaces as meshes");
+  RNA_def_boolean(ot->srna,
+                  "apply_subdiv",
+                  0,
+                  "Apply Subdivision Surface",
+                  "Export subdivision surfaces as meshes");
 
   RNA_def_boolean(ot->srna,
                   "curves_as_mesh",
@@ -667,6 +670,7 @@ void WM_OT_alembic_import(wmOperatorType *ot)
   ot->name = "Import Alembic";
   ot->description = "Load an Alembic archive";
   ot->idname = "WM_OT_alembic_import";
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
   ot->invoke = wm_alembic_import_invoke;
   ot->exec = wm_alembic_import_exec;

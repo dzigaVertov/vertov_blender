@@ -164,6 +164,7 @@ class SequencerFadesClear(Operator):
             if curve:
                 fcurves.remove(curve)
             setattr(sequence, animated_property, 1.0)
+            sequence.invalidate('COMPOSITE')
 
         return {'FINISHED'}
 
@@ -230,9 +231,10 @@ class SequencerFadesAdd(Operator):
             self.fade_animation_clear(fade_fcurve, fades)
             self.fade_animation_create(fade_fcurve, fades)
             faded_sequences.append(sequence)
+            sequence.invalidate('COMPOSITE')
 
         sequence_string = "sequence" if len(faded_sequences) == 1 else "sequences"
-        self.report({'INFO'}, "Added fade animation to {} {}.".format(len(faded_sequences), sequence_string))
+        self.report({'INFO'}, "Added fade animation to %d %s." % (len(faded_sequences), sequence_string))
         return {'FINISHED'}
 
     def calculate_fade_duration(self, context, sequence):
@@ -360,7 +362,7 @@ class Fade:
         return max_value if max_value > 0.0 else 1.0
 
     def __repr__(self):
-        return "Fade {}: {} to {}".format(self.type, self.start, self.end)
+        return "Fade %r: %r to %r" % (self.type, self.start, self.end)
 
 
 def calculate_duration_frames(context, duration_seconds):

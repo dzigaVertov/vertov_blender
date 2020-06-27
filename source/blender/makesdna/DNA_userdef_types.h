@@ -619,8 +619,11 @@ typedef struct UserDef_FileSpaceData {
 
 typedef struct UserDef_Experimental {
   char use_undo_legacy;
+  char use_new_particle_system;
+  char use_new_hair_type;
+  char use_cycles_debug;
   /** `makesdna` does not allow empty structs. */
-  char _pad0[7];
+  char _pad0[4];
 } UserDef_Experimental;
 
 #define USER_EXPERIMENTAL_TEST(userdef, member) \
@@ -1150,6 +1153,13 @@ typedef enum eDupli_ID_Flags {
   USER_DUP_HAIR = (1 << 14),
   USER_DUP_POINTCLOUD = (1 << 15),
   USER_DUP_VOLUME = (1 << 16),
+
+  USER_DUP_OBDATA = (~0) & ((1 << 24) - 1),
+
+  /* Those are not exposed as user preferences, only used internaly. */
+  USER_DUP_OBJECT = (1 << 24),
+  /* USER_DUP_COLLECTION = (1 << 25), */ /* UNUSED, keep because we may implement. */
+
 } eDupli_ID_Flags;
 
 /**
