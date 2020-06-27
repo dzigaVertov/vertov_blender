@@ -540,7 +540,7 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold)
     return;
   }
   /* update the selection based on the selected points in the stroke */
-  BKE_gpencil_editcurve_sync_selection(gps, editcurve);
+  BKE_gpencil_editcurve_stroke_sync_selection(gps, editcurve);
   gps->editcurve = editcurve;
 }
 
