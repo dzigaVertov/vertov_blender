@@ -544,7 +544,7 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold)
   gps->editcurve = editcurve;
 }
 
-void BKE_gpencil_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
+void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
 {
   if (gps->flag & GP_STROKE_SELECT) {
     gpc->flag |= GP_CURVE_SELECT;
@@ -553,7 +553,7 @@ void BKE_gpencil_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
     gpc->flag &= ~GP_CURVE_SELECT;
   }
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
+  for(int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     bGPDspoint *pt = &gps->points[gpc_pt->point_index];
     if (pt->flag & GP_SPOINT_SELECT) {
@@ -563,6 +563,35 @@ void BKE_gpencil_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
     else {
       gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
       BEZT_DESEL_ALL(&gpc_pt->bezt);
+    }
+  }
+}
+
+void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
+{
+  if (gpc->flag & GP_CURVE_SELECT) {
+    gps->flag |= GP_STROKE_SELECT;
+  }
+  else {
+    gps->flag &= ~GP_STROKE_SELECT;
+  }
+
+  for(int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+      pt->flag |= GP_SPOINT_SELECT;
+      if (i + 1 < gpc->tot_curve_points) {
+        bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i+1];
+        if (gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
+          /* select all the points inbetween */
+          for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
+            bGPDspoint *pt_next = &gps->points[j];
+            pt_next->flag |= GP_SPOINT_SELECT;
+          }
+        }
+      }
     }
   }
 }
@@ -591,12 +620,15 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
             continue;
           }
 
-          BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-          if (gps->editcurve != NULL) {
-            gps->editcurve->resolution = gpd->editcurve_resolution;
-            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+          if (gps->editcurve == NULL) {
+            BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+            if (gps->editcurve != NULL) {
+              gps->editcurve->resolution = gpd->editcurve_resolution;
+              gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            }
+            BKE_gpencil_stroke_geometry_update(gps);
           }
-          BKE_gpencil_stroke_geometry_update(gps);
+          BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
         }
       }
     }
@@ -682,7 +714,8 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
                               POINTER_OFFSET(points_offset, sizeof(float) * 5),
                               resolu,
                               stride);
-
+    /* update the index */
+    cpt_curr->point_index = i * resolu;
     points_offset = POINTER_OFFSET(points_offset, resolu_stride);
   }
 
