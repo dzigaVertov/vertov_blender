@@ -1718,17 +1718,9 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
       bGPDspoint *pt;
       int i;
 
-      /* Check boundbox to speedup. */
-      float fmval[2];
-      copy_v2fl_v2i(fmval, mval);
-      if (!ED_gpencil_stroke_check_collision(
-              &gsc, gps_active, fmval, radius, gpstroke_iter.diff_mat)) {
-        continue;
-      }
-
-      /* firstly, check for hit-point */
-      for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-        int xy[2];
+    /* firstly, check for hit-point */
+    for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+      int xy[2];
 
         bGPDspoint pt2;
         gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
