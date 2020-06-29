@@ -71,8 +71,7 @@ static GpencilModifierTypeInfo *modifier_gpencil_types[NUM_GREASEPENCIL_MODIFIER
 /* init lattice deform data */
 void BKE_gpencil_lattice_init(Object *ob)
 {
-  GpencilModifierData *md;
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     if (md->type == eGpencilModifierType_Lattice) {
       LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
       Object *latob = NULL;
@@ -94,8 +93,7 @@ void BKE_gpencil_lattice_init(Object *ob)
 /* clear lattice deform data */
 void BKE_gpencil_lattice_clear(Object *ob)
 {
-  GpencilModifierData *md;
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     if (md->type == eGpencilModifierType_Lattice) {
       LatticeGpencilModifierData *mmd = (LatticeGpencilModifierData *)md;
       if ((mmd) && (mmd->cache_data)) {
@@ -112,8 +110,7 @@ void BKE_gpencil_lattice_clear(Object *ob)
 /* check if exist geometry modifiers */
 bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 {
-  GpencilModifierData *md;
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     const GpencilModifierTypeInfo *mti = BKE_gpencil_modifier_get_info(md->type);
 
     if (mti && mti->generateStrokes) {
@@ -126,8 +123,7 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 /* check if exist time modifiers */
 bool BKE_gpencil_has_time_modifiers(Object *ob)
 {
-  GpencilModifierData *md;
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     const GpencilModifierTypeInfo *mti = BKE_gpencil_modifier_get_info(md->type);
 
     if (mti && mti->remapTime) {
@@ -140,8 +136,7 @@ bool BKE_gpencil_has_time_modifiers(Object *ob)
 /* Check if exist transform stroke modifiers (to rotate sculpt or edit). */
 bool BKE_gpencil_has_transform_modifiers(Object *ob)
 {
-  GpencilModifierData *md;
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     /* Only if enabled in edit mode. */
     if (!GPENCIL_MODIFIER_EDIT(md, true) && GPENCIL_MODIFIER_ACTIVE(md, false)) {
       if ((md->type == eGpencilModifierType_Armature) || (md->type == eGpencilModifierType_Hook) ||
@@ -158,12 +153,11 @@ bool BKE_gpencil_has_transform_modifiers(Object *ob)
 static int gpencil_time_modifier(
     Depsgraph *depsgraph, Scene *scene, Object *ob, bGPDlayer *gpl, int cfra, bool is_render)
 {
-  GpencilModifierData *md;
   bGPdata *gpd = ob->data;
   const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
   int nfra = cfra;
 
-  for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+  LISTBASE_FOREACH (GpencilModifierData *, md, &ob->greasepencil_modifiers) {
     if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
       const GpencilModifierTypeInfo *mti = BKE_gpencil_modifier_get_info(md->type);
 
