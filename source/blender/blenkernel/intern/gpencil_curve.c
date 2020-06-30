@@ -553,7 +553,7 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
     gpc->flag &= ~GP_CURVE_SELECT;
   }
 
-  for(int i = 0; i < gpc->tot_curve_points; i++) {
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     bGPDspoint *pt = &gps->points[gpc_pt->point_index];
     if (pt->flag & GP_SPOINT_SELECT) {
@@ -576,14 +576,14 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
     gps->flag &= ~GP_STROKE_SELECT;
   }
 
-  for(int i = 0; i < gpc->tot_curve_points; i++) {
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     bGPDspoint *pt = &gps->points[gpc_pt->point_index];
 
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       pt->flag |= GP_SPOINT_SELECT;
       if (i + 1 < gpc->tot_curve_points) {
-        bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i+1];
+        bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
         if (gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
           /* select all the points inbetween */
           for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {

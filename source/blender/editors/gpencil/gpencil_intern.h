@@ -720,7 +720,7 @@ struct GP_EditableStrokes_Iter {
               continue; \
             if (gps->editcurve == NULL) \
               continue; \
-            bGPDcurve *gpc = gps->editcurve;\
+            bGPDcurve *gpc = gps->editcurve; \
     /* ... Do Stuff With Strokes ...  */
 
 #define GP_EDITABLE_CURVES_END(gpstroke_iter) \

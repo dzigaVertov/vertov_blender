@@ -427,43 +427,43 @@ void createTransGPencil(bContext *C, TransInfo *t)
 
                   /* do point... */
                   if (point_ok) {
-                      copy_v3_v3(td->iloc, &pt->x);
-                      /* Only copy center in local origins.
-                      * This allows get interesting effects also when move
-                      * using proportional editing. */
-                      if ((gps->flag & GP_STROKE_SELECT) &&
-                          (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
-                        copy_v3_v3(td->center, center);
+                    copy_v3_v3(td->iloc, &pt->x);
+                    /* Only copy center in local origins.
+                     * This allows get interesting effects also when move
+                     * using proportional editing. */
+                    if ((gps->flag & GP_STROKE_SELECT) &&
+                        (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
+                      copy_v3_v3(td->center, center);
+                    }
+                    else {
+                      copy_v3_v3(td->center, &pt->x);
+                    }
+
+                    td->loc = &pt->x;
+
+                    td->flag = 0;
+
+                    if (pt->flag & GP_SPOINT_SELECT) {
+                      td->flag |= TD_SELECTED;
+                    }
+
+                    /* For other transform modes (e.g. shrink-fatten), need to additional data
+                     * but never for mirror.
+                     */
+                    if (t->mode != TFM_MIRROR) {
+                      if (t->mode != TFM_GPENCIL_OPACITY) {
+                        if (is_scale_thickness) {
+                          td->val = &pt->pressure;
+                          td->ival = pt->pressure;
+                        }
                       }
                       else {
-                        copy_v3_v3(td->center, &pt->x);
-                      }
-
-                      td->loc = &pt->x;
-
-                      td->flag = 0;
-
-                      if (pt->flag & GP_SPOINT_SELECT) {
-                        td->flag |= TD_SELECTED;
-                      }
-
-                      /* For other transform modes (e.g. shrink-fatten), need to additional data
-                      * but never for mirror.
-                      */
-                      if (t->mode != TFM_MIRROR) {
-                        if (t->mode != TFM_GPENCIL_OPACITY) {
-                          if (is_scale_thickness) {
-                            td->val = &pt->pressure;
-                            td->ival = pt->pressure;
-                          }
-                        }
-                        else {
-                          td->val = &pt->strength;
-                          td->ival = pt->strength;
-                        }
+                        td->val = &pt->strength;
+                        td->ival = pt->strength;
                       }
                     }
-  #if 0
+                  }
+#if 0
                     /* screenspace needs special matrices... */
                     if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
                         0) {
@@ -476,20 +476,20 @@ void createTransGPencil(bContext *C, TransInfo *t)
                         td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
                       }
                     }
-  #endif
-                    /* apply parent transformations */
-                    copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                    copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                    copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+#endif
+                  /* apply parent transformations */
+                  copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                  copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                  copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
 
-                    /* Save the stroke for recalc geometry function. */
-                    td->extra = gps;
+                  /* Save the stroke for recalc geometry function. */
+                  td->extra = gps;
 
-                    /* Save pointer to object. */
-                    td->ob = obact;
+                  /* Save pointer to object. */
+                  td->ob = obact;
 
-                    td++;
-                    tail++;
+                  td++;
+                  tail++;
                 }
               }
               /* March over these points, and calculate the proportional editing distances. */
@@ -527,7 +527,8 @@ void recalcData_gpencil_strokes(TransInfo *t)
       BKE_gpencil_stroke_geometry_update(gps);
     }
   }
-  // DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
+  // DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY |
+  // ID_RECALC_COPY_ON_WRITE);
   BLI_ghash_free(strokes, NULL, NULL);
 }
 
