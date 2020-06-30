@@ -57,7 +57,7 @@
 /** \name Test Operator for curve editing
  * \{ */
 
-static int gp_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
+static int gpencil_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
@@ -104,8 +104,8 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
       "Test operator to write sample curve data to the selected grease pencil strokes";
 
   /* api callbacks */
-  ot->exec = gp_write_stroke_curve_data_exec;
-  ot->poll = gp_active_layer_poll;
+  ot->exec = gpencil_write_stroke_curve_data_exec;
+  ot->poll = gpencil_active_layer_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -115,7 +115,7 @@ void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
   //     ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
 }
 
-static int gp_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
+static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
@@ -162,8 +162,8 @@ void GPENCIL_OT_stroke_enter_editcurve_mode(wmOperatorType *ot)
   ot->description = "Called to transform a stroke into a curve";
 
   /* api callbacks */
-  ot->exec = gp_stroke_enter_editcurve_mode;
-  ot->poll = gp_active_layer_poll;
+  ot->exec = gpencil_stroke_enter_editcurve_mode;
+  ot->poll = gpencil_active_layer_poll;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
