@@ -34,6 +34,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_context.h"
+#include "BKE_curve.h"
 #include "BKE_gpencil.h"
 #include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
@@ -52,6 +53,22 @@
 #include "DEG_depsgraph.h"
 
 #include "gpencil_intern.h"
+
+/* poll callback for checking if there is an active layer */
+static bool gpencil_curve_edit_mode_poll(bContext *C)
+{
+  Object *ob = CTX_data_active_object(C);
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+  bGPdata *gpd = (bGPdata *)ob->data;
+  if (!GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    return false;
+  }
+
+  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+  return (gpl != NULL);
+}
 
 /* -------------------------------------------------------------------- */
 /** \name Test Operator for curve editing
@@ -179,6 +196,77 @@ void GPENCIL_OT_stroke_enter_editcurve_mode(wmOperatorType *ot)
                        FLT_MIN,
                        10.f);
   RNA_def_property_ui_range(prop, FLT_MIN, 10.0f, 0.1f, 5);
+}
+
+static int gpencil_editcurve_set_handle_type(bContext *C, wmOperator *op)
+{
+  Object *ob = CTX_data_active_object(C);
+  bGPdata *gpd = ob->data;
+  const int handle_type = RNA_enum_get(op->ptr, "type");
+
+  if (ELEM(NULL, gpd)) {
+    return OPERATOR_CANCELLED;
+  }
+
+  GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+  {
+    for (int i = 0; i < gpc->tot_curve_points; i++) {
+      bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+
+      if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+        bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
+        bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
+                                           &gpc->curve_points[i + 1] :
+                                           NULL;
+        BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
+        BezTriple *bezt = &gpc_pt->bezt;
+        BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
+
+        bezt->h1 = handle_type;
+        bezt->h2 = handle_type;
+
+        BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+
+        /* TODO: recalculate curve when handles change */
+        gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+        BKE_gpencil_stroke_geometry_update(gps);
+      }
+    }
+  }
+  GP_EDITABLE_CURVES_END(gps_iter);
+
+  /* notifiers */
+  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+  return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_stroke_editcurve_set_handle_type(wmOperatorType *ot)
+{
+  static const EnumPropertyItem editcurve_handle_type_items[] = {
+      {HD_FREE, "FREE", 0, "Free", ""},
+      {HD_AUTO, "AUTOMATIC", 0, "Automatic", ""},
+      {HD_VECT, "VECTOR", 0, "Vector", ""},
+      {HD_ALIGN, "ALIGNED", 0, "Aligned", ""},
+      {0, NULL, 0, NULL, NULL},
+  };
+
+  /* identifiers */
+  ot->name = "Set handle type";
+  ot->idname = "GPENCIL_OT_stroke_editcurve_set_handle_type";
+  ot->description = "Set the type of a edit curve handle.";
+
+  /* api callbacks */
+  ot->invoke = WM_menu_invoke;
+  ot->exec = gpencil_editcurve_set_handle_type;
+  ot->poll = gpencil_curve_edit_mode_poll;
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* properties */
+  ot->prop = RNA_def_enum(ot->srna, "type", editcurve_handle_type_items, 1, "Type", "Spline type");
 }
 
 /** \} */
