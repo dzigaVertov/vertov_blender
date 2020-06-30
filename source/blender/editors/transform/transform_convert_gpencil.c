@@ -52,20 +52,13 @@ static void createTransGPencil_curve_center_get(bGPDcurve *gpc, float r_center[3
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       BezTriple *bezt = &gpc_pt->bezt;
-      if (bezt->f1 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
-        tot_sel++;
-      }
+      /* only allow rotation around control point for now... */
       if (bezt->f2 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
+        add_v3_v3(r_center, bezt->vec[1]);
         tot_sel++;
       }
-      if (bezt->f3 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
-        tot_sel++;
       }
     }
-  }
 
   if (tot_sel > 0) {
     mul_v3_fl(r_center, 1.0f / tot_sel);
