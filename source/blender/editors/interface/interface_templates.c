@@ -361,10 +361,15 @@ static bool id_search_add(const bContext *C,
        * followed by ID_NAME-2 characters from id->name
        */
       char name_ui[MAX_ID_FULL_NAME_UI];
-      BKE_id_full_name_ui_prefix_get(name_ui, id, UI_SEP_CHAR);
-
       int iconid = ui_id_icon_get(C, id, template_ui->preview);
       bool has_sep_char = (id->lib != NULL);
+
+      /* When using previews, the library hint (linked, overriden, missing) is added with a
+       * character prefix, otherwise we can use a icon. */
+      BKE_id_full_name_ui_prefix_get(name_ui, id, template_ui->preview, UI_SEP_CHAR);
+      if (!template_ui->preview) {
+        iconid = UI_library_icon_get(id);
+      }
 
       if (!UI_search_item_add(
               items, name_ui, id, iconid, has_sep_char ? UI_BUT_HAS_SEP_CHAR : 0)) {
@@ -1963,7 +1968,7 @@ static short get_constraint_expand_flag(const bContext *C, Panel *panel)
 }
 
 /**
- * Save the expand flag for the panel and subpanels to the constraint.
+ * Save the expand flag for the panel and sub-panels to the constraint.
  */
 static void set_constraint_expand_flag(const bContext *C, Panel *panel, short expand_flag)
 {
@@ -4463,7 +4468,7 @@ static void CurveProfile_presets_dofunc(bContext *C, void *profile_v, int event)
 
   profile->preset = event;
   BKE_curveprofile_reset(profile);
-  BKE_curveprofile_update(profile, false);
+  BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
 
   ED_undo_push(C, "CurveProfile tools");
   ED_region_tag_redraw(CTX_wm_region(C));
@@ -4579,7 +4584,7 @@ static void CurveProfile_tools_dofunc(bContext *C, void *profile_v, int event)
   switch (event) {
     case UIPROFILE_FUNC_RESET: /* reset */
       BKE_curveprofile_reset(profile);
-      BKE_curveprofile_update(profile, false);
+      BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
       break;
     case UIPROFILE_FUNC_RESET_VIEW: /* reset view to clipping rect */
       profile->view_rect = profile->clip_rect;
@@ -4645,7 +4650,7 @@ static void CurveProfile_buttons_zoom_in(bContext *C, void *profile_v, void *UNU
   CurveProfile *profile = profile_v;
   float d;
 
-  /* we allow 20 times zoom */
+  /* Allow a 20x zoom. */
   if (BLI_rctf_size_x(&profile->view_rect) > 0.04f * BLI_rctf_size_x(&profile->clip_rect)) {
     d = 0.1154f * BLI_rctf_size_x(&profile->view_rect);
     profile->view_rect.xmin += d;
@@ -4709,7 +4714,7 @@ static void CurveProfile_clipping_toggle(bContext *C, void *cb_v, void *profile_
 
   profile->flag ^= PROF_USE_CLIP;
 
-  BKE_curveprofile_update(profile, false);
+  BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
   rna_update_cb(C, cb_v, NULL);
 }
 
@@ -4718,7 +4723,7 @@ static void CurveProfile_buttons_reverse(bContext *C, void *cb_v, void *profile_
   CurveProfile *profile = profile_v;
 
   BKE_curveprofile_reverse(profile);
-  BKE_curveprofile_update(profile, false);
+  BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
   rna_update_cb(C, cb_v, NULL);
 }
 
@@ -4727,27 +4732,7 @@ static void CurveProfile_buttons_delete(bContext *C, void *cb_v, void *profile_v
   CurveProfile *profile = profile_v;
 
   BKE_curveprofile_remove_by_flag(profile, SELECT);
-  BKE_curveprofile_update(profile, false);
-
-  rna_update_cb(C, cb_v, NULL);
-}
-
-static void CurveProfile_buttons_setsharp(bContext *C, void *cb_v, void *profile_v)
-{
-  CurveProfile *profile = profile_v;
-
-  BKE_curveprofile_selected_handle_set(profile, HD_VECT, HD_VECT);
-  BKE_curveprofile_update(profile, false);
-
-  rna_update_cb(C, cb_v, NULL);
-}
-
-static void CurveProfile_buttons_setcurved(bContext *C, void *cb_v, void *profile_v)
-{
-  CurveProfile *profile = profile_v;
-
-  BKE_curveprofile_selected_handle_set(profile, HD_AUTO, HD_AUTO);
-  BKE_curveprofile_update(profile, false);
+  BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
 
   rna_update_cb(C, cb_v, NULL);
 }
@@ -4755,7 +4740,15 @@ static void CurveProfile_buttons_setcurved(bContext *C, void *cb_v, void *profil
 static void CurveProfile_buttons_update(bContext *C, void *arg1_v, void *profile_v)
 {
   CurveProfile *profile = profile_v;
-  BKE_curveprofile_update(profile, true);
+  BKE_curveprofile_update(profile, PROF_UPDATE_REMOVE_DOUBLES | PROF_UPDATE_CLIP);
+  rna_update_cb(C, arg1_v, NULL);
+}
+
+static void CurveProfile_buttons_reset(bContext *C, void *arg1_v, void *profile_v)
+{
+  CurveProfile *profile = profile_v;
+  BKE_curveprofile_reset(profile);
+  BKE_curveprofile_update(profile, PROF_UPDATE_NONE);
   rna_update_cb(C, arg1_v, NULL);
 }
 
@@ -4774,7 +4767,7 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
 
   UI_block_emboss_set(block, UI_EMBOSS);
 
-  uiLayoutRow(layout, false);
+  uiLayoutSetPropSep(layout, false);
 
   /* Preset selector */
   /* There is probably potential to use simpler "uiItemR" functions here, but automatic updating
@@ -4782,6 +4775,29 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
   bt = uiDefBlockBut(
       block, CurveProfile_buttons_presets, profile, "Preset", 0, 0, UI_UNIT_X, UI_UNIT_X, "");
   UI_but_funcN_set(bt, rna_update_cb, MEM_dupallocN(cb), NULL);
+
+  /* Show a "re-apply" preset button when it has been changed from the preset. */
+  if (profile->flag & PROF_DIRTY_PRESET) {
+    /* Only for dynamic presets. */
+    if (ELEM(profile->preset, PROF_PRESET_STEPS, PROF_PRESET_SUPPORTS)) {
+      bt = uiDefIconTextBut(block,
+                            UI_BTYPE_BUT,
+                            0,
+                            ICON_NONE,
+                            "Apply Preset",
+                            0,
+                            0,
+                            UI_UNIT_X,
+                            UI_UNIT_X,
+                            NULL,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            "Reapply and update the preset, removing changes");
+      UI_but_funcN_set(bt, CurveProfile_buttons_reset, MEM_dupallocN(cb), profile);
+    }
+  }
 
   row = uiLayoutRow(layout, false);
 
@@ -4890,10 +4906,23 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
            "");
 
   /* Position sliders for (first) selected point */
+  float *selection_x, *selection_y;
   for (i = 0; i < profile->path_len; i++) {
     if (profile->path[i].flag & PROF_SELECT) {
       point = &profile->path[i];
+      selection_x = &point->x;
+      selection_y = &point->y;
       break;
+    }
+    else if (profile->path[i].flag & PROF_H1_SELECT) {
+      point = &profile->path[i];
+      selection_x = &point->h1_loc[0];
+      selection_y = &point->h1_loc[1];
+    }
+    else if (profile->path[i].flag & PROF_H2_SELECT) {
+      point = &profile->path[i];
+      selection_x = &point->h2_loc[0];
+      selection_y = &point->h2_loc[1];
     }
   }
   if (i == 0 || i == profile->path_len - 1) {
@@ -4910,46 +4939,19 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
       bounds.xmax = bounds.ymax = 1000.0;
     }
 
-    uiLayoutRow(layout, true);
-    UI_block_funcN_set(block, CurveProfile_buttons_update, MEM_dupallocN(cb), profile);
+    row = uiLayoutRow(layout, true);
 
-    /* Sharp / Smooth */
-    bt = uiDefIconBut(block,
-                      UI_BTYPE_BUT,
-                      0,
-                      ICON_LINCURVE,
-                      0,
-                      0,
-                      UI_UNIT_X,
-                      UI_UNIT_X,
-                      NULL,
-                      0.0,
-                      0.0,
-                      0.0,
-                      0.0,
-                      TIP_("Set the point's handle type to sharp"));
-    if (point_last_or_first) {
-      UI_but_flag_enable(bt, UI_BUT_DISABLED);
-    }
-    UI_but_funcN_set(bt, CurveProfile_buttons_setsharp, MEM_dupallocN(cb), profile);
-    bt = uiDefIconBut(block,
-                      UI_BTYPE_BUT,
-                      0,
-                      ICON_SMOOTHCURVE,
-                      0,
-                      0,
-                      UI_UNIT_X,
-                      UI_UNIT_X,
-                      NULL,
-                      0.0,
-                      0.0,
-                      0.0,
-                      0.0,
-                      TIP_("Set the point's handle type to smooth"));
-    UI_but_funcN_set(bt, CurveProfile_buttons_setcurved, MEM_dupallocN(cb), profile);
-    if (point_last_or_first) {
-      UI_but_flag_enable(bt, UI_BUT_DISABLED);
-    }
+    PointerRNA point_ptr;
+    RNA_pointer_create(ptr->owner_id, &RNA_CurveProfilePoint, point, &point_ptr);
+    PropertyRNA *prop_handle_type = RNA_struct_find_property(&point_ptr, "handle_type_1");
+    uiItemFullR(row,
+                &point_ptr,
+                prop_handle_type,
+                RNA_NO_INDEX,
+                0,
+                UI_ITEM_R_EXPAND | UI_ITEM_R_ICON_ONLY,
+                "",
+                ICON_NONE);
 
     /* Position */
     bt = uiDefButF(block,
@@ -4960,16 +4962,16 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
                    2 * UI_UNIT_Y,
                    UI_UNIT_X * 10,
                    UI_UNIT_Y,
-                   &point->x,
+                   selection_x,
                    bounds.xmin,
                    bounds.xmax,
                    1,
                    5,
                    "");
+    UI_but_funcN_set(bt, CurveProfile_buttons_update, MEM_dupallocN(cb), profile);
     if (point_last_or_first) {
       UI_but_flag_enable(bt, UI_BUT_DISABLED);
     }
-
     bt = uiDefButF(block,
                    UI_BTYPE_NUM,
                    0,
@@ -4978,12 +4980,13 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
                    1 * UI_UNIT_Y,
                    UI_UNIT_X * 10,
                    UI_UNIT_Y,
-                   &point->y,
+                   selection_y,
                    bounds.ymin,
                    bounds.ymax,
                    1,
                    5,
                    "");
+    UI_but_funcN_set(bt, CurveProfile_buttons_update, MEM_dupallocN(cb), profile);
     if (point_last_or_first) {
       UI_but_flag_enable(bt, UI_BUT_DISABLED);
     }

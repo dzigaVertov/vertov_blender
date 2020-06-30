@@ -594,7 +594,7 @@ void ObjectManager::device_update_transforms(DeviceScene *dscene, Scene *scene, 
     numparticles += psys->particles.size();
   }
 
-  /* Parallel object update, with grain size to avoid too much threadng overhead
+  /* Parallel object update, with grain size to avoid too much threading overhead
    * for individual objects. */
   static const int OBJECTS_PER_TASK = 32;
   parallel_for(blocked_range<size_t>(0, scene->objects.size(), OBJECTS_PER_TASK),
@@ -604,6 +604,10 @@ void ObjectManager::device_update_transforms(DeviceScene *dscene, Scene *scene, 
                    device_update_object_transform(&state, ob);
                  }
                });
+
+  if (progress.get_cancel()) {
+    return;
+  }
 
   dscene->objects.copy_to_device();
   if (state.need_motion == Scene::MOTION_PASS) {

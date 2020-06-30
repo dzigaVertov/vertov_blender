@@ -853,8 +853,7 @@ void EEVEE_materials_cache_populate(EEVEE_Data *vedata,
      */
     bool use_volume_material = (matcache[0].shading_gpumat &&
                                 GPU_material_has_volume_output(matcache[0].shading_gpumat));
-
-    if ((ob->dt >= OB_SOLID) || DRW_state_is_image_render()) {
+    if ((ob->dt >= OB_SOLID) || DRW_state_is_scene_render()) {
       if (use_sculpt_pbvh) {
         struct DRWShadingGroup **shgrps_array = BLI_array_alloca(shgrps_array, materials_len);
 
@@ -1018,7 +1017,7 @@ void EEVEE_material_output_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata,
   /* Should be enough precision for many samples. */
   const eGPUTextureFormat texture_format = (tot_samples > 128) ? GPU_RGBA32F : GPU_RGBA16F;
 
-  const bool do_clear = DRW_state_is_image_render() || (effects->taa_current_sample == 1);
+  const bool do_clear = (effects->taa_current_sample == 1);
   /* Create FrameBuffer. */
   GPU_framebuffer_ensure_config(&fbl->material_accum_fb,
                                 {GPU_ATTACHMENT_TEXTURE(dtxl->depth), GPU_ATTACHMENT_LEAVE});
