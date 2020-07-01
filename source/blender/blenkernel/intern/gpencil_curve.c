@@ -505,6 +505,10 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
     cpt->strength = orig_pt->strength;
     copy_v4_v4(cpt->vert_color, orig_pt->vert_color);
 
+    /* default handle type */
+    bezt->h1 |= HD_ALIGN;
+    bezt->h2 |= HD_ALIGN;
+
     cpt->point_index = r_cubic_orig_index[i];
   }
 
@@ -761,6 +765,36 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   }
 
   MEM_freeN(points);
+}
+
+void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
+{
+  if (gps == NULL || gps->editcurve == NULL) {
+    return;
+  }
+
+  bool changed = false;
+  bGPDcurve *gpc = gps->editcurve;
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+      bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
+      bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
+                                          &gpc->curve_points[i + 1] :
+                                          NULL;
+
+      BezTriple *bezt = &gpc_pt->bezt;
+      BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
+      BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
+
+      BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    gpc->flag |= GP_CURVE_RECALC_GEOMETRY;
+  }
 }
 
 /** \} */

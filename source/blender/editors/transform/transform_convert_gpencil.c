@@ -31,7 +31,9 @@
 
 #include "BKE_colortools.h"
 #include "BKE_context.h"
+#include "BKE_curve.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
 
 #include "ED_gpencil.h"
@@ -52,16 +54,9 @@ static void createTransGPencil_curve_center_get(bGPDcurve *gpc, float r_center[3
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       BezTriple *bezt = &gpc_pt->bezt;
-      if (bezt->f1 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
-        tot_sel++;
-      }
+      /* only allow rotation around control point for now... */
       if (bezt->f2 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
-        tot_sel++;
-      }
-      if (bezt->f3 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[0]);
+        add_v3_v3(r_center, bezt->vec[1]);
         tot_sel++;
       }
     }
@@ -155,15 +150,12 @@ void createTransGPencil(bContext *C, TransInfo *t)
             if (is_curve_edit && gps->editcurve != NULL) {
               bGPDcurve *gpc = gps->editcurve;
               if (is_prop_edit) {
-                /* Proportional Editing... */
                 if (is_prop_edit_connected) {
-                  /* Connected only - so only if selected. */
                   if (gpc->flag & GP_CURVE_SELECT) {
                     tc->data_len += gpc->tot_curve_points * 3;
                   }
                 }
                 else {
-                  /* Everything goes - connection status doesn't matter. */
                   tc->data_len += gpc->tot_curve_points * 3;
                 }
               }
@@ -172,10 +164,12 @@ void createTransGPencil(bContext *C, TransInfo *t)
                   bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
                   if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
                     BezTriple *bezt = &gpc_pt->bezt;
-                    if (bezt->f1 & SELECT) {
-                      tc->data_len++;
-                    }
+                    /* if control point is selected, treat handles as selected */
                     if (bezt->f2 & SELECT) {
+                      tc->data_len += 3;
+                      continue;
+                    }
+                    if (bezt->f1 & SELECT) {
                       tc->data_len++;
                     }
                     if (bezt->f3 & SELECT) {
@@ -359,7 +353,8 @@ void createTransGPencil(bContext *C, TransInfo *t)
                     BezTriple *bezt = &gpc_pt->bezt;
                     for (int j = 0; j < 3; j++) {
                       td->flag = 0;
-                      if (BEZT_ISSEL_IDX(bezt, j)) {
+                      /* always do transform if control point is selected */
+                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j)) {
                         copy_v3_v3(td->iloc, bezt->vec[j]);
                         if ((gpc->flag & GP_CURVE_SELECT) &&
                             (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
@@ -521,14 +516,13 @@ void recalcData_gpencil_strokes(TransInfo *t)
 
     if ((gps != NULL) && (!BLI_ghash_haskey(strokes, gps))) {
       if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) && gps->editcurve != NULL) {
+        BKE_gpencil_editcurve_recalculate_handles(gps);
         gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
       }
       /* Calc geometry data. */
       BKE_gpencil_stroke_geometry_update(gps);
     }
   }
-  // DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY |
-  // ID_RECALC_COPY_ON_WRITE);
   BLI_ghash_free(strokes, NULL, NULL);
 }
 

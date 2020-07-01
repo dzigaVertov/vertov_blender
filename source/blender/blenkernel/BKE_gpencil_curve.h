@@ -50,6 +50,7 @@ void BKE_gpencil_editcurve_stroke_sync_selection(struct bGPDstroke *gps, struct 
 void BKE_gpencil_stroke_editcurve_sync_selection(struct bGPDstroke *gps, struct bGPDcurve *gpc);
 void BKE_gpencil_selected_strokes_editcurve_update(struct bGPdata *gpd);
 void BKE_gpencil_stroke_update_geometry_from_editcurve(struct bGPDstroke *gps);
+void BKE_gpencil_editcurve_recalculate_handles(struct bGPDstroke *gps);
 
 #ifdef __cplusplus
 }
