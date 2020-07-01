@@ -54,7 +54,7 @@
 
 #include "gpencil_intern.h"
 
-/* poll callback for checking if there is an active layer */
+/* Poll callback for checking if there is an active layer and we are in curve edit mode. */
 static bool gpencil_curve_edit_mode_poll(bContext *C)
 {
   Object *ob = CTX_data_active_object(C);
@@ -198,7 +198,7 @@ void GPENCIL_OT_stroke_enter_editcurve_mode(wmOperatorType *ot)
   RNA_def_property_ui_range(prop, FLT_MIN, 10.0f, 0.1f, 5);
 }
 
-static int gpencil_editcurve_set_handle_type(bContext *C, wmOperator *op)
+static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
@@ -259,7 +259,7 @@ void GPENCIL_OT_stroke_editcurve_set_handle_type(wmOperatorType *ot)
 
   /* api callbacks */
   ot->invoke = WM_menu_invoke;
-  ot->exec = gpencil_editcurve_set_handle_type;
+  ot->exec = gpencil_editcurve_set_handle_type_exec;
   ot->poll = gpencil_curve_edit_mode_poll;
 
   /* flags */
