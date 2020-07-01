@@ -523,7 +523,6 @@ void recalcData_gpencil_strokes(TransInfo *t)
       BKE_gpencil_stroke_geometry_update(gps);
     }
   }
-
   BLI_ghash_free(strokes, NULL, NULL);
 }
 

@@ -72,6 +72,7 @@ typedef struct OVERLAY_PassList {
   DRWPass *edit_mesh_normals_ps;
   DRWPass *edit_particle_ps;
   DRWPass *edit_text_overlay_ps;
+  DRWPass *edit_text_darken_ps;
   DRWPass *edit_text_wire_ps[2];
   DRWPass *extra_ps[2];
   DRWPass *extra_blend_ps;
@@ -267,6 +268,7 @@ typedef struct OVERLAY_PrivateData {
   DRWView *view_edit_faces_cage;
   DRWView *view_edit_edges;
   DRWView *view_edit_verts;
+  DRWView *view_edit_text;
   DRWView *view_reference_images;
 
   /** TODO get rid of this. */
@@ -302,6 +304,9 @@ typedef struct OVERLAY_PrivateData {
     bool show_handles;
     int handle_display;
   } edit_curve;
+  struct {
+    float overlay_color[4];
+  } edit_text;
   struct {
     int ghost_ob;
     int edit_ob;
