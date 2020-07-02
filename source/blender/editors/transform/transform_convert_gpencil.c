@@ -108,8 +108,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
   const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
                                       0;
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
-  /* TODO GPXX: Fix compiler warning while is wip. */
-  UNUSED_VARS(is_curve_edit);
 
   const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
   const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
@@ -336,8 +334,9 @@ void createTransGPencil(bContext *C, TransInfo *t)
               float center[3];
               bool point_ok;
 
+              /* save falloff factor */
+              gps->runtime.multi_frame_falloff = falloff;
               if (is_curve_edit) {
-                gps->runtime.multi_frame_falloff = falloff;
                 createTransGPencil_curve_center_get(gpc, center);
 
                 for (int i = 0; i < tot_points; i++) {
@@ -401,9 +400,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
                 }
               }
               else {
-                /* save falloff factor */
-                gps->runtime.multi_frame_falloff = falloff;
-
                 /* calculate stroke center */
                 createTransGPencil_center_get(gps, center);
 
@@ -457,7 +453,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
                         td->ival = pt->strength;
                       }
                     }
-                  }
 #if 0
                     /* screenspace needs special matrices... */
                     if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
@@ -472,19 +467,20 @@ void createTransGPencil(bContext *C, TransInfo *t)
                       }
                     }
 #endif
-                  /* apply parent transformations */
-                  copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                  copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                  copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+                    /* apply parent transformations */
+                    copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                    copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                    copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
 
-                  /* Save the stroke for recalc geometry function. */
-                  td->extra = gps;
+                    /* Save the stroke for recalc geometry function. */
+                    td->extra = gps;
 
-                  /* Save pointer to object. */
-                  td->ob = obact;
+                    /* Save pointer to object. */
+                    td->ob = obact;
 
-                  td++;
-                  tail++;
+                    td++;
+                    tail++;
+                  }
                 }
               }
               /* March over these points, and calculate the proportional editing distances. */
