@@ -548,6 +548,9 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold)
   gps->editcurve = editcurve;
 }
 
+/**
+ * Sync the selection from stroke to editcurve
+ */
 void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
 {
   if (gps->flag & GP_STROKE_SELECT) {
@@ -571,6 +574,9 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
   }
 }
 
+/**
+ * Sync the selection from editcurve to stroke
+ */
 void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc)
 {
   if (gpc->flag & GP_CURVE_SELECT) {
@@ -630,9 +636,8 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
               gps->editcurve->resolution = gpd->editcurve_resolution;
               gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
             }
-            BKE_gpencil_stroke_geometry_update(gps);
           }
-          BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+          BKE_gpencil_stroke_geometry_update(gps);
         }
       }
     }
@@ -767,6 +772,9 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   MEM_freeN(points);
 }
 
+/**
+ * Recalculate the handles of the edit curve of a grease pencil stroke
+ */
 void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
 {
   if (gps == NULL || gps->editcurve == NULL) {
@@ -779,9 +787,8 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
-      bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
-                                          &gpc->curve_points[i + 1] :
-                                          NULL;
+      bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ? &gpc->curve_points[i + 1] :
+                                                                       NULL;
 
       BezTriple *bezt = &gpc_pt->bezt;
       BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
