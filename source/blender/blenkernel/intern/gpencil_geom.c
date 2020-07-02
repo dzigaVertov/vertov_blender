@@ -1209,6 +1209,7 @@ void BKE_gpencil_stroke_geometry_update(bGPDstroke *gps)
   if (gps->editcurve != NULL) {
     if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
       BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+      BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
       gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
     }
   }
