@@ -866,12 +866,25 @@ void BKE_gpencil_curve_sync_selection(bGPDcurve *gpc)
   }
 
   gpc->flag &= ~GP_CURVE_SELECT;
+  bool is_selected = false;
   for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    if (gpc_pt->flag & GP_SPOINT_SELECT) {
-      gpc->flag |= GP_STROKE_SELECT;
-      break;
+    BezTriple *bezt = &gpc_pt->bezt;
+
+    if (BEZT_ISSEL_ANY(bezt)) {
+      gpc_pt->flag |= GP_SPOINT_SELECT;
     }
+    else {
+      gpc_pt->flag &= ~GP_SPOINT_SELECT;
+    }
+
+    if (gpc_pt->flag & GP_SPOINT_SELECT) {
+      is_selected = true;
+    }
+  }
+
+  if (is_selected) {
+    gpc->flag |= GP_CURVE_SELECT;
   }
 }
 
