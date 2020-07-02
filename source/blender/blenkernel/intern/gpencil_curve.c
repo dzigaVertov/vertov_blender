@@ -638,7 +638,7 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
               gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
             }
           }
-          BKE_gpencil_stroke_geometry_update(gps);
+          BKE_gpencil_stroke_geometry_update(gpd, gps);
         }
       }
     }

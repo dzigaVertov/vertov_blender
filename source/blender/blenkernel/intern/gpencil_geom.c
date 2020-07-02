@@ -1202,17 +1202,23 @@ void BKE_gpencil_stroke_uv_update(bGPDstroke *gps)
 }
 
 /* Recalc the internal geometry caches for fill and uvs. */
-void BKE_gpencil_stroke_geometry_update(bGPdata *UNUSED(gpd), bGPDstroke *gps)
+void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
 {
   if (gps == NULL) {
     return;
   }
 
   if (gps->editcurve != NULL) {
-    if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
-      BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
-      BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
-      gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+    if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+      /* editcurve needs update */
+      if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
+        BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+        gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+      }
+    }
+    else {
+      /* geometry was updated: editcurve needs recalculation */
+      gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
     }
   }
 
