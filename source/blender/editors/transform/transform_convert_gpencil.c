@@ -520,7 +520,7 @@ void recalcData_gpencil_strokes(TransInfo *t)
         gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
       }
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(gps);
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
     }
   }
   BLI_ghash_free(strokes, NULL, NULL);

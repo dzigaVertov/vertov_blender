@@ -155,7 +155,7 @@ static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
               gps->editcurve->resolution = gpd->editcurve_resolution;
               gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
             }
-            BKE_gpencil_stroke_geometry_update(gps);
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
       }
@@ -229,7 +229,7 @@ static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
 
         /* TODO: recalculate curve when handles change */
         gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-        BKE_gpencil_stroke_geometry_update(gps);
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
     }
   }
@@ -255,7 +255,7 @@ void GPENCIL_OT_stroke_editcurve_set_handle_type(wmOperatorType *ot)
   /* identifiers */
   ot->name = "Set handle type";
   ot->idname = "GPENCIL_OT_stroke_editcurve_set_handle_type";
-  ot->description = "Set the type of a edit curve handle.";
+  ot->description = "Set the type of a edit curve handle";
 
   /* api callbacks */
   ot->invoke = WM_menu_invoke;

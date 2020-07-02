@@ -97,7 +97,7 @@ bool BKE_gpencil_data_minmax(const bGPdata *gpd, float r_min[3], float r_max[3])
 
     if (gpf != NULL) {
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        changed = BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
+        changed |= BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
       }
     }
   }
@@ -381,10 +381,11 @@ static void stroke_interpolate_deform_weights(
 
 /**
  * Resample a stroke
+ * \param: gpd: datablock
  * \param gps: Stroke to sample
  * \param dist: Distance of one segment
  */
-bool BKE_gpencil_stroke_sample(bGPDstroke *gps, const float dist, const bool select)
+bool BKE_gpencil_stroke_sample(bGPdata *gpd, bGPDstroke *gps, const float dist, const bool select)
 {
   bGPDspoint *pt = gps->points;
   bGPDspoint *pt1 = NULL;
@@ -482,7 +483,7 @@ bool BKE_gpencil_stroke_sample(bGPDstroke *gps, const float dist, const bool sel
   gps->totpoints = i;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   return true;
 }
@@ -594,7 +595,8 @@ bool BKE_gpencil_stroke_trim_points(bGPDstroke *gps, const int index_from, const
   return true;
 }
 
-bool BKE_gpencil_stroke_split(bGPDframe *gpf,
+bool BKE_gpencil_stroke_split(bGPdata *gpd,
+                              bGPDframe *gpf,
                               bGPDstroke *gps,
                               const int before_index,
                               bGPDstroke **remaining_gps)
@@ -644,7 +646,7 @@ bool BKE_gpencil_stroke_split(bGPDframe *gpf,
    * Keep the end point. */
 
   BKE_gpencil_stroke_trim_points(gps, 0, old_count);
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
   return true;
 }
 
@@ -1200,7 +1202,7 @@ void BKE_gpencil_stroke_uv_update(bGPDstroke *gps)
 }
 
 /* Recalc the internal geometry caches for fill and uvs. */
-void BKE_gpencil_stroke_geometry_update(bGPDstroke *gps)
+void BKE_gpencil_stroke_geometry_update(bGPdata *UNUSED(gpd), bGPDstroke *gps)
 {
   if (gps == NULL) {
     return;
@@ -1255,7 +1257,7 @@ float BKE_gpencil_stroke_length(const bGPDstroke *gps, bool use_3d)
  * Trim stroke to the first intersection or loop
  * \param gps: Stroke data
  */
-bool BKE_gpencil_stroke_trim(bGPDstroke *gps)
+bool BKE_gpencil_stroke_trim(bGPdata *gpd, bGPDstroke *gps)
 {
   if (gps->totpoints < 4) {
     return false;
@@ -1343,7 +1345,7 @@ bool BKE_gpencil_stroke_trim(bGPDstroke *gps)
     MEM_SAFE_FREE(old_dvert);
   }
 
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   return intersect;
 }
@@ -1437,7 +1439,7 @@ bool BKE_gpencil_stroke_close(bGPDstroke *gps)
   return true;
 }
 /* Dissolve points in stroke */
-void BKE_gpencil_dissolve_points(bGPDframe *gpf, bGPDstroke *gps, const short tag)
+void BKE_gpencil_dissolve_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps, const short tag)
 {
   bGPDspoint *pt;
   MDeformVert *dvert = NULL;
@@ -1513,7 +1515,7 @@ void BKE_gpencil_dissolve_points(bGPDframe *gpf, bGPDstroke *gps, const short ta
     gps->totpoints = tot;
 
     /* triangles cache needs to be recalculated */
-    BKE_gpencil_stroke_geometry_update(gps);
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
   }
 }
 
@@ -1523,12 +1525,14 @@ void BKE_gpencil_dissolve_points(bGPDframe *gpf, bGPDstroke *gps, const short ta
  * Reduce a series of points when the distance is below a threshold.
  * Special case for first and last points (both are keeped) for other points,
  * the merge point always is at first point.
+ * \param: gpd: Datablock
  * \param gpf: Grease Pencil frame
  * \param gps: Grease Pencil stroke
  * \param threshold: Distance between points
  * \param use_unselected: Set to true to analyze all stroke and not only selected points
  */
-void BKE_gpencil_stroke_merge_distance(bGPDframe *gpf,
+void BKE_gpencil_stroke_merge_distance(bGPdata *gpd,
+                                       bGPDframe *gpf,
                                        bGPDstroke *gps,
                                        const float threshold,
                                        const bool use_unselected)
@@ -1593,11 +1597,11 @@ void BKE_gpencil_stroke_merge_distance(bGPDframe *gpf,
 
   /* Dissolve tagged points */
   if (tagged) {
-    BKE_gpencil_dissolve_points(gpf, gps, GP_SPOINT_TAG);
+    BKE_gpencil_dissolve_points(gpd, gpf, gps, GP_SPOINT_TAG);
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 typedef struct GpEdge {
@@ -1686,6 +1690,7 @@ static int gpencil_walk_edge(GHash *v_table,
 }
 
 static void gpencil_generate_edgeloops(Object *ob,
+                                       bGPdata *gpd,
                                        bGPDframe *gpf_stroke,
                                        const float angle,
                                        const int thickness,
@@ -1810,7 +1815,7 @@ static void gpencil_generate_edgeloops(Object *ob,
       pt->strength = 1.0f;
     }
 
-    BKE_gpencil_stroke_geometry_update(gps_stroke);
+    BKE_gpencil_stroke_geometry_update(gpd, gps_stroke);
   }
 
   /* Free memory. */
@@ -1974,7 +1979,7 @@ void BKE_gpencil_convert_mesh(Main *bmain,
           pt->strength = 1.0f;
         }
 
-        BKE_gpencil_stroke_geometry_update(gps_fill);
+        BKE_gpencil_stroke_geometry_update(gpd, gps_fill);
       }
     }
   }
@@ -1986,7 +1991,8 @@ void BKE_gpencil_convert_mesh(Main *bmain,
   }
   bGPDframe *gpf_stroke = BKE_gpencil_layer_frame_get(
       gpl_stroke, CFRA + frame_offset, GP_GETFRAME_ADD_NEW);
-  gpencil_generate_edgeloops(ob_eval, gpf_stroke, angle, thickness, offset, matrix, use_seams);
+  gpencil_generate_edgeloops(
+      ob_eval, gpd, gpf_stroke, angle, thickness, offset, matrix, use_seams);
 
   /* Tag for recalculation */
   DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
@@ -2020,18 +2026,19 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
         }
 
         /* Distortion may mean we need to re-triangulate. */
-        BKE_gpencil_stroke_geometry_update(gps);
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
     }
   }
 }
 /**
  * Subdivide a stroke
+ * \param gpd Datablock
  * \param gps Stroke
  * \param level Level of subdivision
  * \param type Type of subdivision
  */
-void BKE_gpencil_stroke_subdivide(bGPDstroke *gps, int level, int type)
+void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int type)
 {
   bGPDspoint *temp_points;
   MDeformVert *temp_dverts = NULL;
@@ -2140,7 +2147,7 @@ void BKE_gpencil_stroke_subdivide(bGPDstroke *gps, int level, int type)
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 /* calculate stroke normal using some points */
@@ -2182,7 +2189,7 @@ void BKE_gpencil_stroke_normal(const bGPDstroke *gps, float r_normal[3])
  * Ramer - Douglas - Peucker algorithm
  * by http ://en.wikipedia.org/wiki/Ramer-Douglas-Peucker_algorithm
  */
-void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
+void BKE_gpencil_stroke_simplify_adaptive(bGPdata *gpd, bGPDstroke *gps, float epsilon)
 {
   bGPDspoint *old_points = MEM_dupallocN(gps->points);
   int totpoints = gps->totpoints;
@@ -2279,7 +2286,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
   gps->totpoints = j;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);
@@ -2287,7 +2294,7 @@ void BKE_gpencil_stroke_simplify_adaptive(bGPDstroke *gps, float epsilon)
 }
 
 /* Simplify alternate vertex of stroke except extremes */
-void BKE_gpencil_stroke_simplify_fixed(bGPDstroke *gps)
+void BKE_gpencil_stroke_simplify_fixed(bGPdata *gpd, bGPDstroke *gps)
 {
   if (gps->totpoints < 5) {
     return;
@@ -2341,7 +2348,7 @@ void BKE_gpencil_stroke_simplify_fixed(bGPDstroke *gps)
 
   gps->totpoints = j;
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   MEM_SAFE_FREE(old_points);
   MEM_SAFE_FREE(old_dvert);

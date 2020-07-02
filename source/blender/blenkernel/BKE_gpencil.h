@@ -250,6 +250,7 @@ float BKE_gpencil_multiframe_falloff_calc(
 void BKE_gpencil_palette_ensure(struct Main *bmain, struct Scene *scene);
 
 bool BKE_gpencil_from_image(struct SpaceImage *sima,
+                            struct bGPdata *gpd,
                             struct bGPDframe *gpf,
                             const float size,
                             const bool mask);

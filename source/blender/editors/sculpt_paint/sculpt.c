@@ -106,7 +106,7 @@
  * This is read-only, for writing use PBVH vertex iterators. There vd.index matches
  * the indices used here.
  *
- * For multires, the same vertex in multiple grids is counted multiple times, with
+ * For multi-resolution, the same vertex in multiple grids is counted multiple times, with
  * different index for each grid. */
 
 void SCULPT_vertex_random_access_init(SculptSession *ss)
@@ -778,6 +778,38 @@ bool SCULPT_vertex_is_boundary(SculptSession *ss, const int index)
 }
 
 /* Utils */
+
+/**
+ * Returns true when the step belongs to the stroke that is directly performed by the brush and
+ * not by one of the symmetry passes.
+ */
+bool SCULPT_stroke_is_main_symmetry_pass(StrokeCache *cache)
+{
+  return cache->mirror_symmetry_pass == 0 && cache->radial_symmetry_pass == 0 &&
+         cache->tile_pass == 0;
+}
+
+/**
+ * Return true only once per stroke on the first symmetry pass, regardless of the symmetry passes
+ * enabled.
+ *
+ * This should be used for functionality that needs to be computed once per stroke of a particular
+ * tool (allocating memory, updating random seeds...).
+ */
+bool SCULPT_stroke_is_first_brush_step(StrokeCache *cache)
+{
+  return cache->first_time && cache->mirror_symmetry_pass == 0 &&
+         cache->radial_symmetry_pass == 0 && cache->tile_pass == 0;
+}
+
+/**
+ * Returns true on the first brush step of each symmetry pass.
+ */
+bool SCULPT_stroke_is_first_brush_step_of_symmetry_pass(StrokeCache *cache)
+{
+  return cache->first_time;
+}
+
 bool SCULPT_check_vertex_pivot_symmetry(const float vco[3], const float pco[3], const char symm)
 {
   bool is_in_symmetry_area = true;
@@ -1094,8 +1126,10 @@ typedef enum StrokeFlags {
   CLIP_Z = 4,
 } StrokeFlags;
 
-/* Initialize a SculptOrigVertData for accessing original vertex data;
- * handles BMesh, mesh, and multires. */
+/**
+ * Initialize a #SculptOrigVertData for accessing original vertex data;
+ * handles #BMesh, #Mesh, and multi-resolution.
+ */
 void SCULPT_orig_vert_data_unode_init(SculptOrigVertData *data, Object *ob, SculptUndoNode *unode)
 {
   SculptSession *ss = ob->sculpt;
@@ -1115,8 +1149,10 @@ void SCULPT_orig_vert_data_unode_init(SculptOrigVertData *data, Object *ob, Scul
   }
 }
 
-/* Initialize a SculptOrigVertData for accessing original vertex data;
- * handles BMesh, mesh, and multires. */
+/**
+ * Initialize a #SculptOrigVertData for accessing original vertex data;
+ * handles #BMesh, #Mesh, and multi-resolution.
+ */
 void SCULPT_orig_vert_data_init(SculptOrigVertData *data, Object *ob, PBVHNode *node)
 {
   SculptUndoNode *unode;
@@ -1124,8 +1160,9 @@ void SCULPT_orig_vert_data_init(SculptOrigVertData *data, Object *ob, PBVHNode *
   SCULPT_orig_vert_data_unode_init(data, ob, unode);
 }
 
-/* Update a SculptOrigVertData for a particular vertex from the PBVH
- * iterator. */
+/**
+ * Update a #SculptOrigVertData for a particular vertex from the PBVH iterator.
+ */
 void SCULPT_orig_vert_data_update(SculptOrigVertData *orig_data, PBVHVertexIter *iter)
 {
   if (orig_data->unode->type == SCULPT_UNDO_COORDS) {
@@ -1261,8 +1298,8 @@ static void sculpt_project_v3(const SculptProjectVector *spvc, const float vec[3
  * otherwise.
  *
  * Factors: some brushes like grab cannot do dynamic topology.
- * Others, like smooth, are better without. Same goes for alt-
- * key smoothing. */
+ * Others, like smooth, are better without.
+ * Same goes for alt-key smoothing. */
 bool SCULPT_stroke_is_dynamic_topology(const SculptSession *ss, const Brush *brush)
 {
   return ((BKE_pbvh_type(ss->pbvh) == PBVH_BMESH) &&
@@ -2118,9 +2155,11 @@ static void calc_area_normal_and_center(
 
 /** \} */
 
-/* Return modified brush strength. Includes the direction of the brush, positive
+/**
+ * Return modified brush strength. Includes the direction of the brush, positive
  * values pull vertices, negative values push. Uses tablet pressure and a
- * special multiplier found experimentally to scale the strength factor. */
+ * special multiplier found experimentally to scale the strength factor.
+ */
 static float brush_strength(const Sculpt *sd,
                             const StrokeCache *cache,
                             const float feather,
@@ -2436,7 +2475,9 @@ bool SCULPT_search_circle_cb(PBVHNode *node, void *data_v)
   return dist_sq < data->radius_squared || true;
 }
 
-/* Handles clipping against a mirror modifier and SCULPT_LOCK axis flags. */
+/**
+ * Handles clipping against a mirror modifier and #SCULPT_LOCK_X/Y/Z axis flags.
+ */
 void SCULPT_clip(Sculpt *sd, SculptSession *ss, float co[3], const float val[3])
 {
   for (int i = 0; i < 3; i++) {
@@ -2558,7 +2599,7 @@ static void update_sculpt_normal(Sculpt *sd, Object *ob, PBVHNode **nodes, int t
                                cache->normal_weight > 0.0f);
 
   if (cache->mirror_symmetry_pass == 0 && cache->radial_symmetry_pass == 0 &&
-      (cache->first_time || update_normal)) {
+      (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(cache) || update_normal)) {
     calc_sculpt_normal(sd, ob, nodes, totnode, cache->sculpt_normal);
     if (brush->falloff_shape == PAINT_FALLOFF_SHAPE_TUBE) {
       project_plane_v3_v3v3(cache->sculpt_normal, cache->sculpt_normal, cache->view_normal);
@@ -3144,7 +3185,7 @@ static void do_slide_relax_brush(Sculpt *sd, Object *ob, PBVHNode **nodes, int t
   SculptSession *ss = ob->sculpt;
   Brush *brush = BKE_paint_brush(&sd->paint);
 
-  if (ss->cache->first_time) {
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
     return;
   }
 
@@ -3175,10 +3216,9 @@ static void calc_sculpt_plane(
   SculptSession *ss = ob->sculpt;
   Brush *brush = BKE_paint_brush(&sd->paint);
 
-  if (ss->cache->mirror_symmetry_pass == 0 && ss->cache->radial_symmetry_pass == 0 &&
-      ss->cache->tile_pass == 0 &&
-      (ss->cache->first_time || !(brush->flag & BRUSH_ORIGINAL_PLANE) ||
-       !(brush->flag & BRUSH_ORIGINAL_NORMAL))) {
+  if (SCULPT_stroke_is_main_symmetry_pass(ss->cache) &&
+      (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache) ||
+       !(brush->flag & BRUSH_ORIGINAL_PLANE) || !(brush->flag & BRUSH_ORIGINAL_NORMAL))) {
     switch (brush->sculpt_plane) {
       case SCULPT_DISP_DIR_VIEW:
         copy_v3_v3(r_area_no, ss->cache->true_view_normal);
@@ -3215,7 +3255,8 @@ static void calc_sculpt_plane(
     }
 
     /* For area normal. */
-    if ((!ss->cache->first_time) && (brush->flag & BRUSH_ORIGINAL_NORMAL)) {
+    if ((!SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) &&
+        (brush->flag & BRUSH_ORIGINAL_NORMAL)) {
       copy_v3_v3(r_area_no, ss->cache->sculpt_normal);
     }
     else {
@@ -3223,7 +3264,8 @@ static void calc_sculpt_plane(
     }
 
     /* For flatten center. */
-    if ((!ss->cache->first_time) && (brush->flag & BRUSH_ORIGINAL_PLANE)) {
+    if ((!SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) &&
+        (brush->flag & BRUSH_ORIGINAL_PLANE)) {
       copy_v3_v3(r_area_co, ss->cache->last_center);
     }
     else {
@@ -3450,7 +3492,7 @@ static void do_pinch_brush(Sculpt *sd, Object *ob, PBVHNode **nodes, int totnode
   calc_sculpt_plane(sd, ob, nodes, totnode, area_no, area_co);
 
   /* delay the first daub because grab delta is not setup */
-  if (ss->cache->first_time) {
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
     return;
   }
 
@@ -3728,10 +3770,9 @@ void SCULPT_calc_brush_plane(
   zero_v3(r_area_co);
   zero_v3(r_area_no);
 
-  if (ss->cache->mirror_symmetry_pass == 0 && ss->cache->radial_symmetry_pass == 0 &&
-      ss->cache->tile_pass == 0 &&
-      (ss->cache->first_time || !(brush->flag & BRUSH_ORIGINAL_PLANE) ||
-       !(brush->flag & BRUSH_ORIGINAL_NORMAL))) {
+  if (SCULPT_stroke_is_main_symmetry_pass(ss->cache) &&
+      (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache) ||
+       !(brush->flag & BRUSH_ORIGINAL_PLANE) || !(brush->flag & BRUSH_ORIGINAL_NORMAL))) {
     switch (brush->sculpt_plane) {
       case SCULPT_DISP_DIR_VIEW:
         copy_v3_v3(r_area_no, ss->cache->true_view_normal);
@@ -3768,7 +3809,8 @@ void SCULPT_calc_brush_plane(
     }
 
     /* For area normal. */
-    if ((!ss->cache->first_time) && (brush->flag & BRUSH_ORIGINAL_NORMAL)) {
+    if ((!SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) &&
+        (brush->flag & BRUSH_ORIGINAL_NORMAL)) {
       copy_v3_v3(r_area_no, ss->cache->sculpt_normal);
     }
     else {
@@ -3776,7 +3818,8 @@ void SCULPT_calc_brush_plane(
     }
 
     /* For flatten center. */
-    if ((!ss->cache->first_time) && (brush->flag & BRUSH_ORIGINAL_PLANE)) {
+    if ((!SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) &&
+        (brush->flag & BRUSH_ORIGINAL_PLANE)) {
       copy_v3_v3(r_area_co, ss->cache->last_center);
     }
     else {
@@ -4725,7 +4768,7 @@ static void do_clay_strips_brush(Sculpt *sd, Object *ob, PBVHNode **nodes, int t
   }
 
   /* Delay the first daub because grab delta is not setup. */
-  if (ss->cache->first_time) {
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
     return;
   }
 
@@ -5088,14 +5131,14 @@ static void do_clay_thumb_brush(Sculpt *sd, Object *ob, PBVHNode **nodes, int to
   }
 
   /* Delay the first daub because grab delta is not setup. */
-  if (ss->cache->first_time) {
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
     ss->cache->clay_thumb_front_angle = 0.0f;
     return;
   }
 
   /* Simulate the clay accumulation by increasing the plane angle as more samples are added to the
    * stroke. */
-  if (ss->cache->mirror_symmetry_pass == 0) {
+  if (SCULPT_stroke_is_main_symmetry_pass(ss->cache)) {
     ss->cache->clay_thumb_front_angle += 0.8f;
     CLAMP(ss->cache->clay_thumb_front_angle, 0.0f, 60.0f);
   }
@@ -5407,8 +5450,8 @@ static void do_brush_action(Sculpt *sd, Object *ob, Brush *brush, UnifiedPaintSe
    * vertices and uses regular coords undo. */
   /* It also assigns the paint_face_set here as it needs to be done regardless of the stroke type
    * and the number of nodes under the brush influence. */
-  if (brush->sculpt_tool == SCULPT_TOOL_DRAW_FACE_SETS && ss->cache->first_time &&
-      ss->cache->mirror_symmetry_pass == 0 && !ss->cache->alt_smooth) {
+  if (brush->sculpt_tool == SCULPT_TOOL_DRAW_FACE_SETS &&
+      SCULPT_stroke_is_first_brush_step(ss->cache) && !ss->cache->alt_smooth) {
 
     /* Dyntopo does not support Face Sets data, so it can't store/restore it from undo. */
     /* TODO (pablodp606): This check should be done in the undo code and not here, but the rest of
@@ -5450,14 +5493,13 @@ static void do_brush_action(Sculpt *sd, Object *ob, Brush *brush, UnifiedPaintSe
       update_brush_local_mat(sd, ob);
     }
 
-    if (ss->cache->first_time && ss->cache->mirror_symmetry_pass == 0) {
+    if (SCULPT_stroke_is_first_brush_step(ss->cache)) {
       if (SCULPT_is_automasking_enabled(sd, ss, brush)) {
         SCULPT_automasking_init(sd, ob);
       }
     }
 
-    if (brush->sculpt_tool == SCULPT_TOOL_POSE && ss->cache->first_time &&
-        ss->cache->mirror_symmetry_pass == 0) {
+    if (brush->sculpt_tool == SCULPT_TOOL_POSE && SCULPT_stroke_is_first_brush_step(ss->cache)) {
       SCULPT_pose_brush_init(sd, ob, ss, brush);
     }
 
@@ -5941,9 +5983,10 @@ static void do_radial_symmetry(Sculpt *sd,
   }
 }
 
-/* Noise texture gives different values for the same input coord; this
- * can tear a multires mesh during sculpting so do a stitch in this
- * case. */
+/**
+ * Noise texture gives different values for the same input coord; this
+ * can tear a multi-resolution mesh during sculpting so do a stitch in this case.
+ */
 static void sculpt_fix_noise_tear(Sculpt *sd, Object *ob)
 {
   SculptSession *ss = ob->sculpt;
@@ -5970,7 +6013,7 @@ static void do_symmetrical_brush_actions(Sculpt *sd,
   cache->bstrength = brush_strength(sd, cache, feather, ups);
   cache->symmetry = symm;
 
-  /* symm is a bit combination of XYZ -
+  /* `symm` is a bit combination of XYZ -
    * 1 is mirror X; 2 is Y; 3 is XY; 4 is Z; 5 is XZ; 6 is YZ; 7 is XYZ */
   for (int i = 0; i <= symm; i++) {
     if (i == 0 || (symm & i && (symm != 5 || i != 3) && (symm != 6 || (i != 3 && i != 5)))) {
@@ -6390,7 +6433,7 @@ static void sculpt_update_brush_delta(UnifiedPaintSettings *ups, Object *ob, Bru
       sculpt_brush_use_topology_rake(ss, brush)) {
     float grab_location[3], imat[4][4], delta[3], loc[3];
 
-    if (cache->first_time) {
+    if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
       if (tool == SCULPT_TOOL_GRAB && brush->flag & BRUSH_GRAB_ACTIVE_VERTEX) {
         copy_v3_v3(cache->orig_grab_location, SCULPT_active_vertex_co_get(ss));
       }
@@ -6407,7 +6450,7 @@ static void sculpt_update_brush_delta(UnifiedPaintSettings *ups, Object *ob, Bru
     ED_view3d_win_to_3d(cache->vc->v3d, cache->vc->region, loc, mouse, grab_location);
 
     /* Compute delta to move verts by. */
-    if (!cache->first_time) {
+    if (!SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
       if (sculpt_needs_delta_from_anchored_origin(brush)) {
         sub_v3_v3v3(delta, grab_location, cache->old_grab_location);
         invert_m4_m4(imat, ob->obmat);
@@ -6471,7 +6514,7 @@ static void sculpt_update_brush_delta(UnifiedPaintSettings *ups, Object *ob, Bru
     invert_m4_m4(imat, ob->obmat);
     mul_mat3_m4_v3(imat, grab_location);
 
-    if (cache->first_time) {
+    if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
       copy_v3_v3(cache->rake_data.follow_co, grab_location);
     }
 
@@ -6525,7 +6568,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, Object *ob, Po
   StrokeCache *cache = ss->cache;
   Brush *brush = BKE_paint_brush(&sd->paint);
 
-  if (cache->first_time ||
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache) ||
       !((brush->flag & BRUSH_ANCHORED) || (brush->sculpt_tool == SCULPT_TOOL_SNAKE_HOOK) ||
         (brush->sculpt_tool == SCULPT_TOOL_ROTATE) || SCULPT_is_cloth_deform_brush(brush))) {
     RNA_float_get_array(ptr, "location", cache->true_location);
@@ -6543,7 +6586,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, Object *ob, Po
   }
 
   /* Truly temporary data that isn't stored in properties. */
-  if (cache->first_time) {
+  if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
     if (!BKE_brush_use_locked_size(scene, brush)) {
       cache->initial_radius = paint_calc_object_space_radius(
           cache->vc, cache->true_location, BKE_brush_size_get(scene, brush));
@@ -6556,7 +6599,7 @@ static void sculpt_update_cache_variants(bContext *C, Sculpt *sd, Object *ob, Po
 
   /* Clay stabilized pressure. */
   if (brush->sculpt_tool == SCULPT_TOOL_CLAY_THUMB) {
-    if (ss->cache->first_time) {
+    if (SCULPT_stroke_is_first_brush_step_of_symmetry_pass(ss->cache)) {
       for (int i = 0; i < SCULPT_CLAY_STABILIZER_LEN; i++) {
         ss->cache->clay_pressure_stabilizer[i] = 0.0f;
       }
@@ -8423,6 +8466,306 @@ void SCULPT_fake_neighbors_free(Object *ob)
   sculpt_pose_fake_neighbors_free(ss);
 }
 
+/* sculpt_mask_by_color_delta_get returns values in the (0,1) range that are used to generate the
+ * mask based on the diference between two colors (the active color and the color of any other
+ * vertex). Ideally, a threshold of 0 should mask only the colors that are equal to the active
+ * color and threshold of 1 should mask all colors. In order to avoid artifacts and produce softer
+ * falloffs in the mask, the MASK_BY_COLOR_SLOPE defines the size of the transition values between
+ * masked and unmasked vertices. The smaller this value is, the sharper the generated mask is going
+ * to be. */
+#define MASK_BY_COLOR_SLOPE 0.25f
+
+static float sculpt_mask_by_color_delta_get(const float *color_a,
+                                            const float *color_b,
+                                            const float threshold,
+                                            const bool invert)
+{
+  float len = len_v3v3(color_a, color_b);
+  /* Normalize len to the (0, 1) range. */
+  len = len / M_SQRT3;
+
+  if (len < threshold - MASK_BY_COLOR_SLOPE) {
+    len = 1.0f;
+  }
+  else if (len >= threshold) {
+    len = 0.0f;
+  }
+  else {
+    len = (-len + threshold) / MASK_BY_COLOR_SLOPE;
+  }
+
+  if (invert) {
+    return 1.0f - len;
+  }
+  return len;
+}
+
+static float sculpt_mask_by_color_final_mask_get(const float current_mask,
+                                                 const float new_mask,
+                                                 const bool invert,
+                                                 const bool preserve_mask)
+{
+  if (preserve_mask) {
+    if (invert) {
+      return min_ff(current_mask, new_mask);
+    }
+    return max_ff(current_mask, new_mask);
+  }
+  return new_mask;
+}
+
+typedef struct MaskByColorContiguousFloodFillData {
+  float threshold;
+  bool invert;
+  float *new_mask;
+  float initial_color[3];
+} MaskByColorContiguousFloodFillData;
+
+static void do_mask_by_color_contiguous_update_nodes_cb(
+    void *__restrict userdata, const int n, const TaskParallelTLS *__restrict UNUSED(tls))
+{
+  SculptThreadedTaskData *data = userdata;
+  SculptSession *ss = data->ob->sculpt;
+
+  SCULPT_undo_push_node(data->ob, data->nodes[n], SCULPT_UNDO_MASK);
+  bool update_node = false;
+
+  const bool invert = data->mask_by_color_invert;
+  const bool preserve_mask = data->mask_by_color_preserve_mask;
+
+  PBVHVertexIter vd;
+  BKE_pbvh_vertex_iter_begin(ss->pbvh, data->nodes[n], vd, PBVH_ITER_UNIQUE)
+  {
+    const float current_mask = *vd.mask;
+    const float new_mask = data->mask_by_color_floodfill[vd.index];
+    *vd.mask = sculpt_mask_by_color_final_mask_get(current_mask, new_mask, invert, preserve_mask);
+    if (current_mask != *vd.mask) {
+      update_node = true;
+      if (vd.mvert) {
+        vd.mvert->flag |= ME_VERT_PBVH_UPDATE;
+      }
+    }
+  }
+  BKE_pbvh_vertex_iter_end;
+  if (update_node) {
+    BKE_pbvh_node_mark_redraw(data->nodes[n]);
+  }
+}
+
+static bool sculpt_mask_by_color_contiguous_floodfill_cb(
+    SculptSession *ss, int from_v, int to_v, bool is_duplicate, void *userdata)
+{
+  MaskByColorContiguousFloodFillData *data = userdata;
+  const float *current_color = SCULPT_vertex_color_get(ss, to_v);
+  float new_vertex_mask = sculpt_mask_by_color_delta_get(
+      current_color, data->initial_color, data->threshold, data->invert);
+  data->new_mask[to_v] = new_vertex_mask;
+
+  if (is_duplicate) {
+    data->new_mask[to_v] = data->new_mask[from_v];
+  }
+
+  float len = len_v3v3(current_color, data->initial_color);
+  len = len / M_SQRT3;
+  return len <= data->threshold;
+}
+
+static void sculpt_mask_by_color_contiguous(Object *object,
+                                            const int vertex,
+                                            const float threshold,
+                                            const bool invert,
+                                            const bool preserve_mask)
+{
+  SculptSession *ss = object->sculpt;
+  const int totvert = SCULPT_vertex_count_get(ss);
+
+  float *new_mask = MEM_calloc_arrayN(totvert, sizeof(float), "new mask");
+
+  if (invert) {
+    for (int i = 0; i < totvert; i++) {
+      new_mask[i] = 1.0f;
+    }
+  }
+
+  SculptFloodFill flood;
+  SCULPT_floodfill_init(ss, &flood);
+  SCULPT_floodfill_add_initial(&flood, vertex);
+
+  MaskByColorContiguousFloodFillData ffd;
+  ffd.threshold = threshold;
+  ffd.invert = invert;
+  ffd.new_mask = new_mask;
+  copy_v3_v3(ffd.initial_color, SCULPT_vertex_color_get(ss, vertex));
+
+  SCULPT_floodfill_execute(ss, &flood, sculpt_mask_by_color_contiguous_floodfill_cb, &ffd);
+  SCULPT_floodfill_free(&flood);
+
+  int totnode;
+  PBVHNode **nodes;
+  BKE_pbvh_search_gather(ss->pbvh, NULL, NULL, &nodes, &totnode);
+
+  SculptThreadedTaskData data = {
+      .ob = object,
+      .nodes = nodes,
+      .mask_by_color_floodfill = new_mask,
+      .mask_by_color_vertex = vertex,
+      .mask_by_color_threshold = threshold,
+      .mask_by_color_invert = invert,
+      .mask_by_color_preserve_mask = preserve_mask,
+  };
+
+  TaskParallelSettings settings;
+  BKE_pbvh_parallel_range_settings(&settings, true, totnode);
+  BLI_task_parallel_range(
+      0, totnode, &data, do_mask_by_color_contiguous_update_nodes_cb, &settings);
+
+  MEM_SAFE_FREE(nodes);
+
+  MEM_freeN(new_mask);
+}
+
+static void do_mask_by_color_task_cb(void *__restrict userdata,
+                                     const int n,
+                                     const TaskParallelTLS *__restrict UNUSED(tls))
+{
+  SculptThreadedTaskData *data = userdata;
+  SculptSession *ss = data->ob->sculpt;
+
+  SCULPT_undo_push_node(data->ob, data->nodes[n], SCULPT_UNDO_MASK);
+  bool update_node = false;
+
+  const float threshold = data->mask_by_color_threshold;
+  const bool invert = data->mask_by_color_invert;
+  const bool preserve_mask = data->mask_by_color_preserve_mask;
+  const float *active_color = SCULPT_vertex_color_get(ss, data->mask_by_color_vertex);
+
+  PBVHVertexIter vd;
+  BKE_pbvh_vertex_iter_begin(ss->pbvh, data->nodes[n], vd, PBVH_ITER_UNIQUE)
+  {
+    const float current_mask = *vd.mask;
+    const float new_mask = sculpt_mask_by_color_delta_get(active_color, vd.col, threshold, invert);
+    *vd.mask = sculpt_mask_by_color_final_mask_get(current_mask, new_mask, invert, preserve_mask);
+
+    if (current_mask != *vd.mask) {
+      update_node = true;
+      if (vd.mvert) {
+        vd.mvert->flag |= ME_VERT_PBVH_UPDATE;
+      }
+    }
+  }
+  BKE_pbvh_vertex_iter_end;
+  if (update_node) {
+    BKE_pbvh_node_mark_redraw(data->nodes[n]);
+  }
+}
+
+static void sculpt_mask_by_color_full_mesh(Object *object,
+                                           const int vertex,
+                                           const float threshold,
+                                           const bool invert,
+                                           const bool preserve_mask)
+{
+  SculptSession *ss = object->sculpt;
+
+  int totnode;
+  PBVHNode **nodes;
+  BKE_pbvh_search_gather(ss->pbvh, NULL, NULL, &nodes, &totnode);
+
+  SculptThreadedTaskData data = {
+      .ob = object,
+      .nodes = nodes,
+      .mask_by_color_vertex = vertex,
+      .mask_by_color_threshold = threshold,
+      .mask_by_color_invert = invert,
+      .mask_by_color_preserve_mask = preserve_mask,
+  };
+
+  TaskParallelSettings settings;
+  BKE_pbvh_parallel_range_settings(&settings, true, totnode);
+  BLI_task_parallel_range(0, totnode, &data, do_mask_by_color_task_cb, &settings);
+
+  MEM_SAFE_FREE(nodes);
+}
+
+static int sculpt_mask_by_color_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+  Depsgraph *depsgraph = CTX_data_depsgraph_pointer(C);
+  Object *ob = CTX_data_active_object(C);
+  SculptSession *ss = ob->sculpt;
+
+  BKE_sculpt_update_object_for_edit(depsgraph, ob, true, true, false);
+
+  if (!ss->vcol) {
+    return OPERATOR_CANCELLED;
+  }
+
+  SCULPT_vertex_random_access_init(ss);
+
+  /* Tools that are not brushes do not have the brush gizmo to update the vertex as the mouse move,
+   * so it needs to be updated here. */
+  SculptCursorGeometryInfo sgi;
+  float mouse[2];
+  mouse[0] = event->mval[0];
+  mouse[1] = event->mval[1];
+  SCULPT_cursor_geometry_info_update(C, &sgi, mouse, false);
+
+  SCULPT_undo_push_begin("Mask by color");
+
+  const int active_vertex = SCULPT_active_vertex_get(ss);
+  const float threshold = RNA_float_get(op->ptr, "threshold");
+  const bool invert = RNA_boolean_get(op->ptr, "invert");
+  const bool preserve_mask = RNA_boolean_get(op->ptr, "preserve_previous_mask");
+
+  if (RNA_boolean_get(op->ptr, "contiguous")) {
+    sculpt_mask_by_color_contiguous(ob, active_vertex, threshold, invert, preserve_mask);
+  }
+  else {
+    sculpt_mask_by_color_full_mesh(ob, active_vertex, threshold, invert, preserve_mask);
+  }
+
+  BKE_pbvh_update_vertex_data(ss->pbvh, PBVH_UpdateMask);
+  SCULPT_undo_push_end();
+
+  SCULPT_flush_update_done(C, ob, SCULPT_UPDATE_MASK);
+
+  return OPERATOR_FINISHED;
+}
+
+static void SCULPT_OT_mask_by_color(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Mask By Color";
+  ot->idname = "SCULPT_OT_mask_by_color";
+  ot->description = "Creates a mask based on the sculpt vertex colors";
+
+  /* api callbacks */
+  ot->invoke = sculpt_mask_by_color_invoke;
+  ot->poll = SCULPT_mode_poll;
+
+  ot->flag = OPTYPE_REGISTER;
+
+  ot->prop = RNA_def_boolean(
+      ot->srna, "contiguous", false, "Contiguous", "Mask only contiguos color areas");
+
+  ot->prop = RNA_def_boolean(ot->srna, "invert", false, "Invert", "Invert the generated mask");
+  ot->prop = RNA_def_boolean(
+      ot->srna,
+      "preserve_previous_mask",
+      false,
+      "Preserve Previous Mask",
+      "Preserve the previous mask and add or substract the new one generated by the colors");
+
+  RNA_def_float(ot->srna,
+                "threshold",
+                0.35f,
+                0.0f,
+                1.0f,
+                "Threshold",
+                "How much changes in color affect the mask generation",
+                0.0f,
+                1.0f);
+}
+
 void ED_operatortypes_sculpt(void)
 {
   WM_operatortype_append(SCULPT_OT_brush_stroke);
@@ -8449,4 +8792,5 @@ void ED_operatortypes_sculpt(void)
   WM_operatortype_append(SCULPT_OT_loop_to_vertex_colors);
   WM_operatortype_append(SCULPT_OT_vertex_to_loop_colors);
   WM_operatortype_append(SCULPT_OT_color_filter);
+  WM_operatortype_append(SCULPT_OT_mask_by_color);
 }

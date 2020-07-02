@@ -234,7 +234,7 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-            BKE_gpencil_stroke_geometry_update(gps);
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
       }
@@ -256,7 +256,7 @@ static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, Point
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
             gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
-            BKE_gpencil_stroke_geometry_update(gps);
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
       }
@@ -277,11 +277,12 @@ static void rna_GPencil_dependency_update(Main *bmain, Scene *UNUSED(scene), Poi
 
 static void rna_GPencil_uv_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
+  bGPdata *gpd = (bGPdata *)ptr->owner_id;
   /* Force to recalc the UVs. */
   bGPDstroke *gps = (bGPDstroke *)ptr->data;
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 
   DEG_id_tag_update(ptr->owner_id, ID_RECALC_GEOMETRY);
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
@@ -755,7 +756,7 @@ static void rna_GPencil_stroke_point_add(
     stroke->totpoints += count;
 
     /* Calc geometry data. */
-    BKE_gpencil_stroke_geometry_update(stroke);
+    BKE_gpencil_stroke_geometry_update(gpd, stroke);
 
     DEG_id_tag_update(&gpd->id,
                       ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
@@ -816,7 +817,7 @@ static void rna_GPencil_stroke_point_pop(ID *id,
   }
 
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(stroke);
+  BKE_gpencil_stroke_geometry_update(gpd, stroke);
 
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 
