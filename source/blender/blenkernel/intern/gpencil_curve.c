@@ -640,7 +640,7 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
   }
 }
 
-static void gp_interpolate_fl_from_to(
+static void gpencil_interpolate_fl_from_to(
     float from, float to, float *point_offset, int it, int stride)
 {
   /* linear interpolation */
@@ -652,7 +652,7 @@ static void gp_interpolate_fl_from_to(
   }
 }
 
-static void gp_interpolate_v4_from_to(
+static void gpencil_interpolate_v4_from_to(
     float from[4], float to[4], float *point_offset, int it, int stride)
 {
   /* linear interpolation */
@@ -704,21 +704,21 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     }
 
     /* interpolate other attributes */
-    gp_interpolate_fl_from_to(cpt_curr->pressure,
-                              cpt_next->pressure,
-                              POINTER_OFFSET(points_offset, sizeof(float) * 3),
-                              resolu,
-                              stride);
-    gp_interpolate_fl_from_to(cpt_curr->strength,
-                              cpt_next->strength,
-                              POINTER_OFFSET(points_offset, sizeof(float) * 4),
-                              resolu,
-                              stride);
-    gp_interpolate_v4_from_to(cpt_curr->vert_color,
-                              cpt_next->vert_color,
-                              POINTER_OFFSET(points_offset, sizeof(float) * 5),
-                              resolu,
-                              stride);
+    gpencil_interpolate_fl_from_to(cpt_curr->pressure,
+                                   cpt_next->pressure,
+                                   POINTER_OFFSET(points_offset, sizeof(float) * 3),
+                                   resolu,
+                                   stride);
+    gpencil_interpolate_fl_from_to(cpt_curr->strength,
+                                   cpt_next->strength,
+                                   POINTER_OFFSET(points_offset, sizeof(float) * 4),
+                                   resolu,
+                                   stride);
+    gpencil_interpolate_v4_from_to(cpt_curr->vert_color,
+                                   cpt_next->vert_color,
+                                   POINTER_OFFSET(points_offset, sizeof(float) * 5),
+                                   resolu,
+                                   stride);
     /* update the index */
     cpt_curr->point_index = i * resolu;
     points_offset = POINTER_OFFSET(points_offset, resolu_stride);
