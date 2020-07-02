@@ -195,13 +195,17 @@ static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA 
     if (ts->gpencil_selectmode_edit == GP_SELECTMODE_SEGMENT) {
       ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
     }
+
     /* For all selected strokes, update edit curve */
     BKE_gpencil_selected_strokes_editcurve_update(gpd);
   }
   /* curve edit mode is turned off */
   else {
-    /* deselect all strokes for now */
+    /* Sync selection for all strokes with editcurve */
     LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (!BKE_gpencil_layer_is_editable(gpl)) {
+        continue;
+      }
       bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
       for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
         if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
