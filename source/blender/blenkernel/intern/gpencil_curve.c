@@ -175,6 +175,7 @@ static void gpencil_convert_spline(Main *bmain,
                                    Nurb *nu)
 {
   Curve *cu = (Curve *)ob_cu->data;
+  bGPdata *gpd = (bGPdata *)ob_gp->data;
   bool cyclic = true;
 
   /* Create Stroke. */
@@ -389,7 +390,7 @@ static void gpencil_convert_spline(Main *bmain,
   }
 
   /* Recalc fill geometry. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 /**
@@ -630,7 +631,7 @@ void BKE_gpencil_selected_strokes_editcurve_update(bGPdata *gpd)
               gps->editcurve->resolution = gpd->editcurve_resolution;
               gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
             }
-            BKE_gpencil_stroke_geometry_update(gps);
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
           BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
         }
@@ -779,9 +780,8 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
-      bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
-                                          &gpc->curve_points[i + 1] :
-                                          NULL;
+      bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ? &gpc->curve_points[i + 1] :
+                                                                       NULL;
 
       BezTriple *bezt = &gpc_pt->bezt;
       BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;

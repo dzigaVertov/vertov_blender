@@ -342,7 +342,8 @@ struct GHash *gpencil_copybuf_validate_colormap(struct bContext *C);
 
 /* Stroke Editing ------------------------------------ */
 
-void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
+void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
+                                         bGPDframe *gpf,
                                          bGPDstroke *gps,
                                          bGPDstroke *next_stroke,
                                          int tag_flags,
@@ -350,7 +351,7 @@ void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
                                          int limit);
 int gpencil_delete_selected_point_wrap(bContext *C);
 
-void gpencil_subdivide_stroke(bGPDstroke *gps, const int subdivide);
+void gpencil_subdivide_stroke(bGPdata *gpd, bGPDstroke *gps, const int subdivide);
 
 /* Layers Enums -------------------------------------- */
 

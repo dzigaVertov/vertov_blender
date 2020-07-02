@@ -355,7 +355,7 @@ static void gpencil_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
       }
 
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(new_stroke);
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
       /* add to strokes */
       BLI_addtail(&tgpil->interFrame->strokes, new_stroke);
     }
@@ -609,7 +609,7 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
           /* make copy of source stroke, then adjust pointer to points too */
           gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
           /* Calc geometry data. */
-          BKE_gpencil_stroke_geometry_update(gps_dst);
+          BKE_gpencil_stroke_geometry_update(tgpi->gpd, gps_dst);
 
           BLI_addtail(&gpf_dst->strokes, gps_dst);
         }
@@ -1073,7 +1073,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
         gpencil_interpolate_update_points(gps_from, gps_to, new_stroke, factor);
 
         /* Calc geometry data. */
-        BKE_gpencil_stroke_geometry_update(new_stroke);
+        BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
 
         /* add to strokes */
         BLI_addtail(&interFrame->strokes, new_stroke);

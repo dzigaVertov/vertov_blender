@@ -303,7 +303,7 @@ static void gpencil_update_geometry(bGPdata *gpd)
 
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
         if (gps->flag & GP_STROKE_TAG) {
-          BKE_gpencil_stroke_geometry_update(gps);
+          BKE_gpencil_stroke_geometry_update(gpd, gps);
           gps->flag &= ~GP_STROKE_TAG;
         }
       }
@@ -1575,6 +1575,7 @@ static bool gpencil_sculpt_brush_do_frame(bContext *C,
   bool changed = false;
   bool redo_geom = false;
   Object *ob = gso->object;
+  bGPdata *gpd = ob->data;
   char tool = gso->brush->gpencil_sculpt_tool;
 
   LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
@@ -1673,7 +1674,7 @@ static bool gpencil_sculpt_brush_do_frame(bContext *C,
         MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
         /* Update active frame now, only if material has fill. */
         if (gp_style->flag & GP_MATERIAL_FILL_SHOW) {
-          BKE_gpencil_stroke_geometry_update(gps_active);
+          BKE_gpencil_stroke_geometry_update(gpd, gps_active);
         }
         else {
           gpencil_recalc_geometry_tag(gps_active);
