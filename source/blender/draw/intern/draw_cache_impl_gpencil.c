@@ -758,7 +758,7 @@ static char gpencil_beztriple_vflag_get(char flag,
   SET_FLAG_FROM_TEST(vflag, handle_point, BEZIER_HANDLE);
   SET_FLAG_FROM_TEST(vflag, handle_selected, VFLAG_VERT_SELECTED_BEZT_HANDLE);
   /* Handle color id. */
-  vflag |= 3 << COLOR_SHIFT;
+  vflag |= col_id << COLOR_SHIFT;
   return vflag;
 }
 
