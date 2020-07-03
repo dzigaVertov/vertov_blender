@@ -1491,13 +1491,15 @@ static int gpencil_strokes_paste_exec(bContext *C, wmOperator *op)
     BKE_report(op->reports, RPT_ERROR, "Operator not supported in multiframe edition");
     return OPERATOR_CANCELLED;
   }
-  else if (BLI_listbase_is_empty(&gpencil_strokes_copypastebuf)) {
+
+  if (BLI_listbase_is_empty(&gpencil_strokes_copypastebuf)) {
     BKE_report(op->reports,
                RPT_ERROR,
                "No strokes to paste, select and copy some points before trying again");
     return OPERATOR_CANCELLED;
   }
-  else if (gpl == NULL) {
+
+  if (gpl == NULL) {
     /* no active layer - let's just create one */
     gpl = BKE_gpencil_layer_addnew(gpd, DATA_("GP_Layer"), true);
   }
@@ -1956,10 +1958,8 @@ static int gpencil_actframe_delete_all_exec(bContext *C, wmOperator *op)
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
     return OPERATOR_FINISHED;
   }
-  else {
-    BKE_report(op->reports, RPT_ERROR, "No active frame(s) to delete");
-    return OPERATOR_CANCELLED;
-  }
+  BKE_report(op->reports, RPT_ERROR, "No active frame(s) to delete");
+  return OPERATOR_CANCELLED;
 }
 
 void GPENCIL_OT_active_frames_delete_all(wmOperatorType *ot)
@@ -2051,9 +2051,7 @@ static int gpencil_delete_selected_strokes(bContext *C)
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
     return OPERATOR_FINISHED;
   }
-  else {
-    return OPERATOR_CANCELLED;
-  }
+  return OPERATOR_CANCELLED;
 }
 
 /* ----------------------------------- */
@@ -2269,9 +2267,7 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
     return OPERATOR_FINISHED;
   }
-  else {
-    return OPERATOR_CANCELLED;
-  }
+  return OPERATOR_CANCELLED;
 }
 
 /* ----------------------------------- */
@@ -2587,9 +2583,7 @@ static int gpencil_delete_selected_points(bContext *C)
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
     return OPERATOR_FINISHED;
   }
-  else {
-    return OPERATOR_CANCELLED;
-  }
+  return OPERATOR_CANCELLED;
 }
 
 /* simple wrapper to external call */
