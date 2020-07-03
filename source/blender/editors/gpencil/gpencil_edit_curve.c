@@ -87,7 +87,7 @@ static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
       if (gpf == gpl->actframe) {
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           /* only allow selected and non-converted strokes to be transformed */
-          if (gps->flag & GP_STROKE_SELECT && gps->editcurve == NULL || 
+          if ((gps->flag & GP_STROKE_SELECT) && gps->editcurve == NULL ||
               (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE)) {
             BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
             if (gps->editcurve != NULL) {
