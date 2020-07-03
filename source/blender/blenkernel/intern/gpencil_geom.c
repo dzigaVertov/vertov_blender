@@ -1210,15 +1210,15 @@ void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
 
   if (gps->editcurve != NULL) {
     if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-      /* editcurve needs update */
-      if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
+      /* curve geometry was updated: stroke needs recalculation */
+      if (gps->flag & GP_STROKE_NEEDS_CURVE_UPDATE) {
         BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
-        gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+        gps->flag &= ~GP_STROKE_NEEDS_CURVE_UPDATE;
       }
     }
     else {
-      /* geometry was updated: editcurve needs recalculation */
-      gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+      /* stroke geometry was updated: editcurve needs recalculation */
+      gps->editcurve->flag |= GP_CURVE_NEEDS_STROKE_UPDATE;
     }
   }
 

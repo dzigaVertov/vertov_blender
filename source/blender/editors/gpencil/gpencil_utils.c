@@ -2667,11 +2667,11 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_thr
       bGPdata *gpd = ob->data;
       bool selected = false;
 
-      /* Make sure stroke has a curve */
+      /* Make sure stroke has an editcurve */
       if (gps->editcurve == NULL) {
         BKE_gpencil_stroke_editcurve_update(gps, error_threshold);
         gps->editcurve->resolution = gpd->editcurve_resolution;
-        gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
         BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
 

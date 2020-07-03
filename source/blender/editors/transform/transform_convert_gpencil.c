@@ -336,6 +336,7 @@ void createTransGPencil(bContext *C, TransInfo *t)
 
               /* save falloff factor */
               gps->runtime.multi_frame_falloff = falloff;
+
               if (is_curve_edit) {
                 createTransGPencil_curve_center_get(gpc, center);
 
@@ -352,8 +353,9 @@ void createTransGPencil(bContext *C, TransInfo *t)
                     BezTriple *bezt = &gpc_pt->bezt;
                     for (int j = 0; j < 3; j++) {
                       td->flag = 0;
-                      /* always do transform if control point is selected */
-                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j)) {
+                      /* always do transform if control point is selected or if proportional
+                       * editing is enabled. Otherwise only look at selected handles */
+                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j) || is_prop_edit) {
                         copy_v3_v3(td->iloc, bezt->vec[j]);
                         if ((gpc->flag & GP_CURVE_SELECT) &&
                             (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
@@ -366,6 +368,7 @@ void createTransGPencil(bContext *C, TransInfo *t)
                         td->loc = bezt->vec[j];
                         td->flag |= TD_SELECTED;
 
+                        /* can only change thickness and strength if control point is selected */
                         if (j == 1) {
                           if (t->mode != TFM_MIRROR) {
                             if (t->mode != TFM_GPENCIL_OPACITY) {
@@ -513,7 +516,7 @@ void recalcData_gpencil_strokes(TransInfo *t)
     if ((gps != NULL) && (!BLI_ghash_haskey(strokes, gps))) {
       if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) && gps->editcurve != NULL) {
         BKE_gpencil_editcurve_recalculate_handles(gps);
-        gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       }
       /* Calc geometry data. */
       BKE_gpencil_stroke_geometry_update(gpd, gps);

@@ -221,8 +221,8 @@ typedef struct bGPDcurve {
 
 /* bGPDcurve_Flag->flag */
 typedef enum bGPDcurve_Flag {
-  /* Curve requires recalc of the Bezier editing data. */
-  GP_CURVE_RECALC_GEOMETRY = (1 << 0),
+  /* Flag to indicated that the stroke data has been changed and the curve needs to be refitted */
+  GP_CURVE_NEEDS_STROKE_UPDATE = (1 << 0),
   /* Curve is selected */
   GP_CURVE_SELECT = (1 << 1),
 } bGPDcurve_Flag;
@@ -329,6 +329,9 @@ typedef enum eGPDstroke_Flag {
   /* Flag used to indicate that stroke is used for fill close and must use
    * fill color for stroke and no fill area */
   GP_STROKE_NOFILL = (1 << 8),
+  /* Flag to indicated that the editcurve has been changed and the stroke needs to be updated with
+   * the curve data */
+  GP_STROKE_NEEDS_CURVE_UPDATE = (1 << 9),
   /* only for use with stroke-buffer (while drawing arrows) */
   GP_STROKE_USE_ARROW_START = (1 << 12),
   /* only for use with stroke-buffer (while drawing arrows) */
