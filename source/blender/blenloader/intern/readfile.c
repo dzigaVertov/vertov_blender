@@ -2013,21 +2013,9 @@ void blo_end_image_pointer_map(FileData *fd, Main *oldmain)
 
 void blo_make_movieclip_pointer_map(FileData *fd, Main *oldmain)
 {
-  MovieClip *clip = oldmain->movieclips.first;
   Scene *sce = oldmain->scenes.first;
 
   fd->movieclipmap = oldnewmap_new();
-
-  for (; clip; clip = clip->id.next) {
-    if (clip->cache) {
-      oldnewmap_insert(fd->movieclipmap, clip->cache, clip->cache, 0);
-    }
-
-    if (clip->tracking.camera.intrinsics) {
-      oldnewmap_insert(
-          fd->movieclipmap, clip->tracking.camera.intrinsics, clip->tracking.camera.intrinsics, 0);
-    }
-  }
 
   for (; sce; sce = sce->id.next) {
     if (sce->nodetree) {
@@ -2046,7 +2034,6 @@ void blo_make_movieclip_pointer_map(FileData *fd, Main *oldmain)
 void blo_end_movieclip_pointer_map(FileData *fd, Main *oldmain)
 {
   OldNew *entry = fd->movieclipmap->entries;
-  MovieClip *clip = oldmain->movieclips.first;
   Scene *sce = oldmain->scenes.first;
   int i;
 
@@ -2055,12 +2042,6 @@ void blo_end_movieclip_pointer_map(FileData *fd, Main *oldmain)
     if (entry->nr > 0) {
       entry->newp = NULL;
     }
-  }
-
-  for (; clip; clip = clip->id.next) {
-    clip->cache = newmclipadr(fd, clip->cache);
-    clip->tracking.camera.intrinsics = newmclipadr(fd, clip->tracking.camera.intrinsics);
-    BLI_freelistN(&clip->runtime.gputextures);
   }
 
   for (; sce; sce = sce->id.next) {
@@ -2284,6 +2265,7 @@ static void blo_cache_storage_entry_register(ID *id,
                                              void *cache_storage_v)
 {
   BLI_assert(key->id_session_uuid == id->session_uuid);
+  UNUSED_VARS_NDEBUG(id);
 
   BLOCacheStorage *cache_storage = cache_storage_v;
   BLI_assert(!BLI_ghash_haskey(cache_storage->cache_map, key));
@@ -6942,13 +6924,7 @@ static void direct_link_scene(BlendDataReader *reader, Scene *sce)
   }
 
   if (reader->fd->memfile) {
-    /* If it's undo try to recover the cache. */
-    if (reader->fd->scenemap) {
-      sce->eevee.light_cache_data = newsceadr(reader->fd, sce->eevee.light_cache_data);
-    }
-    else {
-      sce->eevee.light_cache_data = NULL;
-    }
+    /* If it's undo do nothing here, caches are handled by higher-level generic calling code. */
   }
   else {
     /* else try to read the cache from file. */
@@ -8483,20 +8459,6 @@ static void direct_link_movieclip(BlendDataReader *reader, MovieClip *clip)
 
   BLO_read_data_address(reader, &clip->adt);
 
-  if (reader->fd->movieclipmap) {
-    clip->cache = newmclipadr(reader->fd, clip->cache);
-  }
-  else {
-    clip->cache = NULL;
-  }
-
-  if (reader->fd->movieclipmap) {
-    clip->tracking.camera.intrinsics = newmclipadr(reader->fd, clip->tracking.camera.intrinsics);
-  }
-  else {
-    clip->tracking.camera.intrinsics = NULL;
-  }
-
   direct_link_movieTracks(reader, &tracking->tracks);
   direct_link_moviePlaneTracks(reader, &tracking->plane_tracks);
   direct_link_movieReconstruction(reader, &tracking->reconstruction);
@@ -8507,6 +8469,10 @@ static void direct_link_movieclip(BlendDataReader *reader, MovieClip *clip)
   clip->anim = NULL;
   clip->tracking_context = NULL;
   clip->tracking.stats = NULL;
+
+  /* TODO we could store those in undo cache storage as well, and preserve them instead of
+   * re-creating them... */
+  BLI_listbase_clear(&clip->runtime.gputextures);
 
   /* Needed for proper versioning, will be NULL for all newer files anyway. */
   BLO_read_data_address(reader, &clip->tracking.stabilization.rot_track);
@@ -8916,7 +8882,7 @@ static void direct_link_hair(BlendDataReader *reader, Hair *hair)
   BKE_hair_update_customdata_pointers(hair);
 
   /* Materials */
-  BLO_read_pointer_array(reader, (void **)hair->mat);
+  BLO_read_pointer_array(reader, (void **)&hair->mat);
 }
 
 /** \} */
