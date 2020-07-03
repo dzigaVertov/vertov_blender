@@ -588,7 +588,6 @@ void ED_operatortypes_gpencil(void)
 
   /* Edit stroke editcurve */
 
-  WM_operatortype_append(GPENCIL_OT_write_sample_stroke_curve_data);
   WM_operatortype_append(GPENCIL_OT_stroke_enter_editcurve_mode);
   WM_operatortype_append(GPENCIL_OT_stroke_editcurve_set_handle_type);
 

@@ -70,68 +70,6 @@ static bool gpencil_curve_edit_mode_poll(bContext *C)
   return (gpl != NULL);
 }
 
-/* -------------------------------------------------------------------- */
-/** \name Test Operator for curve editing
- * \{ */
-
-static int gpencil_write_stroke_curve_data_exec(bContext *C, wmOperator *op)
-{
-  Object *ob = CTX_data_active_object(C);
-  bGPdata *gpd = ob->data;
-
-  // int num_points = RNA_int_get(op->ptr, "num_points");
-
-  if (ELEM(NULL, gpd)) {
-    return OPERATOR_CANCELLED;
-  }
-
-  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
-  bGPDframe *gpf = gpl->actframe;
-  if (ELEM(NULL, gpf)) {
-    return OPERATOR_CANCELLED;
-  }
-
-  LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      if (gps->editcurve != NULL) {
-        BKE_gpencil_free_stroke_editcurve(gps);
-      }
-      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-      if (gps->editcurve != NULL) {
-        gps->editcurve->resolution = gpd->editcurve_resolution;
-      }
-    }
-  }
-
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
-
-  return OPERATOR_FINISHED;
-}
-
-void GPENCIL_OT_write_sample_stroke_curve_data(wmOperatorType *ot)
-{
-  // PropertyRNA *prop;
-
-  /* identifiers */
-  ot->name = "Write sample stroke curve data";
-  ot->idname = "GPENCIL_OT_write_stroke_curve_data";
-  ot->description =
-      "Test operator to write sample curve data to the selected grease pencil strokes";
-
-  /* api callbacks */
-  ot->exec = gpencil_write_stroke_curve_data_exec;
-  ot->poll = gpencil_active_layer_poll;
-
-  /* flags */
-  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-  /* properties */
-  // prop = RNA_def_int(
-  //     ot->srna, "num_points", 2, 0, 100, "Curve points", "Number of test curve points", 0, 100);
-}
-
 static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
