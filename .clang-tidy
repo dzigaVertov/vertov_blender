@@ -21,7 +21,6 @@ Checks:  >
   -readability-named-parameter,
   -readability-function-size,
   -readability-function-size,
-  -readability-static-definition-in-anonymous-namespace,
   -readability-delete-null-pointer,
   -readability-redundant-string-init,
   -readability-redundant-member-init,
@@ -51,6 +50,5 @@ Checks:  >
   -bugprone-parent-virtual-call,
   -bugprone-infinite-loop,
   -bugprone-copy-constructor-init,
-  -bugprone-lambda-function-name,
 
 WarningsAsErrors: '*'

@@ -399,15 +399,16 @@ BlendFileData *BLO_read_from_memfile(Main *oldmain,
     /* makes lookup of existing video clips in old main */
     blo_make_movieclip_pointer_map(fd, oldmain);
 
-    /* make lookups of existing sound data in old main */
-    blo_make_sound_pointer_map(fd, oldmain);
-
     /* make lookups of existing volume data in old main */
     blo_make_volume_pointer_map(fd, oldmain);
 
     /* removed packed data from this trick - it's internal data that needs saves */
 
+    blo_cache_storage_init(fd, oldmain);
+
     bfd = blo_read_file_internal(fd, filename);
+
+    blo_cache_storage_old_bmain_clear(fd, oldmain);
 
     /* ensures relinked light caches are not freed */
     blo_end_scene_pointer_map(fd, oldmain);
@@ -417,9 +418,6 @@ BlendFileData *BLO_read_from_memfile(Main *oldmain,
 
     /* ensures relinked movie clips are not freed */
     blo_end_movieclip_pointer_map(fd, oldmain);
-
-    /* ensures relinked sounds are not freed */
-    blo_end_sound_pointer_map(fd, oldmain);
 
     /* ensures relinked volumes are not freed */
     blo_end_volume_pointer_map(fd, oldmain);
