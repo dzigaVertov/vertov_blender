@@ -407,7 +407,7 @@ static void stroke_interpolate_deform_weights(
 
 /**
  * Resample a stroke
- * \param: gpd: datablock
+ * \param gpd: Grease pencil data-block
  * \param gps: Stroke to sample
  * \param dist: Distance of one segment
  */
@@ -1310,9 +1310,9 @@ void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
 
 /**
  * Calculate grease pencil stroke length.
- * @param gps Grease pencil stroke
- * @param use_3d Set to true to use 3D points
- * @return Length of the stroke
+ * \param gps Grease pencil stroke
+ * \param use_3d Set to true to use 3D points
+ * \return Length of the stroke
  */
 float BKE_gpencil_stroke_length(const bGPDstroke *gps, bool use_3d)
 {
@@ -1824,13 +1824,132 @@ void BKE_gpencil_stroke_simplify_fixed(bGPdata *gpd, bGPDstroke *gps)
   MEM_SAFE_FREE(old_dvert);
 }
 
+/**
+ * Subdivide a stroke
+ * \param gpd: Grease pencil data-block
+ * \param gps: Stroke
+ * \param level: Level of subdivision
+ * \param type: Type of subdivision
+ */
+void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int type)
+{
+  bGPDspoint *temp_points;
+  MDeformVert *temp_dverts = NULL;
+  MDeformVert *dvert = NULL;
+  MDeformVert *dvert_final = NULL;
+  MDeformVert *dvert_next = NULL;
+  int totnewpoints, oldtotpoints;
+  int i2;
+
+  for (int s = 0; s < level; s++) {
+    totnewpoints = gps->totpoints - 1;
+    /* duplicate points in a temp area */
+    temp_points = MEM_dupallocN(gps->points);
+    oldtotpoints = gps->totpoints;
+
+    /* resize the points arrays */
+    gps->totpoints += totnewpoints;
+    gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+    if (gps->dvert != NULL) {
+      temp_dverts = MEM_dupallocN(gps->dvert);
+      gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+    }
+
+    /* move points from last to first to new place */
+    i2 = gps->totpoints - 1;
+    for (int i = oldtotpoints - 1; i > 0; i--) {
+      bGPDspoint *pt = &temp_points[i];
+      bGPDspoint *pt_final = &gps->points[i2];
+
+      copy_v3_v3(&pt_final->x, &pt->x);
+      pt_final->pressure = pt->pressure;
+      pt_final->strength = pt->strength;
+      pt_final->time = pt->time;
+      pt_final->flag = pt->flag;
+      pt_final->runtime.pt_orig = pt->runtime.pt_orig;
+      pt_final->runtime.idx_orig = pt->runtime.idx_orig;
+      copy_v4_v4(pt_final->vert_color, pt->vert_color);
+
+      if (gps->dvert != NULL) {
+        dvert = &temp_dverts[i];
+        dvert_final = &gps->dvert[i2];
+        dvert_final->totweight = dvert->totweight;
+        dvert_final->dw = dvert->dw;
+      }
+      i2 -= 2;
+    }
+    /* interpolate mid points */
+    i2 = 1;
+    for (int i = 0; i < oldtotpoints - 1; i++) {
+      bGPDspoint *pt = &temp_points[i];
+      bGPDspoint *next = &temp_points[i + 1];
+      bGPDspoint *pt_final = &gps->points[i2];
+
+      /* add a half way point */
+      interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
+      pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
+      pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
+      CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
+      pt_final->time = interpf(pt->time, next->time, 0.5f);
+      pt_final->runtime.pt_orig = NULL;
+      pt_final->flag = 0;
+      interp_v4_v4v4(pt_final->vert_color, pt->vert_color, next->vert_color, 0.5f);
+
+      if (gps->dvert != NULL) {
+        dvert = &temp_dverts[i];
+        dvert_next = &temp_dverts[i + 1];
+        dvert_final = &gps->dvert[i2];
+
+        dvert_final->totweight = dvert->totweight;
+        dvert_final->dw = MEM_dupallocN(dvert->dw);
+
+        /* interpolate weight values */
+        for (int d = 0; d < dvert->totweight; d++) {
+          MDeformWeight *dw_a = &dvert->dw[d];
+          if (dvert_next->totweight > d) {
+            MDeformWeight *dw_b = &dvert_next->dw[d];
+            MDeformWeight *dw_final = &dvert_final->dw[d];
+            dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
+          }
+        }
+      }
+
+      i2 += 2;
+    }
+
+    MEM_SAFE_FREE(temp_points);
+    MEM_SAFE_FREE(temp_dverts);
+
+    /* move points to smooth stroke (not simple type )*/
+    if (type != GP_SUBDIV_SIMPLE) {
+      /* duplicate points in a temp area with the new subdivide data */
+      temp_points = MEM_dupallocN(gps->points);
+
+      /* extreme points are not changed */
+      for (int i = 0; i < gps->totpoints - 2; i++) {
+        bGPDspoint *pt = &temp_points[i];
+        bGPDspoint *next = &temp_points[i + 1];
+        bGPDspoint *pt_final = &gps->points[i + 1];
+
+        /* move point */
+        interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
+      }
+      /* free temp memory */
+      MEM_SAFE_FREE(temp_points);
+    }
+  }
+
+  /* Calc geometry data. */
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
+}
+
 /* Merge by distance ------------------------------------- */
 
 /**
  * Reduce a series of points when the distance is below a threshold.
  * Special case for first and last points (both are keeped) for other points,
  * the merge point always is at first point.
- * \param: gpd: Datablock
+ * \param gpd: Grease pencil data-block
  * \param gpf: Grease Pencil frame
  * \param gps: Grease Pencil stroke
  * \param threshold: Distance between points
@@ -2305,8 +2424,8 @@ void BKE_gpencil_convert_mesh(Main *bmain,
 
 /**
  * Apply grease pencil Transforms.
- * @param gpd Grease pencil data-block
- * @param mat Transformation matrix
+ * \param gpd: Grease pencil data-block
+ * \param mat: Transformation matrix
  */
 void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
 {
@@ -2339,124 +2458,6 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
       }
     }
   }
-}
-/**
- * Subdivide a stroke
- * \param gpd Datablock
- * \param gps Stroke
- * \param level Level of subdivision
- * \param type Type of subdivision
- */
-void BKE_gpencil_stroke_subdivide(bGPdata *gpd, bGPDstroke *gps, int level, int type)
-{
-  bGPDspoint *temp_points;
-  MDeformVert *temp_dverts = NULL;
-  MDeformVert *dvert = NULL;
-  MDeformVert *dvert_final = NULL;
-  MDeformVert *dvert_next = NULL;
-  int totnewpoints, oldtotpoints;
-  int i2;
-
-  for (int s = 0; s < level; s++) {
-    totnewpoints = gps->totpoints - 1;
-    /* duplicate points in a temp area */
-    temp_points = MEM_dupallocN(gps->points);
-    oldtotpoints = gps->totpoints;
-
-    /* resize the points arrays */
-    gps->totpoints += totnewpoints;
-    gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-    if (gps->dvert != NULL) {
-      temp_dverts = MEM_dupallocN(gps->dvert);
-      gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
-    }
-
-    /* move points from last to first to new place */
-    i2 = gps->totpoints - 1;
-    for (int i = oldtotpoints - 1; i > 0; i--) {
-      bGPDspoint *pt = &temp_points[i];
-      bGPDspoint *pt_final = &gps->points[i2];
-
-      copy_v3_v3(&pt_final->x, &pt->x);
-      pt_final->pressure = pt->pressure;
-      pt_final->strength = pt->strength;
-      pt_final->time = pt->time;
-      pt_final->flag = pt->flag;
-      pt_final->runtime.pt_orig = pt->runtime.pt_orig;
-      pt_final->runtime.idx_orig = pt->runtime.idx_orig;
-      copy_v4_v4(pt_final->vert_color, pt->vert_color);
-
-      if (gps->dvert != NULL) {
-        dvert = &temp_dverts[i];
-        dvert_final = &gps->dvert[i2];
-        dvert_final->totweight = dvert->totweight;
-        dvert_final->dw = dvert->dw;
-      }
-      i2 -= 2;
-    }
-    /* interpolate mid points */
-    i2 = 1;
-    for (int i = 0; i < oldtotpoints - 1; i++) {
-      bGPDspoint *pt = &temp_points[i];
-      bGPDspoint *next = &temp_points[i + 1];
-      bGPDspoint *pt_final = &gps->points[i2];
-
-      /* add a half way point */
-      interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
-      pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
-      pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
-      CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
-      pt_final->time = interpf(pt->time, next->time, 0.5f);
-      pt_final->runtime.pt_orig = NULL;
-      pt_final->flag = 0;
-      interp_v4_v4v4(pt_final->vert_color, pt->vert_color, next->vert_color, 0.5f);
-
-      if (gps->dvert != NULL) {
-        dvert = &temp_dverts[i];
-        dvert_next = &temp_dverts[i + 1];
-        dvert_final = &gps->dvert[i2];
-
-        dvert_final->totweight = dvert->totweight;
-        dvert_final->dw = MEM_dupallocN(dvert->dw);
-
-        /* interpolate weight values */
-        for (int d = 0; d < dvert->totweight; d++) {
-          MDeformWeight *dw_a = &dvert->dw[d];
-          if (dvert_next->totweight > d) {
-            MDeformWeight *dw_b = &dvert_next->dw[d];
-            MDeformWeight *dw_final = &dvert_final->dw[d];
-            dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
-          }
-        }
-      }
-
-      i2 += 2;
-    }
-
-    MEM_SAFE_FREE(temp_points);
-    MEM_SAFE_FREE(temp_dverts);
-
-    /* move points to smooth stroke (not simple type )*/
-    if (type != GP_SUBDIV_SIMPLE) {
-      /* duplicate points in a temp area with the new subdivide data */
-      temp_points = MEM_dupallocN(gps->points);
-
-      /* extreme points are not changed */
-      for (int i = 0; i < gps->totpoints - 2; i++) {
-        bGPDspoint *pt = &temp_points[i];
-        bGPDspoint *next = &temp_points[i + 1];
-        bGPDspoint *pt_final = &gps->points[i + 1];
-
-        /* move point */
-        interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
-      }
-      /* free temp memory */
-      MEM_SAFE_FREE(temp_points);
-    }
-  }
-
-  /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 /** \} */
