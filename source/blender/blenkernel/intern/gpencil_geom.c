@@ -1273,16 +1273,23 @@ void BKE_gpencil_stroke_uv_update(bGPDstroke *gps)
  * \param gpd: Grease pencil data-block
  * \param gps: Grease pencil stroke
  */
-void BKE_gpencil_stroke_geometry_update(bGPdata *UNUSED(gpd), bGPDstroke *gps)
+void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
 {
   if (gps == NULL) {
     return;
   }
 
   if (gps->editcurve != NULL) {
-    if (gps->editcurve->flag & GP_CURVE_RECALC_GEOMETRY) {
-      BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
-      gps->editcurve->flag &= ~GP_CURVE_RECALC_GEOMETRY;
+    if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+      /* curve geometry was updated: stroke needs recalculation */
+      if (gps->flag & GP_STROKE_NEEDS_CURVE_UPDATE) {
+        BKE_gpencil_stroke_update_geometry_from_editcurve(gps);
+        gps->flag &= ~GP_STROKE_NEEDS_CURVE_UPDATE;
+      }
+    }
+    else {
+      /* stroke geometry was updated: editcurve needs recalculation */
+      gps->editcurve->flag |= GP_CURVE_NEEDS_STROKE_UPDATE;
     }
   }
 

@@ -449,7 +449,6 @@ void GPENCIL_OT_recalc_geometry(struct wmOperatorType *ot);
 
 /* stroke editcurve */
 
-void GPENCIL_OT_write_sample_stroke_curve_data(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_enter_editcurve_mode(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_editcurve_set_handle_type(struct wmOperatorType *ot);
 

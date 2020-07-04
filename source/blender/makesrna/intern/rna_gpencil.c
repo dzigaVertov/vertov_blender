@@ -182,32 +182,71 @@ static void rna_GPencil_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Pointe
   WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
-static void rna_GPencil_curve_edit_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_GPencil_curve_edit_mode_toggle(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
-  /* curve edit mode is turned on */
+  /* Curve edit mode is turned on. */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
     /* If the current select mode is segment and the Bezier mode is on, change
      * to Point because segment is not supported. */
     if (ts->gpencil_selectmode_edit == GP_SELECTMODE_SEGMENT) {
       ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
     }
-    /* For all selected strokes, update edit curve */
-    BKE_gpencil_selected_strokes_editcurve_update(gpd);
-  }
-  /* curve edit mode is turned off */
-  else {
-    /* deselect all strokes for now */
+
+    /* For all selected strokes, update edit curve. */
     LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (!BKE_gpencil_layer_is_editable(gpl)) {
+        continue;
+      }
       bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
       for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
         if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
           LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-            if (gps->editcurve != NULL) {
-              BKE_gpencil_stroke_editcurve_sync_selection(gps, gps->editcurve);
+            /* skip deselected stroke */
+            if (!(gps->flag & GP_STROKE_SELECT)) {
+              continue;
+            }
+
+            /* Generate the curve if there is none or the stroke was changed */
+            if (gps->editcurve == NULL) {
+              BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+              /* Continue if curve could not be generated. */
+              if (gps->editcurve == NULL) {
+                continue;
+              }
+            }
+            else if (gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
+              BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+            }
+            /* Update the selection from the stroke to the curve. */
+            BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+
+            gps->editcurve->resolution = gpd->editcurve_resolution;
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+      }
+    }
+  }
+  /* Curve edit mode is turned off. */
+  else {
+    /* Sync selection for all strokes with editcurve. */
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      if (!BKE_gpencil_layer_is_editable(gpl)) {
+        continue;
+      }
+      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
+          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+            bGPDcurve *gpc = gps->editcurve;
+            if (gpc != NULL) {
+              /* Update the selection of every stroke that has an editcurve */
+              BKE_gpencil_stroke_editcurve_sync_selection(gps, gpc);
             }
           }
         }
@@ -229,7 +268,7 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
         bGPDframe *gpf = gpl->actframe;
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
-            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
             BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
@@ -240,7 +279,7 @@ static void rna_GPencil_stroke_curve_update(Main *bmain, Scene *scene, PointerRN
   rna_GPencil_update(bmain, scene, ptr);
 }
 
-static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+static void rna_GPencil_stroke_curve_resolution_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
 
@@ -251,7 +290,7 @@ static void rna_GPencil_curve_resolution_update(Main *bmain, Scene *scene, Point
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
             gps->editcurve->resolution = gpd->editcurve_resolution;
-            gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
             BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
@@ -2385,7 +2424,8 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       prop,
       "Curve Resolution",
       "Number of segments generated between control points when editing strokes in curve mode");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_resolution_update");
+  RNA_def_property_update(
+      prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
 
   /* Curve editing error threshold. */
   prop = RNA_def_property(srna, "curve_edit_threshold", PROP_FLOAT, PROP_FACTOR);
@@ -2407,7 +2447,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   prop = RNA_def_property(srna, "use_curve_edit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_EDIT_MODE);
   RNA_def_property_ui_text(prop, "Curve Editing", "Edit strokes using curve handles");
-  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_edit_update");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_curve_edit_mode_toggle");
 
   prop = RNA_def_property(srna, "use_autolock_layers", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_AUTOLOCK_LAYERS);

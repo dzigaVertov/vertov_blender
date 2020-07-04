@@ -108,8 +108,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
   const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
                                       0;
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
-  /* TODO GPXX: Fix compiler warning while is wip. */
-  UNUSED_VARS(is_curve_edit);
 
   const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
   const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
@@ -336,8 +334,10 @@ void createTransGPencil(bContext *C, TransInfo *t)
               float center[3];
               bool point_ok;
 
+              /* save falloff factor */
+              gps->runtime.multi_frame_falloff = falloff;
+
               if (is_curve_edit) {
-                gps->runtime.multi_frame_falloff = falloff;
                 createTransGPencil_curve_center_get(gpc, center);
 
                 for (int i = 0; i < tot_points; i++) {
@@ -353,8 +353,9 @@ void createTransGPencil(bContext *C, TransInfo *t)
                     BezTriple *bezt = &gpc_pt->bezt;
                     for (int j = 0; j < 3; j++) {
                       td->flag = 0;
-                      /* always do transform if control point is selected */
-                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j)) {
+                      /* always do transform if control point is selected or if proportional
+                       * editing is enabled. Otherwise only look at selected handles */
+                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j) || is_prop_edit) {
                         copy_v3_v3(td->iloc, bezt->vec[j]);
                         if ((gpc->flag & GP_CURVE_SELECT) &&
                             (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
@@ -367,6 +368,7 @@ void createTransGPencil(bContext *C, TransInfo *t)
                         td->loc = bezt->vec[j];
                         td->flag |= TD_SELECTED;
 
+                        /* can only change thickness and strength if control point is selected */
                         if (j == 1) {
                           if (t->mode != TFM_MIRROR) {
                             if (t->mode != TFM_GPENCIL_OPACITY) {
@@ -401,9 +403,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
                 }
               }
               else {
-                /* save falloff factor */
-                gps->runtime.multi_frame_falloff = falloff;
-
                 /* calculate stroke center */
                 createTransGPencil_center_get(gps, center);
 
@@ -457,7 +456,6 @@ void createTransGPencil(bContext *C, TransInfo *t)
                         td->ival = pt->strength;
                       }
                     }
-                  }
 #if 0
                     /* screenspace needs special matrices... */
                     if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
@@ -472,19 +470,20 @@ void createTransGPencil(bContext *C, TransInfo *t)
                       }
                     }
 #endif
-                  /* apply parent transformations */
-                  copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                  copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                  copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+                    /* apply parent transformations */
+                    copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                    copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                    copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
 
-                  /* Save the stroke for recalc geometry function. */
-                  td->extra = gps;
+                    /* Save the stroke for recalc geometry function. */
+                    td->extra = gps;
 
-                  /* Save pointer to object. */
-                  td->ob = obact;
+                    /* Save pointer to object. */
+                    td->ob = obact;
 
-                  td++;
-                  tail++;
+                    td++;
+                    tail++;
+                  }
                 }
               }
               /* March over these points, and calculate the proportional editing distances. */
@@ -517,7 +516,7 @@ void recalcData_gpencil_strokes(TransInfo *t)
     if ((gps != NULL) && (!BLI_ghash_haskey(strokes, gps))) {
       if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) && gps->editcurve != NULL) {
         BKE_gpencil_editcurve_recalculate_handles(gps);
-        gps->editcurve->flag |= GP_CURVE_RECALC_GEOMETRY;
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       }
       /* Calc geometry data. */
       BKE_gpencil_stroke_geometry_update(gpd, gps);
