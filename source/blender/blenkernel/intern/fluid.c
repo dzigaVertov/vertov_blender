@@ -3774,6 +3774,8 @@ static void BKE_fluid_modifier_processDomain(FluidModifierData *fmd,
     MEM_freeN(objs);
   }
 
+  /* TODO (sebbas): Cache reset for when flow / effector object need update flag is set. */
+#  if 0
   /* If the just updated flags now carry the 'outdated' flag, reset the cache here!
    * Plus sanity check: Do not clear cache on file load. */
   if (fds->cache_flag & FLUID_DOMAIN_OUTDATED_DATA &&
@@ -3781,6 +3783,7 @@ static void BKE_fluid_modifier_processDomain(FluidModifierData *fmd,
     BKE_fluid_cache_free_all(fds, ob);
     BKE_fluid_modifier_reset_ex(fmd, false);
   }
+#  endif
 
   /* Fluid domain init must not fail in order to continue modifier evaluation. */
   if (!fds->fluid && !BKE_fluid_modifier_init(fmd, depsgraph, ob, scene, me)) {
