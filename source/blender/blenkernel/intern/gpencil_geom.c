@@ -1312,7 +1312,7 @@ void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
  * Calculate grease pencil stroke length.
  * \param gps: Grease pencil stroke
  * \param use_3d: Set to true to use 3D points
- * \return Length: of the stroke
+ * \return Length of the stroke
  */
 float BKE_gpencil_stroke_length(const bGPDstroke *gps, bool use_3d)
 {
