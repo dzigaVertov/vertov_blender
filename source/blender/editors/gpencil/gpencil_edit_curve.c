@@ -87,7 +87,7 @@ static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
       if (gpf == gpl->actframe) {
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           /* only allow selected and non-converted strokes to be transformed */
-          if ((gps->flag & GP_STROKE_SELECT) && gps->editcurve == NULL ||
+          if ((gps->flag & GP_STROKE_SELECT && gps->editcurve == NULL) ||
               (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE)) {
             BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
             if (gps->editcurve != NULL) {
@@ -153,18 +153,28 @@ static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
       bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
 
       if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+        BezTriple *bezt = &gpc_pt->bezt;
         bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
         bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
                                            &gpc->curve_points[i + 1] :
                                            NULL;
         BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
-        BezTriple *bezt = &gpc_pt->bezt;
         BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
 
-        bezt->h1 = handle_type;
-        bezt->h2 = handle_type;
-
-        BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+        if (bezt->f2 & SELECT) {
+          bezt->h1 = handle_type;
+          bezt->h2 = handle_type;
+          BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+        }
+        else {
+          if (bezt->f1 & SELECT) {
+            bezt->h1 = handle_type;
+          }
+          if (bezt->f3 & SELECT) {
+            bezt->h2 = handle_type;
+          }
+          BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+        }
 
         gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
         BKE_gpencil_stroke_geometry_update(gpd, gps);
