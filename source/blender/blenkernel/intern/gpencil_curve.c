@@ -393,6 +393,16 @@ static void gpencil_convert_spline(Main *bmain,
   BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
+static void gpencil_editstroke_deselect_all(bGPDcurve *gpc)
+{
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    BezTriple *bezt = &gpc_pt->bezt;
+    gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+    BEZT_DESEL_ALL(bezt);
+  }
+}
+
 /**
  * Convert a curve object to grease pencil stroke.
  *
@@ -555,10 +565,6 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
 {
   if (gps->flag & GP_STROKE_SELECT) {
     gpc->flag |= GP_CURVE_SELECT;
-  }
-  else {
-    gpc->flag &= ~GP_CURVE_SELECT;
-  }
 
   for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
@@ -573,6 +579,11 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
     }
   }
 }
+  else {
+    gpc->flag &= ~GP_CURVE_SELECT;
+    gpencil_editstroke_deselect_all(gpc);
+  }
+}
 
 /**
  * Sync the selection from editcurve to stroke
@@ -581,27 +592,62 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
 {
   if (gpc->flag & GP_CURVE_SELECT) {
     gps->flag |= GP_STROKE_SELECT;
-  }
-  else {
-    gps->flag &= ~GP_STROKE_SELECT;
-  }
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    for (int i = 0; i < gpc->tot_curve_points - 1; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
     bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+      bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
 
     if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
       pt->flag |= GP_SPOINT_SELECT;
-      if (i + 1 < gpc->tot_curve_points) {
-        bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
         if (gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
-          /* select all the points inbetween */
+          /* select all the points after */
           for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
             bGPDspoint *pt_next = &gps->points[j];
             pt_next->flag |= GP_SPOINT_SELECT;
           }
         }
       }
+      else {
+        pt->flag &= ~GP_SPOINT_SELECT;
+        /* deselect all points after */
+        for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
+          bGPDspoint *pt_next = &gps->points[j];
+          pt_next->flag &= ~GP_SPOINT_SELECT;
+    }
+  }
+}
+
+    bGPDcurve_point *gpc_first = &gpc->curve_points[0];
+    bGPDcurve_point *gpc_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+    bGPDspoint *last_pt = &gps->points[gpc_last->point_index];
+    if (gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      last_pt->flag |= GP_SPOINT_SELECT;
+    }
+    else {
+      last_pt->flag &= ~GP_SPOINT_SELECT;
+    }
+
+    if (gps->flag & GP_STROKE_CYCLIC) {
+      if (gpc_first->flag & GP_CURVE_POINT_SELECT && gpc_last->flag & GP_CURVE_POINT_SELECT) {
+        for (int i = gpc_last->point_index + 1; i < gps->totpoints; i++) {
+          bGPDspoint *pt_next = &gps->points[i];
+          pt_next->flag |= GP_SPOINT_SELECT;
+        }
+      }
+      else {
+        for (int i = gpc_last->point_index + 1; i < gps->totpoints; i++) {
+          bGPDspoint *pt_next = &gps->points[i];
+          pt_next->flag &= ~GP_SPOINT_SELECT;
+        }
+      }
+    }
+  }
+  else {
+    gps->flag &= ~GP_STROKE_SELECT;
+    for (int i = 0; i < gps->totpoints; i++) {
+      bGPDspoint *pt = &gps->points[i];
+      pt->flag &= ~GP_SPOINT_SELECT;
     }
   }
 }
