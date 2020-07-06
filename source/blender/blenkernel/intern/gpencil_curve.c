@@ -481,6 +481,11 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
     copy_v3_v3(to, &pt->x);
   }
 
+  uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
+  if (gps->totpoints > 2 && gps->flag & GP_STROKE_CYCLIC) {
+    calc_flag |= CURVE_FIT_CALC_CYCLIC;
+  }
+
   float *r_cubic_array = NULL;
   unsigned int r_cubic_array_len = 0;
   unsigned int *r_cubic_orig_index = NULL;
@@ -490,7 +495,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
                                        gps->totpoints,
                                        POINT_DIM,
                                        error_threshold,
-                                       CURVE_FIT_CALC_HIGH_QUALIY,
+                                       calc_flag,
                                        NULL,
                                        0,
                                        &r_cubic_array,
