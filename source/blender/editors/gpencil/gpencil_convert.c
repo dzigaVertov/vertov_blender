@@ -2348,10 +2348,12 @@ static void delete_gp_weights(bGPDstroke *gps, Object *ob){
 static int gp_clean_keyframe_exec(bContext *C, wmOperator *op){
   int frame = RNA_int_get(op->ptr, "frame_number");
   int group_id = RNA_int_get(op->ptr, "bone_group");
+  char name[64];
+  RNA_string_get(op->ptr, "layer_name", name);
   
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = (bGPdata *)ob->data;
-  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+  bGPDlayer *gpl = BKE_gpencil_layer_named_get(gpd, name);
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl,frame ,GP_GETFRAME_USE_PREV);
   bGPDstroke *gps = NULL;
   
@@ -2420,5 +2422,8 @@ void GPENCIL_OT_clean_keyframe(wmOperatorType *ot)
 			 0,
 			 1000000
 			 );
+
+  /* Layer name */
+  ot->prop = RNA_def_string(ot->srna, "layer_name", "", 64, "layer name", "The name of the layer the frame belongs to");
     
 }
