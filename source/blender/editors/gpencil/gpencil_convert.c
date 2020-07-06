@@ -2297,3 +2297,108 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 			  "The grease pencil object to be fitted");
   
 }
+
+
+bool gp_clean_keyframe_poll(bContext *C){
+  Object *ob = CTX_data_active_object(C);
+  Scene *scene = CTX_data_scene(C);
+
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = NULL;
+  bGPDframe *gpf = NULL;
+
+
+
+  /* if there's valid data  */
+  return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
+	   (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)));
+
+}
+
+static void delete_gp_weights(bGPDstroke *gps){
+  bGPDspoint *pt = NULL;
+
+  for (int i = 0; i< gps->totpoints; i++){
+    pt = gps->points[i];
+    pt->
+  }
+   
+}
+
+static int gp_clean_keyframe_exec(bContext *C, wmOperator *op){
+  int frame = RNA_int_get(op->ptr, "frame_number");
+  int group_id = RNA_int_get(op->ptr, "bone_group");
+  
+  Object *ob = CTX_data_active_object(C);
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+  bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl,frame ,GP_GETFRAME_USE_PREV);
+  bGPDstroke *gps = NULL;
+
+  for (gps = gpf->strokes.first; gps; gps = gps->next){
+    if (gps->bonegroup == group_id){
+      delete_gp_weights(gps);
+    }    
+  }
+  
+  
+  printf("clean keyframe still not implemented");
+  return OPERATOR_FINISHED;
+}
+
+static int gp_clean_keyframe_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+  return gp_clean_keyframe_exec(C, op);
+}
+
+
+static void gp_clean_keyframe_cancel(bContext *C, wmOperator *op){}
+
+
+void GPENCIL_OT_clean_keyframe(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Clean Keyframe";
+  ot->idname = "GPENCIL_OT_clean_keyframe";
+  ot->description = "Cleans a grease pencil keyframe from the weights of a certain bonegroup";
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* api callbacks */
+  ot->invoke = gp_clean_keyframe_invoke;
+  ot->exec = gp_clean_keyframe_exec;
+  ot->cancel = gp_clean_keyframe_cancel;
+  ot->modal = NULL;
+  ot->poll = gp_clean_keyframe_poll;
+
+  
+    
+  /* Properties */
+  /* Bone group */
+  ot->prop = RNA_def_int(ot->srna,
+			 "bone_group",
+			 0,
+			 0,
+			 1000000,
+			 "bone_group",
+			 "Bone group to be cleaned",
+			 0,
+			 1000000 );
+
+  /* Frame to clean */
+  ot->prop = RNA_def_int(ot->srna,
+			 "frame_number",
+			 CFRA,
+			 0,
+			 1000000,
+			 "frame number",
+			 "frame number of the keyframe to be cleaned",
+			 0,
+			 1000000
+			 );
+    
+}
