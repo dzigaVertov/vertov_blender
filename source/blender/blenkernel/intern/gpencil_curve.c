@@ -676,6 +676,38 @@ static void gpencil_interpolate_v4_from_to(
   }
 }
 
+static void gpencil_calculate_stroke_points_curve_point(
+    bGPDcurve_point *cpt, bGPDcurve_point *cpt_next, float *points_offset, int resolu, int stride)
+{
+  /* sample points on all 3 axis between two curve points */
+  for (uint axis = 0; axis < 3; axis++) {
+    BKE_curve_forward_diff_bezier(cpt->bezt.vec[1][axis],
+                                  cpt->bezt.vec[2][axis],
+                                  cpt_next->bezt.vec[0][axis],
+                                  cpt_next->bezt.vec[1][axis],
+                                  POINTER_OFFSET(points_offset, sizeof(float) * axis),
+                                  (int)resolu,
+                                  stride);
+  }
+
+  /* interpolate other attributes */
+  gpencil_interpolate_fl_from_to(cpt->pressure,
+                                 cpt_next->pressure,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 3),
+                                 resolu,
+                                 stride);
+  gpencil_interpolate_fl_from_to(cpt->strength,
+                                 cpt_next->strength,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 4),
+                                 resolu,
+                                 stride);
+  gpencil_interpolate_v4_from_to(cpt->vert_color,
+                                 cpt_next->vert_color,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 5),
+                                 resolu,
+                                 stride);
+}
+
 /**
  * Recalculate stroke points with the editcurve of the stroke.
  */
@@ -696,7 +728,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   const uint stride = sizeof(float[9]);
   const uint resolu_stride = resolu * stride;
   const uint points_len = BKE_curve_calc_coords_axis_len(
-      curve_point_array_len, resolu, is_cyclic, true);
+      curve_point_array_len, resolu, is_cyclic, false);
 
   float(*points)[9] = MEM_callocN((stride * points_len * (is_cyclic ? 2 : 1)), __func__);
   float *points_offset = &points[0][0];
@@ -704,59 +736,23 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     bGPDcurve_point *cpt_curr = &curve_point_array[i];
     bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
 
-    /* sample points on all 3 axis between two curve points */
-    for (uint axis = 0; axis < 3; axis++) {
-      BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
-                                    cpt_curr->bezt.vec[2][axis],
-                                    cpt_next->bezt.vec[0][axis],
-                                    cpt_next->bezt.vec[1][axis],
-                                    POINTER_OFFSET(points_offset, sizeof(float) * axis),
-                                    (int)resolu,
-                                    stride);
-    }
-
-    /* interpolate other attributes */
-    gpencil_interpolate_fl_from_to(cpt_curr->pressure,
-                                   cpt_next->pressure,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 3),
-                                   resolu,
-                                   stride);
-    gpencil_interpolate_fl_from_to(cpt_curr->strength,
-                                   cpt_next->strength,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 4),
-                                   resolu,
-                                   stride);
-    gpencil_interpolate_v4_from_to(cpt_curr->vert_color,
-                                   cpt_next->vert_color,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 5),
-                                   resolu,
-                                   stride);
+    gpencil_calculate_stroke_points_curve_point(cpt_curr, cpt_next, points_offset, resolu, stride);
     /* update the index */
     cpt_curr->point_index = i * resolu;
     points_offset = POINTER_OFFSET(points_offset, resolu_stride);
   }
 
-  /* TODO: make cyclic strokes work */
-  // if (is_cyclic) {
-  //   bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
-  //   bGPDcurve_point *cpt_next = &curve_point_array[0];
-  //   BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
-  //                                 cpt_curr->bezt.vec[2][axis],
-  //                                 cpt_next->bezt.vec[0][axis],
-  //                                 cpt_next->bezt.vec[1][axis],
-  //                                 points_offset,
-  //                                 (int)resolu,
-  //                                 stride);
-  //   points_offset = POINTER_OFFSET(points_offset, stride);
-  // }
-  // else {
-  //   float *points_last = POINTER_OFFSET(&points[0][axis], array_last * resolu_stride);
-  //   *points_last = curve_point_array[array_last].bezt.vec[1][axis];
-  //   points_offset = POINTER_OFFSET(points_offset, stride);
-  // }
-
   if (is_cyclic) {
-    memcpy(points[points_len], points[0], stride * points_len);
+    bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
+    bGPDcurve_point *cpt_next = &curve_point_array[0];
+
+    gpencil_calculate_stroke_points_curve_point(cpt_curr, cpt_next, points_offset, resolu, stride);
+
+    cpt_curr->point_index = array_last * resolu;
+  }
+  else {
+    bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
+    cpt_curr->point_index = array_last * resolu;
   }
 
   /* resize stroke point array */
