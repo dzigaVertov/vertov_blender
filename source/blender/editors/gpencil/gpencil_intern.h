@@ -491,6 +491,7 @@ void GPENCIL_OT_bake_mesh_animation(struct wmOperatorType *ot);
 
 void GPENCIL_OT_image_to_grease_pencil(struct wmOperatorType *ot);
 void GPENCIL_OT_fit_curve(struct wmOperatorType *ot);
+void GPENCIL_OT_clean_keyframe(struct wmOperatorType *ot);
 bool gp_fitcurve_poll(bContext *C);
 
 enum {

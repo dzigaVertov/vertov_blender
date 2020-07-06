@@ -608,6 +608,7 @@ void ED_operatortypes_gpencil(void)
 
   /* Added here provisionally */
   WM_operatortype_append(GPENCIL_OT_fit_curve);
+  WM_operatortype_append(GPENCIL_OT_clean_keyframe);
 
   WM_operatortype_append(GPENCIL_OT_stroke_arrange);
   WM_operatortype_append(GPENCIL_OT_stroke_change_color);

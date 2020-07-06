@@ -87,6 +87,8 @@
 
 #include "gpencil_intern.h"
 #include "curve_fit_nd.h"
+#include "BKE_deform.h"
+#include "DNA_meshdata_types.h"
 
 /* ************************************************ */
 /* Grease Pencil to Data Operator */
@@ -2319,15 +2321,29 @@ bool gp_clean_keyframe_poll(bContext *C){
 
 }
 
-static void delete_gp_weights(bGPDstroke *gps){
-  bGPDspoint *pt = NULL;
-
-  for (int i = 0; i< gps->totpoints; i++){
-    pt = gps->points[i];
-    pt->
+/* Remove all weights from a stroke */
+static void delete_gp_weights(bGPDstroke *gps, Object *ob){
+  if (gps->dvert == NULL){
+    return;
   }
-   
-}
+
+  bDeformGroup *dg;
+  for (dg = ob->defbase.first; dg; dg=dg->next){
+    int def_idx = BLI_findindex(&ob->defbase, dg);
+
+    for (int i =0; i<gps->totpoints; i++) {
+      MDeformVert *dvert = &gps->dvert[i];
+      if (dvert->totweight >0) {
+	MDeformWeight *dw = BKE_defvert_find_index(dvert, def_idx);
+	if ( dw != NULL ){
+	  BKE_defvert_remove_group(dvert, dw);
+	}
+      }
+    }
+  }
+  return;  
+  }
+
 
 static int gp_clean_keyframe_exec(bContext *C, wmOperator *op){
   int frame = RNA_int_get(op->ptr, "frame_number");
@@ -2338,15 +2354,19 @@ static int gp_clean_keyframe_exec(bContext *C, wmOperator *op){
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
   bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl,frame ,GP_GETFRAME_USE_PREV);
   bGPDstroke *gps = NULL;
-
+  
   for (gps = gpf->strokes.first; gps; gps = gps->next){
     if (gps->bonegroup == group_id){
-      delete_gp_weights(gps);
+        delete_gp_weights(gps, ob);
     }    
   }
-  
-  
-  printf("clean keyframe still not implemented");
+
+  /* notifiers */
+  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY );
+  /* DEG_relations_tag_update(CTX_data_main(C)); */
+  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
+  /* WM_event_add_notifier(C, NC_GEOM | ND_VERTEX_GROUP, ob->data); */
+
   return OPERATOR_FINISHED;
 }
 
@@ -2392,7 +2412,7 @@ void GPENCIL_OT_clean_keyframe(wmOperatorType *ot)
   /* Frame to clean */
   ot->prop = RNA_def_int(ot->srna,
 			 "frame_number",
-			 CFRA,
+			 5,
 			 0,
 			 1000000,
 			 "frame number",
