@@ -566,19 +566,19 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
   if (gps->flag & GP_STROKE_SELECT) {
     gpc->flag |= GP_CURVE_SELECT;
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
-    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
-    if (pt->flag & GP_SPOINT_SELECT) {
-      gpc_pt->flag |= GP_CURVE_POINT_SELECT;
-      BEZT_SEL_ALL(&gpc_pt->bezt);
-    }
-    else {
-      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
-      BEZT_DESEL_ALL(&gpc_pt->bezt);
+    for (int i = 0; i < gpc->tot_curve_points; i++) {
+      bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+      bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+      if (pt->flag & GP_SPOINT_SELECT) {
+        gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+        BEZT_SEL_ALL(&gpc_pt->bezt);
+      }
+      else {
+        gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(&gpc_pt->bezt);
+      }
     }
   }
-}
   else {
     gpc->flag &= ~GP_CURVE_SELECT;
     gpencil_editstroke_deselect_all(gpc);
@@ -594,12 +594,12 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
     gps->flag |= GP_STROKE_SELECT;
 
     for (int i = 0; i < gpc->tot_curve_points - 1; i++) {
-    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+      bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+      bGPDspoint *pt = &gps->points[gpc_pt->point_index];
       bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
 
-    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-      pt->flag |= GP_SPOINT_SELECT;
+      if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+        pt->flag |= GP_SPOINT_SELECT;
         if (gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
           /* select all the points after */
           for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
@@ -614,9 +614,9 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
         for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
           bGPDspoint *pt_next = &gps->points[j];
           pt_next->flag &= ~GP_SPOINT_SELECT;
+        }
+      }
     }
-  }
-}
 
     bGPDcurve_point *gpc_first = &gpc->curve_points[0];
     bGPDcurve_point *gpc_last = &gpc->curve_points[gpc->tot_curve_points - 1];
@@ -792,20 +792,52 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
     return;
   }
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
+  if (gpc->tot_curve_points == 1) {
+    BKE_nurb_handle_calc(&(gpc->curve_points[0].bezt), NULL, NULL, false, 0);
+    gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+  }
+
+  for (int i = 1; i < gpc->tot_curve_points - 1; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
-    bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ? &gpc->curve_points[i + 1] :
-                                                                     NULL;
+    bGPDcurve_point *gpc_pt_prev = &gpc->curve_points[i - 1];
+    bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
     /* update handle if point or neighbour is selected */
-    if (gpc_pt->flag & GP_CURVE_POINT_SELECT ||
-        (gpc_pt_prev != NULL && gpc_pt_prev->flag & GP_CURVE_POINT_SELECT) ||
-        (gpc_pt_next != NULL && gpc_pt_next->flag & GP_CURVE_POINT_SELECT)) {
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT || gpc_pt_prev->flag & GP_CURVE_POINT_SELECT ||
+        gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
       BezTriple *bezt = &gpc_pt->bezt;
-      BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
-      BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
+      BezTriple *bezt_prev = &gpc_pt_prev->bezt;
+      BezTriple *bezt_next = &gpc_pt_next->bezt;
 
       BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+      changed = true;
+    }
+  }
+
+  bGPDcurve_point *gpc_first = &gpc->curve_points[0];
+  bGPDcurve_point *gpc_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+  bGPDcurve_point *gpc_first_next = &gpc->curve_points[1];
+  bGPDcurve_point *gpc_last_prev = &gpc->curve_points[gpc->tot_curve_points - 2];
+  if (gps->flag & GP_STROKE_CYCLIC) {
+    if (gpc_first->flag & GP_CURVE_POINT_SELECT || gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      BezTriple *bezt_first = &gpc_first->bezt;
+      BezTriple *bezt_last = &gpc_last->bezt;
+      BezTriple *bezt_first_next = &gpc_first_next->bezt;
+      BezTriple *bezt_last_prev = &gpc_last_prev->bezt;
+
+      BKE_nurb_handle_calc(bezt_first, bezt_last, bezt_first_next, false, 0);
+      BKE_nurb_handle_calc(bezt_last, bezt_last_prev, bezt_first, false, 0);
+      changed = true;
+    }
+  }
+  else {
+    if (gpc_first->flag & GP_CURVE_POINT_SELECT || gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      BezTriple *bezt_first = &gpc_first->bezt;
+      BezTriple *bezt_last = &gpc_last->bezt;
+      BezTriple *bezt_first_next = &gpc_first_next->bezt;
+      BezTriple *bezt_last_prev = &gpc_last_prev->bezt;
+
+      BKE_nurb_handle_calc(bezt_first, NULL, bezt_first_next, false, 0);
+      BKE_nurb_handle_calc(bezt_last, bezt_last_prev, NULL, false, 0);
       changed = true;
     }
   }
