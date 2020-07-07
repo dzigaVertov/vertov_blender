@@ -393,6 +393,16 @@ static void gpencil_convert_spline(Main *bmain,
   BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
+static void gpencil_editstroke_deselect_all(bGPDcurve *gpc)
+{
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    BezTriple *bezt = &gpc_pt->bezt;
+    gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+    BEZT_DESEL_ALL(bezt);
+  }
+}
+
 /**
  * Convert a curve object to grease pencil stroke.
  *
@@ -471,6 +481,11 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
     copy_v3_v3(to, &pt->x);
   }
 
+  uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
+  if (gps->totpoints > 2 && gps->flag & GP_STROKE_CYCLIC) {
+    calc_flag |= CURVE_FIT_CALC_CYCLIC;
+  }
+
   float *r_cubic_array = NULL;
   unsigned int r_cubic_array_len = 0;
   unsigned int *r_cubic_orig_index = NULL;
@@ -480,7 +495,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
                                        gps->totpoints,
                                        POINT_DIM,
                                        error_threshold,
-                                       CURVE_FIT_CALC_HIGH_QUALIY,
+                                       calc_flag,
                                        NULL,
                                        0,
                                        &r_cubic_array,
@@ -555,22 +570,23 @@ void BKE_gpencil_editcurve_stroke_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
 {
   if (gps->flag & GP_STROKE_SELECT) {
     gpc->flag |= GP_CURVE_SELECT;
+
+    for (int i = 0; i < gpc->tot_curve_points; i++) {
+      bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+      bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+      if (pt->flag & GP_SPOINT_SELECT) {
+        gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+        BEZT_SEL_ALL(&gpc_pt->bezt);
+      }
+      else {
+        gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(&gpc_pt->bezt);
+      }
+    }
   }
   else {
     gpc->flag &= ~GP_CURVE_SELECT;
-  }
-
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
-    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
-    if (pt->flag & GP_SPOINT_SELECT) {
-      gpc_pt->flag |= GP_CURVE_POINT_SELECT;
-      BEZT_SEL_ALL(&gpc_pt->bezt);
-    }
-    else {
-      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
-      BEZT_DESEL_ALL(&gpc_pt->bezt);
-    }
+    gpencil_editstroke_deselect_all(gpc);
   }
 }
 
@@ -581,27 +597,62 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
 {
   if (gpc->flag & GP_CURVE_SELECT) {
     gps->flag |= GP_STROKE_SELECT;
-  }
-  else {
-    gps->flag &= ~GP_STROKE_SELECT;
-  }
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
-    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+    for (int i = 0; i < gpc->tot_curve_points - 1; i++) {
+      bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+      bGPDspoint *pt = &gps->points[gpc_pt->point_index];
+      bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
 
-    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-      pt->flag |= GP_SPOINT_SELECT;
-      if (i + 1 < gpc->tot_curve_points) {
-        bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
+      if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+        pt->flag |= GP_SPOINT_SELECT;
         if (gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
-          /* select all the points inbetween */
+          /* select all the points after */
           for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
             bGPDspoint *pt_next = &gps->points[j];
             pt_next->flag |= GP_SPOINT_SELECT;
           }
         }
       }
+      else {
+        pt->flag &= ~GP_SPOINT_SELECT;
+        /* deselect all points after */
+        for (int j = gpc_pt->point_index + 1; j < gpc_pt_next->point_index; j++) {
+          bGPDspoint *pt_next = &gps->points[j];
+          pt_next->flag &= ~GP_SPOINT_SELECT;
+        }
+      }
+    }
+
+    bGPDcurve_point *gpc_first = &gpc->curve_points[0];
+    bGPDcurve_point *gpc_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+    bGPDspoint *last_pt = &gps->points[gpc_last->point_index];
+    if (gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      last_pt->flag |= GP_SPOINT_SELECT;
+    }
+    else {
+      last_pt->flag &= ~GP_SPOINT_SELECT;
+    }
+
+    if (gps->flag & GP_STROKE_CYCLIC) {
+      if (gpc_first->flag & GP_CURVE_POINT_SELECT && gpc_last->flag & GP_CURVE_POINT_SELECT) {
+        for (int i = gpc_last->point_index + 1; i < gps->totpoints; i++) {
+          bGPDspoint *pt_next = &gps->points[i];
+          pt_next->flag |= GP_SPOINT_SELECT;
+        }
+      }
+      else {
+        for (int i = gpc_last->point_index + 1; i < gps->totpoints; i++) {
+          bGPDspoint *pt_next = &gps->points[i];
+          pt_next->flag &= ~GP_SPOINT_SELECT;
+        }
+      }
+    }
+  }
+  else {
+    gps->flag &= ~GP_STROKE_SELECT;
+    for (int i = 0; i < gps->totpoints; i++) {
+      bGPDspoint *pt = &gps->points[i];
+      pt->flag &= ~GP_SPOINT_SELECT;
     }
   }
 }
@@ -630,6 +681,38 @@ static void gpencil_interpolate_v4_from_to(
   }
 }
 
+static void gpencil_calculate_stroke_points_curve_point(
+    bGPDcurve_point *cpt, bGPDcurve_point *cpt_next, float *points_offset, int resolu, int stride)
+{
+  /* sample points on all 3 axis between two curve points */
+  for (uint axis = 0; axis < 3; axis++) {
+    BKE_curve_forward_diff_bezier(cpt->bezt.vec[1][axis],
+                                  cpt->bezt.vec[2][axis],
+                                  cpt_next->bezt.vec[0][axis],
+                                  cpt_next->bezt.vec[1][axis],
+                                  POINTER_OFFSET(points_offset, sizeof(float) * axis),
+                                  (int)resolu,
+                                  stride);
+  }
+
+  /* interpolate other attributes */
+  gpencil_interpolate_fl_from_to(cpt->pressure,
+                                 cpt_next->pressure,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 3),
+                                 resolu,
+                                 stride);
+  gpencil_interpolate_fl_from_to(cpt->strength,
+                                 cpt_next->strength,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 4),
+                                 resolu,
+                                 stride);
+  gpencil_interpolate_v4_from_to(cpt->vert_color,
+                                 cpt_next->vert_color,
+                                 POINTER_OFFSET(points_offset, sizeof(float) * 5),
+                                 resolu,
+                                 stride);
+}
+
 /**
  * Recalculate stroke points with the editcurve of the stroke.
  */
@@ -650,7 +733,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
   const uint stride = sizeof(float[9]);
   const uint resolu_stride = resolu * stride;
   const uint points_len = BKE_curve_calc_coords_axis_len(
-      curve_point_array_len, resolu, is_cyclic, true);
+      curve_point_array_len, resolu, is_cyclic, false);
 
   float(*points)[9] = MEM_callocN((stride * points_len * (is_cyclic ? 2 : 1)), __func__);
   float *points_offset = &points[0][0];
@@ -658,59 +741,23 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     bGPDcurve_point *cpt_curr = &curve_point_array[i];
     bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
 
-    /* sample points on all 3 axis between two curve points */
-    for (uint axis = 0; axis < 3; axis++) {
-      BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
-                                    cpt_curr->bezt.vec[2][axis],
-                                    cpt_next->bezt.vec[0][axis],
-                                    cpt_next->bezt.vec[1][axis],
-                                    POINTER_OFFSET(points_offset, sizeof(float) * axis),
-                                    (int)resolu,
-                                    stride);
-    }
-
-    /* interpolate other attributes */
-    gpencil_interpolate_fl_from_to(cpt_curr->pressure,
-                                   cpt_next->pressure,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 3),
-                                   resolu,
-                                   stride);
-    gpencil_interpolate_fl_from_to(cpt_curr->strength,
-                                   cpt_next->strength,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 4),
-                                   resolu,
-                                   stride);
-    gpencil_interpolate_v4_from_to(cpt_curr->vert_color,
-                                   cpt_next->vert_color,
-                                   POINTER_OFFSET(points_offset, sizeof(float) * 5),
-                                   resolu,
-                                   stride);
+    gpencil_calculate_stroke_points_curve_point(cpt_curr, cpt_next, points_offset, resolu, stride);
     /* update the index */
     cpt_curr->point_index = i * resolu;
     points_offset = POINTER_OFFSET(points_offset, resolu_stride);
   }
 
-  /* TODO: make cyclic strokes work */
-  // if (is_cyclic) {
-  //   bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
-  //   bGPDcurve_point *cpt_next = &curve_point_array[0];
-  //   BKE_curve_forward_diff_bezier(cpt_curr->bezt.vec[1][axis],
-  //                                 cpt_curr->bezt.vec[2][axis],
-  //                                 cpt_next->bezt.vec[0][axis],
-  //                                 cpt_next->bezt.vec[1][axis],
-  //                                 points_offset,
-  //                                 (int)resolu,
-  //                                 stride);
-  //   points_offset = POINTER_OFFSET(points_offset, stride);
-  // }
-  // else {
-  //   float *points_last = POINTER_OFFSET(&points[0][axis], array_last * resolu_stride);
-  //   *points_last = curve_point_array[array_last].bezt.vec[1][axis];
-  //   points_offset = POINTER_OFFSET(points_offset, stride);
-  // }
-
   if (is_cyclic) {
-    memcpy(points[points_len], points[0], stride * points_len);
+    bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
+    bGPDcurve_point *cpt_next = &curve_point_array[0];
+
+    gpencil_calculate_stroke_points_curve_point(cpt_curr, cpt_next, points_offset, resolu, stride);
+
+    cpt_curr->point_index = array_last * resolu;
+  }
+  else {
+    bGPDcurve_point *cpt_curr = &curve_point_array[array_last];
+    cpt_curr->point_index = array_last * resolu;
   }
 
   /* resize stroke point array */
@@ -750,20 +797,52 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
     return;
   }
 
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
+  if (gpc->tot_curve_points == 1) {
+    BKE_nurb_handle_calc(&(gpc->curve_points[0].bezt), NULL, NULL, false, 0);
+    gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+  }
+
+  for (int i = 1; i < gpc->tot_curve_points - 1; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
-    bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ? &gpc->curve_points[i + 1] :
-                                                                     NULL;
+    bGPDcurve_point *gpc_pt_prev = &gpc->curve_points[i - 1];
+    bGPDcurve_point *gpc_pt_next = &gpc->curve_points[i + 1];
     /* update handle if point or neighbour is selected */
-    if (gpc_pt->flag & GP_CURVE_POINT_SELECT ||
-        (gpc_pt_prev != NULL && gpc_pt_prev->flag & GP_CURVE_POINT_SELECT) ||
-        (gpc_pt_next != NULL && gpc_pt_next->flag & GP_CURVE_POINT_SELECT)) {
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT || gpc_pt_prev->flag & GP_CURVE_POINT_SELECT ||
+        gpc_pt_next->flag & GP_CURVE_POINT_SELECT) {
       BezTriple *bezt = &gpc_pt->bezt;
-      BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
-      BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
+      BezTriple *bezt_prev = &gpc_pt_prev->bezt;
+      BezTriple *bezt_next = &gpc_pt_next->bezt;
 
       BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
+      changed = true;
+    }
+  }
+
+  bGPDcurve_point *gpc_first = &gpc->curve_points[0];
+  bGPDcurve_point *gpc_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+  bGPDcurve_point *gpc_first_next = &gpc->curve_points[1];
+  bGPDcurve_point *gpc_last_prev = &gpc->curve_points[gpc->tot_curve_points - 2];
+  if (gps->flag & GP_STROKE_CYCLIC) {
+    if (gpc_first->flag & GP_CURVE_POINT_SELECT || gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      BezTriple *bezt_first = &gpc_first->bezt;
+      BezTriple *bezt_last = &gpc_last->bezt;
+      BezTriple *bezt_first_next = &gpc_first_next->bezt;
+      BezTriple *bezt_last_prev = &gpc_last_prev->bezt;
+
+      BKE_nurb_handle_calc(bezt_first, bezt_last, bezt_first_next, false, 0);
+      BKE_nurb_handle_calc(bezt_last, bezt_last_prev, bezt_first, false, 0);
+      changed = true;
+    }
+  }
+  else {
+    if (gpc_first->flag & GP_CURVE_POINT_SELECT || gpc_last->flag & GP_CURVE_POINT_SELECT) {
+      BezTriple *bezt_first = &gpc_first->bezt;
+      BezTriple *bezt_last = &gpc_last->bezt;
+      BezTriple *bezt_first_next = &gpc_first_next->bezt;
+      BezTriple *bezt_last_prev = &gpc_last_prev->bezt;
+
+      BKE_nurb_handle_calc(bezt_first, NULL, bezt_first_next, false, 0);
+      BKE_nurb_handle_calc(bezt_last, bezt_last_prev, NULL, false, 0);
       changed = true;
     }
   }

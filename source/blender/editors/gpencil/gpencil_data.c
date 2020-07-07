@@ -3324,7 +3324,7 @@ static int gpencil_set_active_material_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  bool changed = false;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   /* Sanity checks. */
   if (gpd == NULL) {
@@ -3332,17 +3332,23 @@ static int gpencil_set_active_material_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* Loop all selected strokes. */
-  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      /* Change Active material. */
-      ob->actcol = gps->mat_nr + 1;
-      changed = true;
-      break;
-    }
+  bool changed = false;
+  if (is_curve_edit) {
+    /* TODO: set curve stroke material */
   }
-  GP_EDITABLE_STROKES_END(gpstroke_iter);
-
+  else {
+    /* Loop all selected strokes. */
+    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        /* Change Active material. */
+        ob->actcol = gps->mat_nr + 1;
+        changed = true;
+        break;
+      }
+    }
+    GP_EDITABLE_STROKES_END(gpstroke_iter);
+  }
+  
   /* notifiers */
   if (changed) {
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
