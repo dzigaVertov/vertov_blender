@@ -128,31 +128,6 @@ static bool gpencil_select_poll(bContext *C)
   return false;
 }
 
-static bool error_threshold_display_poll(bContext *C)
-{
-  CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-    if (gps->editcurve == NULL) {
-      return true;
-    }
-  }
-  CTX_DATA_END;
-  return false;
-}
-
-static void gpencil_select_ui(bContext *C, wmOperator *op)
-{
-  uiLayout *layout = op->layout;
-  PointerRNA ptr;
-
-  Object *ob = CTX_data_active_object(C);
-  bGPdata *gpd = ob->data;
-
-  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {  // && error_threshold_display_poll(C)) {
-    RNA_pointer_create(NULL, op->type->srna, op->properties, &ptr);
-    uiItemR(layout, &ptr, "error_threshold", 0, "Error Threshold", ICON_NONE);
-  }
-}
-
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -176,7 +151,6 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   int action = RNA_enum_get(op->ptr, "action");
-  float error_threshold = RNA_float_get(op->ptr, "error_threshold");
 
   if (gpd == NULL) {
     BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data");
@@ -197,7 +171,7 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
   }
 
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    ED_gpencil_select_curve_toggle_all(C, action, error_threshold);
+    ED_gpencil_select_curve_toggle_all(C, action);
   }
   else {
     ED_gpencil_select_toggle_all(C, action);
@@ -214,19 +188,6 @@ static int gpencil_select_all_exec(bContext *C, wmOperator *op)
   return OPERATOR_FINISHED;
 }
 
-static void WM_operator_property_error_threshold(wmOperatorType *ot)
-{
-  PropertyRNA *prop = RNA_def_float(ot->srna,
-                                    "error_threshold",
-                                    0.1f,
-                                    FLT_MIN,
-                                    100.0f,
-                                    "Error Threshold",
-                                    "Threshold on the maximum deviation from the actual stroke",
-                                    FLT_MIN,
-                                    10.f);
-  RNA_def_property_ui_range(prop, FLT_MIN, 10.0f, 0.1f, 5);
-}
 
 void GPENCIL_OT_select_all(wmOperatorType *ot)
 {
@@ -242,10 +203,7 @@ void GPENCIL_OT_select_all(wmOperatorType *ot)
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-  ot->ui = gpencil_select_ui;
-
   WM_operator_properties_select_all(ot);
-  WM_operator_property_error_threshold(ot);
 }
 
 /** \} */
@@ -1868,14 +1826,12 @@ void GPENCIL_OT_select(wmOperatorType *ot)
   ot->invoke = gpencil_select_invoke;
   ot->exec = gpencil_select_exec;
   ot->poll = gpencil_select_poll;
-  ot->ui = gpencil_select_ui;
 
   /* flag */
   ot->flag = OPTYPE_UNDO;
 
   /* properties */
   WM_operator_properties_mouse_select(ot);
-  WM_operator_property_error_threshold(ot);
 
   prop = RNA_def_boolean(ot->srna,
                          "entire_strokes",

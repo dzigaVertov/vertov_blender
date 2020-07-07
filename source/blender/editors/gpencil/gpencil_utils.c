@@ -2247,11 +2247,11 @@ static void gpencil_copy_points(
 }
 
 static void gpencil_insert_point(bGPdata *gpd,
-                            bGPDstroke *gps,
-                            bGPDspoint *a_pt,
-                            bGPDspoint *b_pt,
-                            const float co_a[3],
-                            float co_b[3])
+                                 bGPDstroke *gps,
+                                 bGPDspoint *a_pt,
+                                 bGPDspoint *b_pt,
+                                 const float co_a[3],
+                                 float co_b[3])
 {
   bGPDspoint *temp_points;
   int totnewpoints, oldtotpoints;
@@ -2615,7 +2615,7 @@ void ED_gpencil_select_toggle_all(bContext *C, int action)
   }
 }
 
-void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_threshold)
+void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
 {
   /* if toggle, check if we need to select or deselect */
   if (action == SEL_TOGGLE) {
@@ -2650,7 +2650,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action, float error_thr
 
       /* Make sure stroke has an editcurve */
       if (gps->editcurve == NULL) {
-        BKE_gpencil_stroke_editcurve_update(gps, error_threshold);
+        BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
         gps->editcurve->resolution = gpd->editcurve_resolution;
         gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
         BKE_gpencil_stroke_geometry_update(gpd, gps);
