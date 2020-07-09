@@ -14,35 +14,19 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __BMESH_TOOLS_H__
-#define __BMESH_TOOLS_H__
+#ifndef __FN_MULTI_FUNCTION_NETWORK_OPTIMIZATION_HH__
+#define __FN_MULTI_FUNCTION_NETWORK_OPTIMIZATION_HH__
 
-/** \file
- * \ingroup bmesh
- *
- * Utility functions that operate directly on the BMesh,
- * These can be used by both Modifiers and BMesh-Operators.
- */
+#include "FN_multi_function_network.hh"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "BLI_resource_collector.hh"
 
-#include "tools/bmesh_beautify.h"
-#include "tools/bmesh_bevel.h"
-#include "tools/bmesh_bisect_plane.h"
-#include "tools/bmesh_decimate.h"
-#include "tools/bmesh_edgenet.h"
-#include "tools/bmesh_edgesplit.h"
-#include "tools/bmesh_path.h"
-#include "tools/bmesh_path_region.h"
-#include "tools/bmesh_path_uv.h"
-#include "tools/bmesh_region_match.h"
-#include "tools/bmesh_separate.h"
-#include "tools/bmesh_triangulate.h"
+namespace blender::fn::mf_network_optimization {
 
-#ifdef __cplusplus
-}
-#endif
+void dead_node_removal(MFNetwork &network);
+void constant_folding(MFNetwork &network, ResourceCollector &resources);
+void common_subnetwork_elimination(MFNetwork &network);
 
-#endif /* __BMESH_TOOLS_H__ */
+}  // namespace blender::fn::mf_network_optimization
+
+#endif /* __FN_MULTI_FUNCTION_NETWORK_OPTIMIZATION_HH__ */
