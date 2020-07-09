@@ -1612,6 +1612,7 @@ static void deselect_all_selected(bContext *C)
       }
 
       gpc->flag &= ~GP_CURVE_SELECT;
+      gps->flag &= ~GP_STROKE_SELECT;
     }
   }
   CTX_DATA_END;
@@ -1620,6 +1621,7 @@ static void deselect_all_selected(bContext *C)
 static void gpencil_select_curve_point(bContext *C,
                                        const int mval[2],
                                        const int radius_squared,
+                                       bGPDstroke **r_gps,
                                        bGPDcurve **r_gpc,
                                        bGPDcurve_point **r_pt,
                                        char *handle)
@@ -1658,6 +1660,7 @@ static void gpencil_select_curve_point(bContext *C,
             const int pt_distance = len_manhattan_v2v2_int(mval, screen_co);
 
             if (pt_distance <= radius_squared && pt_distance < hit_distance) {
+              *r_gps = gps;
               *r_gpc = gpc;
               *r_pt = gpc_pt;
               *handle = j;
@@ -1726,10 +1729,10 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 
   if (is_curve_edit) {
     gpencil_select_curve_point(
-        C, mval, radius_squared, &hit_curve, &hit_curve_point, &hit_curve_handle);
+        C, mval, radius_squared, &hit_stroke, &hit_curve, &hit_curve_point, &hit_curve_handle);
   }
 
-  if (hit_curve_point == NULL) {
+  if (hit_curve == NULL) {
     /* init space conversion stuff */
     gpencil_point_conversion_init(C, &gsc);
 
@@ -1831,9 +1834,11 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 
       if (deselect == false) {
         hit_curve->flag |= GP_CURVE_SELECT;
+        hit_stroke->flag |= GP_STROKE_SELECT;
       }
       else {
         hit_curve->flag &= ~GP_CURVE_SELECT;
+        hit_stroke->flag &= ~GP_STROKE_SELECT;
       }
     }
     else {
@@ -1866,6 +1871,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
         hit_curve_point->flag |= GP_CURVE_POINT_SELECT;
         BEZT_SEL_IDX(&hit_curve_point->bezt, hit_curve_handle);
         hit_curve->flag |= GP_CURVE_SELECT;
+        hit_stroke->flag |= GP_STROKE_SELECT;
       }
       else {
         /* we're adding selection, so selection must be true */
@@ -1898,7 +1904,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
         if (!BEZT_ISSEL_ANY(&hit_curve_point->bezt)) {
           hit_curve_point->flag &= ~GP_CURVE_POINT_SELECT;
         }
-        BKE_gpencil_curve_sync_selection(hit_curve);
+        BKE_gpencil_curve_sync_selection(hit_stroke);
       }
       else {
         /* deselect point */
