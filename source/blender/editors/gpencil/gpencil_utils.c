@@ -2635,10 +2635,11 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
       for (int i = 0; i < gpc->tot_curve_points; i++) {
         bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
         BezTriple *bezt = &gpc_pt->bezt;
-        gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+        gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
         BEZT_DESEL_ALL(bezt);
       }
       gpc->flag &= ~GP_CURVE_SELECT;
+      gps->flag &= ~GP_STROKE_SELECT;
     }
     GP_EDITABLE_CURVES_END(gps_iter);
   }
@@ -2680,9 +2681,11 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
 
       if (selected) {
         gpc->flag |= GP_CURVE_SELECT;
+        gps->flag |= GP_STROKE_SELECT;
       }
       else {
         gpc->flag &= ~GP_CURVE_SELECT;
+        gps->flag &= ~GP_STROKE_SELECT;
       }
     }
     CTX_DATA_END;

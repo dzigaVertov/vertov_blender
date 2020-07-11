@@ -164,7 +164,6 @@ static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
         if (bezt->f2 & SELECT) {
           bezt->h1 = handle_type;
           bezt->h2 = handle_type;
-          BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
         }
         else {
           if (bezt->f1 & SELECT) {
@@ -173,13 +172,13 @@ static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
           if (bezt->f3 & SELECT) {
             bezt->h2 = handle_type;
           }
-          BKE_nurb_handle_calc(bezt, bezt_prev, bezt_next, false, 0);
         }
-
-        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
     }
+
+    BKE_gpencil_editcurve_recalculate_handles(gps);
+    gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
   }
   GP_EDITABLE_CURVES_END(gps_iter);
 

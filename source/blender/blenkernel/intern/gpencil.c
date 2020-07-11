@@ -934,13 +934,16 @@ void BKE_gpencil_stroke_sync_selection(bGPDstroke *gps)
   }
 }
 
-void BKE_gpencil_curve_sync_selection(bGPDcurve *gpc)
+void BKE_gpencil_curve_sync_selection(bGPDstroke *gps)
 {
+  bGPDcurve *gpc = gps->editcurve;
   if (gpc == NULL) {
     return;
   }
 
+  gps->flag &= ~GP_STROKE_SELECT;
   gpc->flag &= ~GP_CURVE_SELECT;
+
   bool is_selected = false;
   for (int i = 0; i < gpc->tot_curve_points; i++) {
     bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
@@ -960,6 +963,7 @@ void BKE_gpencil_curve_sync_selection(bGPDcurve *gpc)
 
   if (is_selected) {
     gpc->flag |= GP_CURVE_SELECT;
+    gps->flag |= GP_STROKE_SELECT;
   }
 }
 
