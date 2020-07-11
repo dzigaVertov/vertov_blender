@@ -4171,7 +4171,17 @@ static int gpencil_stroke_subdivide_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: do curve subdivide */
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if (gpc->flag & GP_CURVE_SELECT) {
+        BKE_gpencil_editcurve_subdivide(gps, cuts);
+        BKE_gpencil_editcurve_recalculate_handles(gps);
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+        changed = true;
+      }
+    }
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
   else {
     /* Go through each editable + selected stroke */

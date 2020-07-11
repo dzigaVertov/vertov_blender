@@ -852,4 +852,143 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
   }
 }
 
+/* Helper: count how many new curve points must be generated. */
+static int gpencil_editcurve_subdivide_count(bGPDcurve *gpc, bool is_cyclic)
+{
+  int count = 0;
+  for (int i = 0; i < gpc->tot_curve_points - 1; i++) {
+    bGPDcurve_point *cpt = &gpc->curve_points[i];
+    bGPDcurve_point *cpt_next = &gpc->curve_points[i + 1];
+
+    if (cpt->flag & GP_CURVE_POINT_SELECT && cpt_next->flag & GP_CURVE_POINT_SELECT) {
+      count++;
+    }
+  }
+
+  if (is_cyclic) {
+    bGPDcurve_point *cpt = &gpc->curve_points[0];
+    bGPDcurve_point *cpt_next = &gpc->curve_points[gpc->tot_curve_points - 1];
+
+    if (cpt->flag & GP_CURVE_POINT_SELECT && cpt_next->flag & GP_CURVE_POINT_SELECT) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+static void gpencil_editcurve_subdivide_curve_segment(bGPDcurve_point *cpt_start,
+                                                      bGPDcurve_point *cpt_end,
+                                                      bGPDcurve_point *cpt_new)
+{
+  BezTriple *bezt_start = &cpt_start->bezt;
+  BezTriple *bezt_end = &cpt_end->bezt;
+  BezTriple *bezt_new = &cpt_new->bezt;
+  for (int axis = 0; axis < 3; axis++) {
+    float p0, p1, p2, p3, m0, m1, q0, q1, b;
+    p0 = bezt_start->vec[1][axis];
+    p1 = bezt_start->vec[2][axis];
+    p2 = bezt_end->vec[0][axis];
+    p3 = bezt_end->vec[1][axis];
+
+    m0 = (p0 + p1) / 2;
+    q0 = (p0 + 2 * p1 + p2) / 4;
+    b = (p0 + 3 * p1 + 3 * p2 + p3) / 8;
+    q1 = (p1 + 2 * p2 + p3) / 4;
+    m1 = (p2 + p3) / 2;
+
+    bezt_new->vec[0][axis] = q0;
+    bezt_new->vec[2][axis] = q1;
+    bezt_new->vec[1][axis] = b;
+
+    bezt_start->vec[2][axis] = m0;
+    bezt_end->vec[0][axis] = m1;
+  }
+
+  cpt_new->pressure = interpf(cpt_end->pressure, cpt_start->pressure, 0.5f);
+  cpt_new->strength = interpf(cpt_end->strength, cpt_start->strength, 0.5f);
+  interp_v4_v4v4(cpt_new->vert_color, cpt_start->vert_color, cpt_end->vert_color, 0.5f);
+}
+
+void BKE_gpencil_editcurve_subdivide(bGPDstroke *gps, const int cuts)
+{
+  bGPDcurve *gpc = gps->editcurve;
+  if (gpc == NULL || gpc->tot_curve_points < 2) {
+    return;
+  }
+  bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+
+  /* repeat for number of cuts */
+  for (int s = 0; s < cuts; s++) {
+    int old_tot_curve_points = gpc->tot_curve_points;
+    int new_num_curve_points = gpencil_editcurve_subdivide_count(gpc, is_cyclic);
+    if (new_num_curve_points == 0) {
+      break;
+    }
+    int new_tot_curve_points = old_tot_curve_points + new_num_curve_points;
+
+    bGPDcurve_point *temp_curve_points = (bGPDcurve_point *)MEM_callocN(
+        sizeof(bGPDcurve_point) * new_tot_curve_points, __func__);
+
+    bool prev_subdivided = false;
+    int j = 0;
+    for (int i = 0; i < old_tot_curve_points - 1; i++, j++) {
+      bGPDcurve_point *cpt = &gpc->curve_points[i];
+      bGPDcurve_point *cpt_next = &gpc->curve_points[i + 1];
+
+      if (cpt->flag & GP_CURVE_POINT_SELECT && cpt_next->flag & GP_CURVE_POINT_SELECT) {
+        bGPDcurve_point *cpt_new = &temp_curve_points[j + 1];
+        gpencil_editcurve_subdivide_curve_segment(cpt, cpt_next, cpt_new);
+
+        memcpy(&temp_curve_points[j], cpt, sizeof(bGPDcurve_point));
+        memcpy(&temp_curve_points[j + 2], cpt_next, sizeof(bGPDcurve_point));
+
+        cpt_new->flag |= GP_CURVE_POINT_SELECT;
+        cpt_new->bezt.h1 = HD_ALIGN;
+        cpt_new->bezt.h2 = HD_ALIGN;
+        BEZT_SEL_ALL(&cpt_new->bezt);
+
+        prev_subdivided = true;
+        j++;
+      }
+      else if (!prev_subdivided) {
+        memcpy(&temp_curve_points[j], cpt, sizeof(bGPDcurve_point));
+        prev_subdivided = false;
+      }
+      else {
+        prev_subdivided = false;
+      }
+    }
+
+    if (is_cyclic) {
+      bGPDcurve_point *cpt = &gpc->curve_points[old_tot_curve_points - 1];
+      bGPDcurve_point *cpt_next = &gpc->curve_points[0];
+
+      if (cpt->flag & GP_CURVE_POINT_SELECT && cpt_next->flag & GP_CURVE_POINT_SELECT) {
+        bGPDcurve_point *cpt_new = &temp_curve_points[j + 1];
+        gpencil_editcurve_subdivide_curve_segment(cpt, cpt_next, cpt_new);
+
+        memcpy(&temp_curve_points[j], cpt, sizeof(bGPDcurve_point));
+        memcpy(&temp_curve_points[0], cpt_next, sizeof(bGPDcurve_point));
+
+        cpt_new->flag |= GP_CURVE_POINT_SELECT;
+        cpt_new->bezt.h1 = HD_ALIGN;
+        cpt_new->bezt.h2 = HD_ALIGN;
+        BEZT_SEL_ALL(&cpt_new->bezt);
+      }
+      else if (!prev_subdivided) {
+        memcpy(&temp_curve_points[j], cpt, sizeof(bGPDcurve_point));
+      }
+    }
+    else {
+      bGPDcurve_point *cpt = &gpc->curve_points[old_tot_curve_points - 1];
+      memcpy(&temp_curve_points[j], cpt, sizeof(bGPDcurve_point));
+    }
+
+    MEM_freeN(gpc->curve_points);
+    gpc->curve_points = temp_curve_points;
+    gpc->tot_curve_points = new_tot_curve_points;
+  }
+}
+
 /** \} */
