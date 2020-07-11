@@ -1465,7 +1465,7 @@ static int gpencil_stroke_arrange_exec(bContext *C, wmOperator *op)
             default:
               BLI_assert(0);
               break;
-            changed = true;
+              changed = true;
           }
         }
         BLI_freelistN(&selected);
@@ -1659,7 +1659,7 @@ static int gpencil_material_lock_unsused_exec(bContext *C, wmOperator *UNUSED(op
       }
     }
   }
-  
+
   if (changed) {
     /* updates */
     DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
@@ -3361,7 +3361,7 @@ static int gpencil_set_active_material_exec(bContext *C, wmOperator *op)
     }
     GP_EDITABLE_STROKES_END(gpstroke_iter);
   }
-  
+
   /* notifiers */
   if (changed) {
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);

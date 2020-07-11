@@ -1589,7 +1589,7 @@ static int gpencil_box_select_exec(bContext *C, wmOperator *op)
   if (is_curve_edit) {
     return gpencil_editcurve_box_select_exec(C, op, gpd);
   }
-  
+
   struct GP_SelectBoxUserData data = {0};
   WM_operator_properties_border_to_rcti(op, &data.rect);
   rcti rect = data.rect;
