@@ -1572,8 +1572,24 @@ static bool gpencil_test_box(bGPDstroke *gps,
   return ((!ELEM(V2D_IS_CLIPPED, x0, y0)) && BLI_rcti_isect_pt(&data->rect, x0, y0));
 }
 
+static int gpencil_editcurve_box_select_exec(bContext *C, wmOperator *op, bGPdata *gpd)
+{
+  return OPERATOR_CANCELLED;
+}
+
 static int gpencil_box_select_exec(bContext *C, wmOperator *op)
 {
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+
+  if (ELEM(gpd, NULL)) {
+    return OPERATOR_CANCELLED;
+  }
+
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  if (is_curve_edit) {
+    return gpencil_editcurve_box_select_exec(C, op, gpd);
+  }
+  
   struct GP_SelectBoxUserData data = {0};
   WM_operator_properties_border_to_rcti(op, &data.rect);
   rcti rect = data.rect;
@@ -1631,8 +1647,24 @@ static bool gpencil_test_lasso(bGPDstroke *gps,
           BLI_lasso_is_point_inside(data->mcoords, data->mcoords_len, x0, y0, INT_MAX));
 }
 
+static int gpencil_editcurve_lasso_select_exec(bContext *C, wmOperator *op, bGPdata *gpd)
+{
+  return OPERATOR_CANCELLED;
+}
+
 static int gpencil_lasso_select_exec(bContext *C, wmOperator *op)
 {
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+
+  if (ELEM(gpd, NULL)) {
+    return OPERATOR_CANCELLED;
+  }
+
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  if (is_curve_edit) {
+    return gpencil_editcurve_lasso_select_exec(C, op, gpd);
+  }
+
   struct GP_SelectLassoUserData data = {0};
   data.mcoords = WM_gesture_lasso_path_to_array(C, op, &data.mcoords_len);
 
