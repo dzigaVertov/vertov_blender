@@ -1430,6 +1430,62 @@ typedef bool (*GPencilTestFn)(ARegion *region,
                               const float pt[3],
                               GP_SelectUserData *user_data);
 
+static bool gpencil_stroke_fill_isect_rect(ARegion *region,
+                                           bGPDstroke *gps,
+                                           const float diff_mat[4][4],
+                                           rcti rect)
+{
+  int min[2];
+  int max[2];
+  INIT_MINMAX2(min, max);
+
+  int(*points2d)[2] = MEM_callocN(sizeof(int[2]) * gps->totpoints, __func__);
+
+  for (int i = 0; i < gps->totpoints; i++) {
+    bGPDspoint *pt = &gps->points[i];
+    int *pt2d = &points2d[i];
+
+    int screen_co[2];
+    gpencil_3d_point_to_screen_space(region, diff_mat, &pt->x, screen_co);
+    DO_MINMAX2(screen_co, min, max);
+
+    copy_v2_v2_int(pt2d, screen_co);
+  }
+
+  bool hit = false;
+  /* check bounding box */
+  rcti bb = {min[0], max[0], min[1], max[1]};
+  if (BLI_rcti_isect(&rect, &bb, NULL)) {
+    for (int i = 0; i < gps->tot_triangles; i++) {
+      bGPDtriangle *tri = &gps->triangles[i];
+      int pt1[2], pt2[2], pt3[2];
+      int tri_min[2], tri_max[2];
+      INIT_MINMAX2(tri_min, tri_max);
+      copy_v2_v2_int(pt1, &points2d[tri->verts[0]]);
+      copy_v2_v2_int(pt2, &points2d[tri->verts[1]]);
+      copy_v2_v2_int(pt3, &points2d[tri->verts[2]]);
+      DO_MINMAX2(pt1, tri_min, tri_max);
+      DO_MINMAX2(pt2, tri_min, tri_max);
+      DO_MINMAX2(pt3, tri_min, tri_max);
+      rcti tri_bb = {tri_min[0], tri_max[0], tri_min[1], tri_max[1]};
+
+      if (BLI_rcti_inside_rcti(&rect, &tri_bb) || BLI_rcti_inside_rcti(&tri_bb, &rect)) {
+        hit = true;
+        break;
+      }
+
+      if (BLI_rcti_isect_segment(&rect, pt1, pt2) || BLI_rcti_isect_segment(&rect, pt2, pt3) ||
+          BLI_rcti_isect_segment(&rect, pt3, pt1)) {
+        hit = true;
+        break;
+      }
+    }
+  }
+
+  MEM_freeN(points2d);
+  return hit;
+}
+
 static bool gpencil_generic_curve_select(bContext *C,
                                          Object *ob,
                                          bGPdata *gpd,
@@ -1444,37 +1500,9 @@ static bool gpencil_generic_curve_select(bContext *C,
   const bool handle_only_selected = (v3d->overlay.handle_display == CURVE_HANDLE_SELECTED);
   const bool handle_all = (v3d->overlay.handle_display == CURVE_HANDLE_ALL);
 
-  // /* deselect handles first */
-  // if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
-  //   GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
-  //   {
-  //     /* deselect stroke and its points if selected */
-  //     if (gps->flag & GP_STROKE_SELECT) {
-  //       if (gps->editcurve != NULL) {
-  //         bGPDcurve *gpc = gps->editcurve;
-  //         for (int j = 0; j < gpc->tot_curve_points; j++) {
-  //           bGPDcurve_point *gpc_pt = &gpc->curve_points[j];
-  //           BezTriple *bezt = &gpc_pt->bezt;
-  //           if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-  //             bezt->f1 &= ~SELECT;
-  //             bezt->f3 &= ~SELECT;
-  //           }
-
-  //           SET_FLAG_FROM_TEST(gpc_pt->flag, bezt->f1 || bezt->f3, GP_CURVE_POINT_SELECT);
-  //         }
-
-  //         gpc->flag &= ~GP_CURVE_SELECT;
-  //       }
-
-  //       /* deselect stroke itself too */
-  //       gps->flag &= ~GP_STROKE_SELECT;
-  //     }
-  //   }
-  //   GP_EDITABLE_CURVES_END(gps_iter);
-  // }
-
   bool hit = false;
   bool changed = false;
+  bool whole = false;
 
   GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
   {
@@ -1566,16 +1594,13 @@ static bool gpencil_generic_curve_select(bContext *C,
       if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
         continue;
       }
-      int mval[2];
-      mval[0] = (box.xmax + box.xmin) / 2;
-      mval[1] = (box.ymax + box.ymin) / 2;
 
-      hit = false;
+      whole = gpencil_stroke_fill_isect_rect(region, gps, gps_iter.diff_mat, box);
     }
 
     /* select the entire curve */
-    if (strokemode) {
-      const int sel_op_result = ED_select_op_action_deselected(sel_op, any_select, hit);
+    if (strokemode || whole) {
+      const int sel_op_result = ED_select_op_action_deselected(sel_op, any_select, hit || whole);
       if (sel_op_result != -1) {
         for (int i = 0; i < gpc->tot_curve_points; i++) {
           bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
@@ -1591,7 +1616,7 @@ static bool gpencil_generic_curve_select(bContext *C,
           }
         }
 
-        if(sel_op_result) {
+        if (sel_op_result) {
           gpc->flag |= GP_CURVE_SELECT;
         }
         else {
