@@ -70,7 +70,7 @@ static bool gpencil_curve_edit_mode_poll(bContext *C)
   return (gpl != NULL);
 }
 
-static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
+static int gpencil_stroke_enter_editcurve_mode_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ob->data;
@@ -90,16 +90,18 @@ static int gpencil_stroke_enter_editcurve_mode(bContext *C, wmOperator *op)
           if ((gps->flag & GP_STROKE_SELECT && gps->editcurve == NULL) ||
               (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE)) {
             BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-            if (gps->editcurve != NULL) {
-              gps->editcurve->resolution = gpd->editcurve_resolution;
-              gps->editcurve->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-            }
+            gps->editcurve->resolution = gpd->editcurve_resolution;
+            /* Update the selection from the stroke to the curve. */
+            BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
             BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
         }
       }
     }
   }
+
+  gpd->flag |= GP_DATA_CURVE_EDIT_MODE;
 
   /* notifiers */
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
@@ -118,7 +120,7 @@ void GPENCIL_OT_stroke_enter_editcurve_mode(wmOperatorType *ot)
   ot->description = "Called to transform a stroke into a curve";
 
   /* api callbacks */
-  ot->exec = gpencil_stroke_enter_editcurve_mode;
+  ot->exec = gpencil_stroke_enter_editcurve_mode_exec;
   ot->poll = gpencil_active_layer_poll;
 
   /* flags */
