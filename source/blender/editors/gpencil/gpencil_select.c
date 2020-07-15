@@ -573,8 +573,8 @@ static bool gpencil_select_same_material(bContext *C)
   CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
     if (gps->flag & GP_STROKE_SELECT) {
       /* add instead of insert here, otherwise the uniqueness check gets skipped,
-        * and we get many duplicate entries...
-        */
+       * and we get many duplicate entries...
+       */
       BLI_gset_add(selected_colors, &gps->mat_nr);
     }
   }
@@ -592,7 +592,7 @@ static bool gpencil_select_same_material(bContext *C)
         }
         gpc->flag |= GP_CURVE_SELECT;
         gps->flag |= GP_STROKE_SELECT;
-        
+
         changed = true;
       }
     }
@@ -710,19 +710,33 @@ static int gpencil_select_first_exec(bContext *C, wmOperator *op)
   const bool extend = RNA_boolean_get(op->ptr, "extend");
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve select */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-      /* skip stroke if we're only manipulating selected strokes */
-      if (only_selected && !(gps->flag & GP_STROKE_SELECT)) {
-        continue;
+  CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+    /* skip stroke if we're only manipulating selected strokes */
+    if (only_selected && !(gps->flag & GP_STROKE_SELECT)) {
+      continue;
+    }
+
+    /* select first point */
+    BLI_assert(gps->totpoints >= 1);
+
+    if (is_curve_edit) {
+      if (gps->editcurve != NULL) {
+        bGPDcurve *gpc = gps->editcurve;
+        gpc->curve_points[0].flag |= GP_CURVE_POINT_SELECT;
+        BEZT_SEL_ALL(&gpc->curve_points[0].bezt);
+        gpc->flag |= GP_CURVE_SELECT;
+        gps->flag |= GP_STROKE_SELECT;
+        if ((extend == false) && (gps->totpoints > 1)) {
+          for (int i = 1; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+            gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+            BEZT_DESEL_ALL(&gpc_pt->bezt);
+          }
+        }
+        changed = true;
       }
-
-      /* select first point */
-      BLI_assert(gps->totpoints >= 1);
-
+    }
+    else {
       gps->points->flag |= GP_SPOINT_SELECT;
       gps->flag |= GP_STROKE_SELECT;
 
@@ -736,11 +750,10 @@ static int gpencil_select_first_exec(bContext *C, wmOperator *op)
           pt->flag &= ~GP_SPOINT_SELECT;
         }
       }
-
       changed = true;
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   if (changed) {
     /* updates */
@@ -787,7 +800,7 @@ void GPENCIL_OT_select_first(wmOperatorType *ot)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Select First
+/** \name Select Last
  * \{ */
 
 static int gpencil_select_last_exec(bContext *C, wmOperator *op)
@@ -804,19 +817,33 @@ static int gpencil_select_last_exec(bContext *C, wmOperator *op)
   const bool extend = RNA_boolean_get(op->ptr, "extend");
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve select */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-      /* skip stroke if we're only manipulating selected strokes */
-      if (only_selected && !(gps->flag & GP_STROKE_SELECT)) {
-        continue;
+  CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+    /* skip stroke if we're only manipulating selected strokes */
+    if (only_selected && !(gps->flag & GP_STROKE_SELECT)) {
+      continue;
+    }
+
+    /* select last point */
+    BLI_assert(gps->totpoints >= 1);
+
+    if (is_curve_edit) {
+      if (gps->editcurve != NULL) {
+        bGPDcurve *gpc = gps->editcurve;
+        gpc->curve_points[gpc->tot_curve_points - 1].flag |= GP_CURVE_POINT_SELECT;
+        BEZT_SEL_ALL(&gpc->curve_points[gpc->tot_curve_points - 1].bezt);
+        gpc->flag |= GP_CURVE_SELECT;
+        gps->flag |= GP_STROKE_SELECT;
+        if ((extend == false) && (gps->totpoints > 1)) {
+          for (int i = 0; i < gpc->tot_curve_points - 1; i++) {
+            bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+            gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+            BEZT_DESEL_ALL(&gpc_pt->bezt);
+          }
+        }
+        changed = true;
       }
-
-      /* select last point */
-      BLI_assert(gps->totpoints >= 1);
-
+    }
+    else {
       gps->points[gps->totpoints - 1].flag |= GP_SPOINT_SELECT;
       gps->flag |= GP_STROKE_SELECT;
 
@@ -824,7 +851,7 @@ static int gpencil_select_last_exec(bContext *C, wmOperator *op)
       if ((extend == false) && (gps->totpoints > 1)) {
         /* don't include the last point... */
         bGPDspoint *pt = gps->points;
-        int i = 1;
+        int i = 0;
 
         for (; i < gps->totpoints - 1; i++, pt++) {
           pt->flag &= ~GP_SPOINT_SELECT;
@@ -833,8 +860,8 @@ static int gpencil_select_last_exec(bContext *C, wmOperator *op)
 
       changed = true;
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   if (changed) {
     /* updates */
