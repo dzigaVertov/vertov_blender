@@ -500,31 +500,44 @@ static bool gpencil_select_same_layer(bContext *C)
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve select */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-      bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
-      bGPDstroke *gps;
-      bool found = false;
+  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+    bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
+    bGPDstroke *gps;
+    bool found = false;
 
-      if (gpf == NULL) {
-        continue;
+    if (gpf == NULL) {
+      continue;
+    }
+
+    /* Search for a selected stroke */
+    for (gps = gpf->strokes.first; gps; gps = gps->next) {
+      if (ED_gpencil_stroke_can_use(C, gps)) {
+        if (gps->flag & GP_STROKE_SELECT) {
+          found = true;
+          break;
+        }
       }
+    }
 
-      /* Search for a selected stroke */
-      for (gps = gpf->strokes.first; gps; gps = gps->next) {
-        if (ED_gpencil_stroke_can_use(C, gps)) {
-          if (gps->flag & GP_STROKE_SELECT) {
-            found = true;
-            break;
+    /* Select all if found */
+    if (found) {
+      if (is_curve_edit) {
+        for (gps = gpf->strokes.first; gps; gps = gps->next) {
+          if (gps->editcurve != NULL && ED_gpencil_stroke_can_use(C, gps)) {
+            bGPDcurve *gpc = gps->editcurve;
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+              gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+              BEZT_SEL_ALL(&gpc_pt->bezt);
+            }
+            gpc->flag |= GP_CURVE_SELECT;
+            gps->flag |= GP_STROKE_SELECT;
+
+            changed = true;
           }
         }
       }
-
-      /* Select all if found */
-      if (found) {
+      else {
         for (gps = gpf->strokes.first; gps; gps = gps->next) {
           if (ED_gpencil_stroke_can_use(C, gps)) {
             bGPDspoint *pt;
@@ -541,8 +554,8 @@ static bool gpencil_select_same_layer(bContext *C)
         }
       }
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   return changed;
 }
@@ -556,21 +569,36 @@ static bool gpencil_select_same_material(bContext *C)
   GSet *selected_colors = BLI_gset_str_new("GP Selected Colors");
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve select */
+
+  CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
+    if (gps->flag & GP_STROKE_SELECT) {
+      /* add instead of insert here, otherwise the uniqueness check gets skipped,
+        * and we get many duplicate entries...
+        */
+      BLI_gset_add(selected_colors, &gps->mat_nr);
+    }
   }
-  else {
+  CTX_DATA_END;
+
+  /* Second, select any visible stroke that uses these colors */
+  if (is_curve_edit) {
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
-      if (gps->flag & GP_STROKE_SELECT) {
-        /* add instead of insert here, otherwise the uniqueness check gets skipped,
-         * and we get many duplicate entries...
-         */
-        BLI_gset_add(selected_colors, &gps->mat_nr);
+      if (gps->editcurve != NULL && BLI_gset_haskey(selected_colors, &gps->mat_nr)) {
+        bGPDcurve *gpc = gps->editcurve;
+        for (int i = 0; i < gpc->tot_curve_points; i++) {
+          bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+          gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+          BEZT_SEL_ALL(&gpc_pt->bezt);
+        }
+        gpc->flag |= GP_CURVE_SELECT;
+        gps->flag |= GP_STROKE_SELECT;
+        
+        changed = true;
       }
     }
     CTX_DATA_END;
-
-    /* Second, select any visible stroke that uses these colors */
+  }
+  else {
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
       if (BLI_gset_haskey(selected_colors, &gps->mat_nr)) {
         /* select this stroke */
