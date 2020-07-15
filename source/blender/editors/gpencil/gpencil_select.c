@@ -1435,15 +1435,14 @@ static bool gpencil_stroke_fill_isect_rect(ARegion *region,
                                            const float diff_mat[4][4],
                                            rcti rect)
 {
-  int min[2];
-  int max[2];
-  INIT_MINMAX2(min, max);
+  int min[2] = {-INT_MAX, -INT_MAX};
+  int max[2] = {INT_MAX, INT_MAX};
 
   int(*points2d)[2] = MEM_callocN(sizeof(int[2]) * gps->totpoints, __func__);
 
   for (int i = 0; i < gps->totpoints; i++) {
     bGPDspoint *pt = &gps->points[i];
-    int *pt2d = &points2d[i];
+    int *pt2d = points2d[i];
 
     int screen_co[2];
     gpencil_3d_point_to_screen_space(region, diff_mat, &pt->x, screen_co);
@@ -1459,16 +1458,18 @@ static bool gpencil_stroke_fill_isect_rect(ARegion *region,
     for (int i = 0; i < gps->tot_triangles; i++) {
       bGPDtriangle *tri = &gps->triangles[i];
       int pt1[2], pt2[2], pt3[2];
-      int tri_min[2], tri_max[2];
-      INIT_MINMAX2(tri_min, tri_max);
-      copy_v2_v2_int(pt1, &points2d[tri->verts[0]]);
-      copy_v2_v2_int(pt2, &points2d[tri->verts[1]]);
-      copy_v2_v2_int(pt3, &points2d[tri->verts[2]]);
+      int tri_min[2] = {-INT_MAX, -INT_MAX};
+      int tri_max[2] = {INT_MAX, INT_MAX};
+
+      copy_v2_v2_int(pt1, points2d[tri->verts[0]]);
+      copy_v2_v2_int(pt2, points2d[tri->verts[1]]);
+      copy_v2_v2_int(pt3, points2d[tri->verts[2]]);
+
       DO_MINMAX2(pt1, tri_min, tri_max);
       DO_MINMAX2(pt2, tri_min, tri_max);
       DO_MINMAX2(pt3, tri_min, tri_max);
-      rcti tri_bb = {tri_min[0], tri_max[0], tri_min[1], tri_max[1]};
 
+      rcti tri_bb = {tri_min[0], tri_max[0], tri_min[1], tri_max[1]};
       if (BLI_rcti_inside_rcti(&rect, &tri_bb) || BLI_rcti_inside_rcti(&tri_bb, &rect)) {
         hit = true;
         break;
@@ -1488,7 +1489,6 @@ static bool gpencil_stroke_fill_isect_rect(ARegion *region,
 
 static bool gpencil_generic_curve_select(bContext *C,
                                          Object *ob,
-                                         bGPdata *gpd,
                                          GPencilTestFn is_inside_fn,
                                          rcti box,
                                          GP_SelectUserData *user_data,
@@ -1787,7 +1787,7 @@ static int gpencil_generic_select_exec(bContext *C,
 
   if (is_curve_edit) {
     changed = gpencil_generic_curve_select(
-        C, ob, gpd, is_inside_fn, box, user_data, strokemode, sel_op);
+        C, ob, is_inside_fn, box, user_data, strokemode, sel_op);
   }
   else {
     changed = gpencil_generic_stroke_select(
