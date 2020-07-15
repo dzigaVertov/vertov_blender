@@ -361,7 +361,43 @@ static int gpencil_select_alternate_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: do curve select */
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if ((gps->flag & GP_STROKE_SELECT) && (gps->totpoints > 1)) {
+        int idx = 0;
+        int start = 0;
+        if (unselect_ends) {
+          start = 1;
+        }
+
+        for (int i = start; i < gpc->tot_curve_points; i++) {
+          bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+          if ((idx % 2) == 0) {
+            gpc_pt->flag |= GP_SPOINT_SELECT;
+            BEZT_SEL_ALL(&gpc_pt->bezt);
+          }
+          else {
+            gpc_pt->flag &= ~GP_SPOINT_SELECT;
+            BEZT_DESEL_ALL(&gpc_pt->bezt);
+          }
+          idx++;
+        }
+
+        if (unselect_ends) {
+          bGPDcurve_point *gpc_pt = &gpc->curve_points[0];
+          gpc_pt->flag &= ~GP_SPOINT_SELECT;
+          BEZT_DESEL_ALL(&gpc_pt->bezt);
+
+          gpc_pt = &gpc->curve_points[gpc->tot_curve_points - 1];
+          gpc_pt->flag &= ~GP_SPOINT_SELECT;
+          BEZT_DESEL_ALL(&gpc_pt->bezt);
+        }
+
+        BKE_gpencil_curve_sync_selection(gps);
+        changed = true;
+      }
+    }
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
   else {
     /* select all points in selected strokes */
