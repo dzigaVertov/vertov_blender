@@ -757,6 +757,9 @@ static char gpencil_beztriple_vflag_get(char flag,
   SET_FLAG_FROM_TEST(vflag, (flag & SELECT), VFLAG_VERT_SELECTED);
   SET_FLAG_FROM_TEST(vflag, handle_point, BEZIER_HANDLE);
   SET_FLAG_FROM_TEST(vflag, handle_selected, VFLAG_VERT_SELECTED_BEZT_HANDLE);
+  /* Reuse flag of Freestyle to indicate is GPencil data. */
+  vflag |= VFLAG_EDGE_FREESTYLE;
+
   /* Handle color id. */
   vflag |= col_id << COLOR_SHIFT;
   return vflag;
