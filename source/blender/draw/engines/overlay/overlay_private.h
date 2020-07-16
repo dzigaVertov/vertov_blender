@@ -246,6 +246,7 @@ typedef struct OVERLAY_PrivateData {
   DRWShadingGroup *motion_path_lines_grp;
   DRWShadingGroup *motion_path_points_grp;
   DRWShadingGroup *outlines_grp;
+  DRWShadingGroup *outlines_ptcloud_grp;
   DRWShadingGroup *outlines_gpencil_grp;
   DRWShadingGroup *paint_depth_grp;
   DRWShadingGroup *paint_surf_grp;
@@ -553,10 +554,6 @@ void OVERLAY_particle_cache_init(OVERLAY_Data *vedata);
 void OVERLAY_particle_cache_populate(OVERLAY_Data *vedata, Object *ob);
 void OVERLAY_particle_draw(OVERLAY_Data *vedata);
 
-void OVERLAY_pointcloud_cache_init(OVERLAY_Data *vedata);
-void OVERLAY_pointcloud_cache_populate(OVERLAY_Data *vedata, Object *ob);
-void OVERLAY_pointcloud_draw(OVERLAY_Data *vedata);
-
 void OVERLAY_sculpt_cache_init(OVERLAY_Data *vedata);
 void OVERLAY_sculpt_cache_populate(OVERLAY_Data *vedata, Object *ob);
 void OVERLAY_sculpt_draw(OVERLAY_Data *vedata);
@@ -613,6 +610,7 @@ GPUShader *OVERLAY_shader_motion_path_vert(void);
 GPUShader *OVERLAY_shader_uniform_color(void);
 GPUShader *OVERLAY_shader_outline_prepass(bool use_wire);
 GPUShader *OVERLAY_shader_outline_prepass_gpencil(void);
+GPUShader *OVERLAY_shader_outline_prepass_pointcloud(void);
 GPUShader *OVERLAY_shader_extra_grid(void);
 GPUShader *OVERLAY_shader_outline_detect(void);
 GPUShader *OVERLAY_shader_paint_face(void);
@@ -623,7 +621,6 @@ GPUShader *OVERLAY_shader_paint_weight(void);
 GPUShader *OVERLAY_shader_paint_wire(void);
 GPUShader *OVERLAY_shader_particle_dot(void);
 GPUShader *OVERLAY_shader_particle_shape(void);
-GPUShader *OVERLAY_shader_pointcloud_dot(void);
 GPUShader *OVERLAY_shader_sculpt_mask(void);
 GPUShader *OVERLAY_shader_volume_velocity(bool use_needle);
 GPUShader *OVERLAY_shader_wireframe(bool custom_bias);
