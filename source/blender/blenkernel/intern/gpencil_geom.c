@@ -2300,6 +2300,7 @@ static int gpencil_material_find_index_by_name_prefix(Object *ob, const char *na
 
   return -1;
 }
+
 /**
  * Convert a mesh object to grease pencil stroke.
  *
@@ -2443,7 +2444,7 @@ void BKE_gpencil_convert_mesh(Main *bmain,
   bGPDframe *gpf_stroke = BKE_gpencil_layer_frame_get(
       gpl_stroke, CFRA + frame_offset, GP_GETFRAME_ADD_NEW);
   gpencil_generate_edgeloops(
-      ob_eval, gpf_stroke, stroke_mat_index, angle, thickness, offset, matrix, use_seams);
+      ob_eval, gpd, gpf_stroke, stroke_mat_index, angle, thickness, offset, matrix, use_seams);
 
   /* Tag for recalculation */
   DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
