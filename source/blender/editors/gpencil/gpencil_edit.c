@@ -202,6 +202,10 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
     ob->mode = mode;
   }
 
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    BKE_gpencil_strokes_selected_update_editcurve(gpd);
+  }
+
   /* setup other modes */
   ED_gpencil_setup_modes(C, gpd, mode);
   /* set cache as dirty */
