@@ -43,6 +43,8 @@
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
+#include "BKE_gpencil_geom.h"
 #include "BKE_material.h"
 #include "BKE_report.h"
 
@@ -2200,6 +2202,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   /* select all handles if the click was on the curve but not on a handle */
   if (is_curve_edit && hit_point != NULL) {
     whole = true;
+    hit_curve = hit_stroke->editcurve;
   }
 
   /* adjust selection behavior - for toggle option */
@@ -2225,6 +2228,14 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 
   /* Perform selection operations... */
   if (whole) {
+    /* Generate editcurve if it does not exist */
+    if (is_curve_edit && hit_curve == NULL) {
+      BKE_gpencil_stroke_editcurve_update(hit_stroke, gpd->curve_edit_threshold);
+      hit_stroke->editcurve->resolution = gpd->editcurve_resolution;
+      hit_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, hit_stroke);
+      hit_curve = hit_stroke->editcurve;
+    }
     /* select all curve points */
     if (hit_curve != NULL) {
       for (int i = 0; i < hit_curve->tot_curve_points; i++) {
@@ -2464,7 +2475,6 @@ static int gpencil_select_vertex_color_exec(bContext *C, wmOperator *op)
   ToolSettings *ts = CTX_data_tool_settings(C);
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   const float threshold = RNA_int_get(op->ptr, "threshold");
   const int selectmode = gpencil_select_mode_from_vertex(ts->gpencil_selectmode_vertex);
