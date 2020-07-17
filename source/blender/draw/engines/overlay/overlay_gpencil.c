@@ -142,6 +142,18 @@ void OVERLAY_edit_gpencil_cache_init(OVERLAY_Data *vedata)
     DRWState state = DRW_STATE_WRITE_COLOR;
     DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state | pd->clipping_state);
 
+    /* Edit lines. */
+    if (show_lines) {
+      sh = OVERLAY_shader_edit_gpencil_wire();
+      pd->edit_gpencil_wires_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
+      DRW_shgroup_uniform_bool_copy(grp, "doMultiframe", show_multi_edit_lines);
+      DRW_shgroup_uniform_bool_copy(grp, "doWeightColor", is_weight_paint);
+      DRW_shgroup_uniform_bool_copy(grp, "hideSelect", hide_select);
+      DRW_shgroup_uniform_float_copy(grp, "gpEditOpacity", v3d->vertex_opacity);
+      DRW_shgroup_uniform_texture(grp, "weightTex", G_draw.weight_ramp);
+    }
+
     sh = OVERLAY_shader_edit_curve_handle();
     pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
     DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
@@ -154,18 +166,6 @@ void OVERLAY_edit_gpencil_cache_init(OVERLAY_Data *vedata)
     DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
     DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
     DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
-
-    /* Edit lines. */
-    if (show_lines) {
-      sh = OVERLAY_shader_edit_gpencil_wire();
-      pd->edit_gpencil_wires_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
-      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
-      DRW_shgroup_uniform_bool_copy(grp, "doMultiframe", show_multi_edit_lines);
-      DRW_shgroup_uniform_bool_copy(grp, "doWeightColor", is_weight_paint);
-      DRW_shgroup_uniform_bool_copy(grp, "hideSelect", hide_select);
-      DRW_shgroup_uniform_float_copy(grp, "gpEditOpacity", v3d->vertex_opacity);
-      DRW_shgroup_uniform_texture(grp, "weightTex", G_draw.weight_ramp);
-    }
   }
 
   /* control points for primitives and speed guide */
