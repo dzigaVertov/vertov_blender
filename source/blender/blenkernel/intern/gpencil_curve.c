@@ -776,7 +776,11 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps)
     pt->strength = points[i][4];
 
     copy_v4_v4(pt->vert_color, &points[i][5]);
+
+    /* deselect points */
+    pt->flag &= ~GP_SPOINT_SELECT;
   }
+  gps->flag &= ~GP_STROKE_SELECT;
 
   /* free temp data */
   MEM_freeN(points);
