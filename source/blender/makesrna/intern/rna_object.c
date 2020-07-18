@@ -2039,12 +2039,23 @@ static void rna_def_vertex_group(BlenderRNA *brna)
   RNA_def_property_update(
       prop, NC_GEOM | ND_DATA | NA_RENAME, "rna_Object_internal_update_data_dependency");
 
+  
+  prop = RNA_def_property(srna, "bone_group", PROP_INT, PROP_UNSIGNED);
+  RNA_def_property_int_sdna(prop, NULL, "bone_group");
+  RNA_def_property_ui_text(prop, "Bone Group", "");
+  RNA_def_property_update(prop, NC_GEOM | ND_DATA | NA_RENAME, "rna_Object_internal_update_data");
+  
   prop = RNA_def_property(srna, "lock_weight", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_ui_text(prop, "", "Maintain the relative weights for the group");
-  RNA_def_property_boolean_sdna(prop, NULL, "flag", 0);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", 1<<0);
   /* update data because modifiers may use [#24761] */
   RNA_def_property_update(prop, NC_GEOM | ND_DATA | NA_RENAME, "rna_Object_internal_update_data");
 
+  prop = RNA_def_property(srna, "deform_group", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_ui_text(prop, "", "Is a deform vertex group");
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", 1<<3);
+  RNA_def_property_update(prop, NC_GEOM | ND_DATA | NA_RENAME, "rna_Object_internal_update_data");
+  
   prop = RNA_def_property(srna, "index", PROP_INT, PROP_UNSIGNED);
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
   RNA_def_property_int_funcs(prop, "rna_VertexGroup_index_get", NULL, NULL);

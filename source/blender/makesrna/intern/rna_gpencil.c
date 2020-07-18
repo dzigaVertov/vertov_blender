@@ -641,6 +641,7 @@ static void rna_GPencil_stroke_point_select_set(PointerRNA *ptr, const bool valu
   }
 }
 
+
 static void rna_GPencil_stroke_point_add(
     ID *id, bGPDstroke *stroke, int count, float pressure, float strength)
 {
@@ -971,6 +972,7 @@ static char *rna_GreasePencilGrid_path(PointerRNA *UNUSED(ptr))
 
 #else
 
+
 static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
 {
   StructRNA *srna;
@@ -1034,6 +1036,7 @@ static void rna_def_gpencil_stroke_point(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 }
 
+
 static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cprop)
 {
   StructRNA *srna;
@@ -1043,8 +1046,7 @@ static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cpr
   RNA_def_property_srna(cprop, "GPencilStrokePoints");
   srna = RNA_def_struct(brna, "GPencilStrokePoints", NULL);
   RNA_def_struct_sdna(srna, "bGPDstroke");
-  RNA_def_struct_ui_text(
-      srna, "Grease Pencil Stroke Points", "Collection of grease pencil stroke points");
+  RNA_def_struct_ui_text(srna, "Grease Pencil Stroke Points", "Collection of grease pencil stroke points");
 
   func = RNA_def_function(srna, "add", "rna_GPencil_stroke_point_add");
   RNA_def_function_ui_description(func, "Add a new grease pencil stroke point");
@@ -1152,6 +1154,14 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
   RNA_def_struct_sdna(srna, "bGPDstroke");
   RNA_def_struct_ui_text(srna, "Grease Pencil Stroke", "Freehand curve defining part of a sketch");
 
+  /* Bone Groups */
+  prop = RNA_def_property(srna, "bone_groups", PROP_INT, PROP_UNSIGNED);
+  RNA_def_property_int_sdna(prop, NULL, "bonegroup");
+  /* RNA_def_property_clear_flag(prop, PROP_EDITABLE); */
+  RNA_def_property_ui_text(prop, "Bone Group", "");
+  RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+  
   /* Points */
   prop = RNA_def_property(srna, "points", PROP_COLLECTION, PROP_NONE);
   RNA_def_property_collection_sdna(prop, NULL, "points", "totpoints");

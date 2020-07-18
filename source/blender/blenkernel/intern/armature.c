@@ -873,6 +873,7 @@ void BKE_pchan_bbone_spline_params_get(struct bPoseChannel *pchan,
 
     if (!done) {
       mul_v3_m4v3(param->prev_h, imat, h1);
+      
     }
 
     if (!param->prev_bbone) {
@@ -916,7 +917,8 @@ void BKE_pchan_bbone_spline_params_get(struct bPoseChannel *pchan,
       param->next_bbone = (next->bone->segments > 1);
 
       /* Use bone tail as absolute position. */
-      copy_v3_v3(h2, rest ? next->bone->arm_tail : next->pose_tail);
+      copy_v3_v3(h2, rest ? next->bone->arm_head : next->pose_head);
+      /* MARCELO changed here arm_tail por arm_head y next->pose_head por next->pose_tail */
     }
 
     if (!done) {
@@ -1019,7 +1021,8 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
       copy_v3_fl3(h1, 0.0f, -1.0f, 0.0f);
     }
 
-    negate_v3(h1);
+    /* CHANGED MARCELO TODO */
+    /* negate_v3(h1); */
 
     if (!param->prev_bbone) {
       /* Find the previous roll to interpolate. */
@@ -1041,7 +1044,7 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
       /* pass */
     }
     else {
-      h2[1] -= length;
+      h2[1] -= length;		/* this "puts" h2 at the tail of the bone */
     }
 
     if (normalize_v3(h2) < epsilon) {
@@ -1064,9 +1067,10 @@ void BKE_pchan_bbone_handles_compute(const BBoneSplineParameters *param,
     const float hlength1 = param->ease1 * circle_factor;
     const float hlength2 = param->ease2 * circle_factor;
 
+
     /* and only now negate h2 */
     mul_v3_fl(h1, hlength1);
-    mul_v3_fl(h2, -hlength2);
+    mul_v3_fl(h2, hlength2);	/* changed MARCELO TODO -hlength2 */
   }
 
   /* Add effects from bbone properties over the top

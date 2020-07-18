@@ -43,7 +43,6 @@ local:
   *LLVM*;
   *MathML*;
   *mkldnn*;
-  nvrtc*;
   oc_*;
   ogg*;
   *oidn*;

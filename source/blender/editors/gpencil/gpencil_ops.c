@@ -606,6 +606,10 @@ void ED_operatortypes_gpencil(void)
 
   WM_operatortype_append(GPENCIL_OT_image_to_grease_pencil);
 
+  /* Added here provisionally */
+  WM_operatortype_append(GPENCIL_OT_fit_curve);
+  WM_operatortype_append(GPENCIL_OT_clean_keyframe);
+
   WM_operatortype_append(GPENCIL_OT_stroke_arrange);
   WM_operatortype_append(GPENCIL_OT_stroke_change_color);
   WM_operatortype_append(GPENCIL_OT_material_lock_unused);

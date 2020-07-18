@@ -1229,3 +1229,4 @@ void CURVE_OT_draw(wmOperatorType *ot)
 }
 
 /** \} */
+

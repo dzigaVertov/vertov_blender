@@ -37,6 +37,7 @@ struct MDeformVert;
 
 #define GP_MATERIAL_BUFFER_LEN 256
 
+
 /* ***************************************** */
 /* GP Stroke Points */
 
@@ -203,15 +204,16 @@ typedef struct bGPDstroke {
   int totpoints;
   /** Number of triangles in array. */
   int tot_triangles;
-
+  
   /** Thickness of stroke. */
   short thickness;
   /** Various settings about this stroke. */
   short flag, _pad[2];
 
+
   /** Init time of stroke. */
   double inittime;
-
+    
   /** Color name. */
   char colorname[128] DNA_DEPRECATED;
 
@@ -242,11 +244,17 @@ typedef struct bGPDstroke {
   /** Vertex weight data. */
   struct MDeformVert *dvert;
   void *_pad3;
+  
 
   /** Vertex Color for Fill (one for all stroke, A=mix factor). */
   float vert_color_fill[4];
 
   bGPDstroke_Runtime runtime;
+
+  /** Bone groups the stroke is affected by */
+  unsigned int bonegroup;
+  char _pad5[4];
+  
 } bGPDstroke;
 
 /* bGPDstroke->flag */

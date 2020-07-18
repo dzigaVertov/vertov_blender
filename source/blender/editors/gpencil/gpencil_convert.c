@@ -32,6 +32,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
+#include "BLI_math_geom.h"
 #include "BLI_rand.h"
 #include "BLI_utildefines.h"
 
@@ -85,6 +86,9 @@
 #include "ED_view3d.h"
 
 #include "gpencil_intern.h"
+#include "curve_fit_nd.h"
+#include "BKE_deform.h"
+#include "DNA_meshdata_types.h"
 
 /* ************************************************ */
 /* Grease Pencil to Data Operator */
@@ -104,6 +108,12 @@ enum {
   GP_STROKECONVERT_TIMING_CUSTOMGAP = 4,
 };
 
+/* Defines for possible targets of fit_curve */
+enum {
+      ARMATURE = 1,
+      CURVE = 2,
+};
+
 /* RNA enum define */
 static const EnumPropertyItem prop_gpencil_convertmodes[] = {
     {GP_STROKECONVERT_PATH, "PATH", ICON_CURVE_PATH, "Path", "Animation path"},
@@ -121,6 +131,13 @@ static const EnumPropertyItem prop_gpencil_convert_timingmodes_restricted[] = {
     {GP_STROKECONVERT_TIMING_LINEAR, "LINEAR", 0, "Linear", "Simple linear timing"},
     {0, NULL, 0, NULL, NULL},
 };
+
+/* Target property for the fit_curve operator */
+static const EnumPropertyItem prop_gpencil_fit_target[] =
+  {
+   {ARMATURE, "ARMATURE", 0, "Armature", "Fit with bendy bones"},
+   {CURVE, "CURVE", 0, "Curve", "Fit with a bezier curve"},		   
+  };
 
 static const EnumPropertyItem prop_gpencil_convert_timingmodes[] = {
     {GP_STROKECONVERT_TIMING_NONE, "NONE", 0, "No Timing", "Ignore timing"},
@@ -1862,4 +1879,551 @@ void GPENCIL_OT_image_to_grease_pencil(wmOperatorType *ot)
                          "Generate Mask",
                          "Create an inverted image for masking using alpha channel");
   RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+}
+
+
+/* ********************************************** */
+/* gp fitcurve functions */
+/* ********************************************** */
+
+static bool add_points_to_curve(bContext *C, Object* ob,
+				Nurb* nu,
+				int num_points,
+				float *points)				
+{
+  Curve *cu = ob->data;
+  nu = (Nurb *)MEM_callocN(sizeof(Nurb), "fit_curve_bezier(nurb)");
+  nu->pntsu = num_points;
+  nu->resolu = 12;
+  nu->resolv = 12;
+  nu->type = CU_BEZIER;
+  nu->bezt = (BezTriple *)MEM_callocN(sizeof(BezTriple) * nu->pntsu, "fit_bezts");
+
+  float *co = points;
+  int dims = 3;
+  
+  /* Adding the points */
+  BezTriple *bezt = nu->bezt;
+  
+  
+  for ( int j=0 ; j< num_points ; j++, bezt++, co+=(dims * 3)) /* Bezier TRIPLES */
+    {
+      const float *handle_l = co + (dims * 0);
+      const float *pt = co + (dims * 1);
+      const float *handle_r = co + (dims * 2);
+
+      copy_v3_v3(bezt->vec[0], handle_l);
+      copy_v3_v3(bezt->vec[1], pt);
+      copy_v3_v3(bezt->vec[2], handle_r);
+
+      /* set settings */
+      bezt->h1 = bezt->h2 = HD_FREE;
+      bezt->f1 = bezt->f2 = bezt->f3 = SELECT;
+      bezt->radius = 0.5;
+      bezt->weight = 0.5;
+
+    }
+
+  BKE_nurb_handles_calc(nu);
+
+  BLI_addtail(&cu->nurb, nu);
+  /* WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data); */
+  
+  return true;
+}
+
+static void get_test_points(float points[5][3]){
+
+  for (int i = 0; i < 5; i++)
+    {
+      points[i][0] = 5.0* rand()/RAND_MAX;
+
+      points[i][1] = 5.0* rand()/RAND_MAX;
+
+      points[i][2] = 5.0* rand()/RAND_MAX;
+
+    }
+
+}
+
+static void get_points_coords(float *coords, int num_points, bGPDstroke *gps)
+{
+  float *co = coords;
+  for (int i=0; i<num_points; i++ , co += 3)
+    {
+      copy_v3_v3(co, &gps->points[i].x);
+    }
+}
+
+static int get_the_fitted_spline(float *coords,
+				 int num_points,
+				 float error_threshold,
+				 float **r_cubic_spline,
+				 uint *r_cubic_spline_len,
+				 uint **orig_index)
+{
+  int result;
+  uint *corners = NULL;
+  uint corners_len = 0;
+  float corner_angle = (float)M_PI_2;
+
+  if (corner_angle < (float)M_PI)
+    {
+      /* this could be configurable... */
+      const float corner_radius_min = error_threshold / 8;
+      const float corner_radius_max = error_threshold * 2;
+      const uint samples_max = 16;
+
+      curve_fit_corners_detect_fl(coords,
+				  num_points,
+				  3,
+				  corner_radius_min,
+				  corner_radius_max,
+				  samples_max,
+				  corner_angle,
+				  &corners,
+				  &corners_len);
+    }
+
+  uint *corners_index = NULL;
+  uint corners_index_len = 0;
+  uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
+
+
+  result = curve_fit_cubic_to_points_refit_fl(coords,
+					      num_points,
+					      3,
+					      error_threshold,
+					      calc_flag,
+					      NULL,
+					      0,
+					      corner_angle,
+					      r_cubic_spline,
+					      r_cubic_spline_len,
+					      orig_index,
+					      &corners_index,
+					      &corners_index_len);
+
+
+  if (corners){
+    free(corners);
+  }
+     
+  return result;
+}
+
+/* Calculate coefficient for the ease property of bbones */
+/* so the deformation matches a bezier curve with the same  */
+/* handles positions. The spline is passed in an array:*/
+/* ...[handle_l[3]][ctrl_point[3]][handle_r[3]]... */
+/* The left handle of a bone is the right handle of a bezier node */
+static bool ease_coef_for_bbone( const float *handle_l,
+				    float ease[2]){
+  float h_l_length;
+  float h_r_length;
+  int dims = 3;
+  float *handle_r;
+  float *bone_head;
+  float bone_length;
+  float handle_l_local[3];
+  float handle_r_local[3];
+  float *bone_tail;
+  float circle_factor;
+
+  bone_head = (handle_l - dims);   /* head of the bone */
+  sub_v3_v3v3(handle_l_local, handle_l, bone_head);
+  h_l_length = normalize_v3(handle_l_local);
+  
+  handle_r =  (handle_l + dims);/* right handle */
+  bone_tail = (handle_l + dims*2);
+  sub_v3_v3v3(handle_r_local, handle_r, bone_tail);
+  h_r_length = normalize_v3(handle_r_local);
+  bone_length = len_v3v3(bone_head, bone_tail);
+  
+  circle_factor = bone_length * cubic_tangent_factor_circle_v3(handle_l_local, handle_r_local)/0.75f;
+
+  ease[0] = h_l_length/circle_factor;
+  ease[1] = h_r_length/circle_factor;
+    
+  return true;
+}
+
+/**
+ * @brief      Saves bones positions for ARMATURE target
+ *
+ * @details    Saves the fitted points positions to the CollectionProperty in the window_manager.  Also passes the correction coefficient so the bendy bones will match the fitted curve. 
+ *
+ * @param      float *cubic_spline The fitted points
+ *
+ * @return     return type
+ */
+static bool set_bones_positions(bContext *C,
+				uint cubic_spline_len,
+				const float *cubic_spline,
+				uint *stroke_idx)
+{
+  /* get the collection prop */
+  PointerRNA ptr;
+  PointerRNA ptr2;
+  PropertyRNA *prop;
+  float ease[2];
+
+  struct wmWindowManager *wm =  CTX_wm_manager(C);
+  
+  int num_bones = cubic_spline_len - 1;
+  int dims = 3;
+  const float* co = cubic_spline;
+  for (int i = 0; i < num_bones; i++, co += dims * 3, stroke_idx++) { /* 4 points  per bone */
+    RNA_id_pointer_create(&wm->id, &ptr);
+    RNA_collection_add(&ptr, "fitted_bones", &ptr2);
+    RNA_float_set_array(&ptr2, "bone_head", (co + (dims * 1)));
+    RNA_float_set_array(&ptr2, "handle_l", (co + (dims * 2)));
+    RNA_float_set_array(&ptr2, "handle_r", (co + (dims * 3)));
+    RNA_float_set_array(&ptr2, "bone_tail", (co + (dims * 4)));
+
+    ease_coef_for_bbone((co + (dims*2)), ease);
+    RNA_float_set_array(&ptr2, "ease", ease);
+    RNA_int_set_array(&ptr2, "vg_idx", stroke_idx);
+  }
+
+    return true;
+  }
+
+
+/**
+ * @brief      Add fitted curve
+ *
+ * @details    Adds a new curve object to the active collection, adds the fitted bezier points to it.  
+ *
+ * @param      float *cubic_spline The fitted points
+ *
+ * @return     bool
+ */
+static bool add_curve(bContext *C,
+		      uint cubic_spline_len,
+		      float *cubic_spline,
+		      char *name,
+		      Object *gp_ob)
+{
+  struct Main *bmain = CTX_data_main(C);
+  Collection *collection = CTX_data_collection(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+  Object *ob;
+  Curve *cu;
+  Nurb *nu = NULL;
+  Base *base_new = NULL;
+
+  /* Agregar el objeto */
+  ob = BKE_object_add_only_object(bmain, OB_CURVE, name);
+  cu = ob->data =  BKE_curve_add(bmain, name, OB_CURVE);
+  BKE_collection_object_add(bmain, collection, ob);
+  base_new = BKE_view_layer_base_find(view_layer, ob);
+  DEG_relations_tag_update(bmain); /* added object */
+  cu->flag |= CU_3D;
+
+  /* Copy the gp_ob transforms */
+  copy_m4_m4(ob->obmat, gp_ob->obmat);
+  copy_v3_v3(ob->loc, gp_ob->loc);
+  copy_v3_v3(ob->rot, gp_ob->rot);
+
+  /* Agregar los puntos fiteados a la curva */
+  add_points_to_curve(C, ob, nu, cubic_spline_len, cubic_spline);
+  ED_object_base_select(base_new, BA_SELECT);
+  DEG_id_tag_update(&ob->id,ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+  return true;
+}
+
+static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
+{
+  /* BLI_assert(op->customdata ==NULL); */
+  Scene *scene = CTX_data_scene(C);
+  Object *obgp = CTX_data_active_object(C);
+  bGPdata *gpd = (bGPdata *)obgp->data;
+  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+  bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV);
+  bGPDstroke *gps;
+  
+  /* Otener el stroke a fittear  */
+  int stroke_index = RNA_int_get(op->ptr, "stroke_index");
+  if (stroke_index == -1){
+    gps = gpf->strokes.last;
+  }
+  else {
+    gps = gpf->strokes.first;
+    for (int i = 0; i<=stroke_index; i++){
+      if (BKE_gpencil_stroke_select_check(gps)){
+	break;
+      }
+      if (gps->next){
+	gps = gps->next;      
+      }
+    }    
+  }
+  
+  int num_points = gps->totpoints;
+  float *coords = MEM_mallocN(sizeof(*coords) * num_points * 3, __func__);
+  get_points_coords(coords, num_points, gps);
+
+  float *cubic_spline = NULL;
+  uint cubic_spline_len = 0;
+  uint *stroke_idx;		/* where in the stroke would the bones land */
+  float error = RNA_float_get(op->ptr, "error_threshold");
+  
+  
+  get_the_fitted_spline(coords,
+			num_points,
+			error,
+			&cubic_spline,
+			&cubic_spline_len,
+			&stroke_idx);
+    
+  /* Liberar la memoria de las coords */
+  MEM_freeN(coords);
+
+  int target = RNA_enum_get(op->ptr, "target");
+  if (target==CURVE){
+    add_curve(C, cubic_spline_len, cubic_spline, gpl->info, obgp);    
+  }
+  else {
+    set_bones_positions(C, cubic_spline_len, cubic_spline, stroke_idx);
+  }
+
+  free(cubic_spline);
+  free(stroke_idx);
+  return true;
+}
+
+static int gp_fitcurve_exec(bContext *C, wmOperator *op){
+  Scene *scene = CTX_data_scene(C);
+  
+  if (!fit_curve_init(C, op, false)) {
+    return OPERATOR_CANCELLED;
+  }
+
+    
+  /* notifiers */
+  DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
+  WM_event_add_notifier(C, NC_OBJECT | NA_ADDED, NULL);
+  WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
+
+  return OPERATOR_FINISHED;
+}
+
+static int gp_fitcurve_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+
+  return gp_fitcurve_exec(C, op);
+}
+
+static void gp_fitcurve_cancel(bContext *C, wmOperator *op){}
+
+bool gp_fitcurve_poll(bContext *C){
+  Object *ob = CTX_data_active_object(C);
+  Scene *scene = CTX_data_scene(C);
+
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = NULL;
+  bGPDframe *gpf = NULL;
+
+
+
+  /* if there's valid data (i.e. at least one stroke!),
+   * 
+   */
+  return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
+          (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)) &&
+	   (gpf->strokes.first));// && (!GPENCIL_ANY_EDIT_MODE(gpd)));
+
+}
+
+
+
+/* Absolutelly first lines of code I am writting in the Blender source */
+/* Fitting a bezier curve to a grease prencil stroke */
+void GPENCIL_OT_fit_curve(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Fit curve";
+  ot->idname = "GPENCIL_OT_fit_curve";
+  ot->description = "Fit a bezier curve to a grease pencil stroke";
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* api callbacks */
+  ot->invoke = gp_fitcurve_invoke;
+  ot->exec = gp_fitcurve_exec;
+  ot->cancel = gp_fitcurve_cancel;
+  ot->modal = NULL;
+  ot->poll = gp_fitcurve_poll;
+
+  
+    
+  /* Properties */
+  /* Error threshold */
+  ot->prop = RNA_def_float(ot->srna,
+			   "error_threshold",
+			   0.05f,
+			   0.0f,
+			   100.0f,
+			   "Error Threshold",
+			   "How close to the original stroke",
+			   0.0f,
+			   10.0f);
+
+  /* Create a curve or coordinates for poser */
+  RNA_def_enum(ot->srna,
+	       "target",
+	       &prop_gpencil_fit_target,
+	       CURVE,
+	       "Fitting target",
+	       "Target to fit the stroke to");
+
+  /* Index of the stroke to be fitted */
+  RNA_def_int(ot->srna,
+	      "stroke_index",
+	      -1,
+	      -10000,
+	      10000,
+	      "stroke_index",
+	      "Index of the stroke to be fitted",
+	      -10000,
+	      10000);
+  
+  /* Save the grease pencil object */
+  RNA_def_pointer_runtime(ot->srna,
+			  "ob_gp",&RNA_Object, "grease pencil object",
+			  "The grease pencil object to be fitted");
+  
+}
+
+
+bool gp_clean_keyframe_poll(bContext *C){
+  Object *ob = CTX_data_active_object(C);
+  Scene *scene = CTX_data_scene(C);
+
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = NULL;
+  bGPDframe *gpf = NULL;
+
+
+
+  /* if there's valid data  */
+  return ( (gpl = BKE_gpencil_layer_active_get(gpd)) &&
+	   (gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_USE_PREV)));
+
+}
+
+/* Remove all weights from a stroke */
+static void delete_gp_weights(bGPDstroke *gps, Object *ob){
+  if (gps->dvert == NULL){
+    return;
+  }
+
+  bDeformGroup *dg;
+  for (dg = ob->defbase.first; dg; dg=dg->next){
+    int def_idx = BLI_findindex(&ob->defbase, dg);
+
+    for (int i =0; i<gps->totpoints; i++) {
+      MDeformVert *dvert = &gps->dvert[i];
+      if (dvert->totweight >0) {
+	MDeformWeight *dw = BKE_defvert_find_index(dvert, def_idx);
+	if ( dw != NULL ){
+	  BKE_defvert_remove_group(dvert, dw);
+	}
+      }
+    }
+  }
+  return;  
+  }
+
+
+static int gp_clean_keyframe_exec(bContext *C, wmOperator *op){
+  int frame = RNA_int_get(op->ptr, "frame_number");
+  int group_id = RNA_int_get(op->ptr, "bone_group");
+  char name[64];
+  RNA_string_get(op->ptr, "layer_name", name);
+  
+  Object *ob = CTX_data_active_object(C);
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = BKE_gpencil_layer_named_get(gpd, name);
+  bGPDframe *gpf = BKE_gpencil_layer_frame_get(gpl,frame ,GP_GETFRAME_USE_PREV);
+  bGPDstroke *gps = NULL;
+  
+  for (gps = gpf->strokes.first; gps; gps = gps->next){
+    if (gps->bonegroup == group_id){
+        delete_gp_weights(gps, ob);
+    }    
+  }
+
+  /* notifiers */
+  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY );
+  /* DEG_relations_tag_update(CTX_data_main(C)); */
+  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
+  /* WM_event_add_notifier(C, NC_GEOM | ND_VERTEX_GROUP, ob->data); */
+
+  return OPERATOR_FINISHED;
+}
+
+static int gp_clean_keyframe_invoke(bContext *C, wmOperator *op, const wmEvent *event){
+  return gp_clean_keyframe_exec(C, op);
+}
+
+
+static void gp_clean_keyframe_cancel(bContext *C, wmOperator *op){}
+
+
+void GPENCIL_OT_clean_keyframe(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Clean Keyframe";
+  ot->idname = "GPENCIL_OT_clean_keyframe";
+  ot->description = "Cleans a grease pencil keyframe from the weights of a certain bonegroup";
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* api callbacks */
+  ot->invoke = gp_clean_keyframe_invoke;
+  ot->exec = gp_clean_keyframe_exec;
+  ot->cancel = gp_clean_keyframe_cancel;
+  ot->modal = NULL;
+  ot->poll = gp_clean_keyframe_poll;
+
+  
+    
+  /* Properties */
+  /* Bone group */
+  ot->prop = RNA_def_int(ot->srna,
+			 "bone_group",
+			 0,
+			 0,
+			 1000000,
+			 "bone_group",
+			 "Bone group to be cleaned",
+			 0,
+			 1000000 );
+
+  /* Frame to clean */
+  ot->prop = RNA_def_int(ot->srna,
+			 "frame_number",
+			 5,
+			 0,
+			 1000000,
+			 "frame number",
+			 "frame number of the keyframe to be cleaned",
+			 0,
+			 1000000
+			 );
+
+  /* Layer name */
+  ot->prop = RNA_def_string(ot->srna, "layer_name", "", 64, "layer name", "The name of the layer the frame belongs to");
+    
 }
