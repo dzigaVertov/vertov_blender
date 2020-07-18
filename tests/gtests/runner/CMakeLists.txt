@@ -60,4 +60,14 @@ setup_liblinks(blender_test)
 # exposes those tests individually to the ctest runner.
 # See https://cmake.org/cmake/help/v3.18/module/GoogleTest.html
 include(GoogleTest)
-gtest_discover_tests(blender_test)
+
+set(_GOOGLETEST_DISCOVER_TESTS_SCRIPT
+  ${CMAKE_CURRENT_LIST_DIR}/BlenderAddTests.cmake
+)
+
+gtest_discover_tests(blender_test
+  # So that unit tests know where to find files:
+  EXTRA_ARGS
+    --test-assets-dir "${CMAKE_SOURCE_DIR}/../lib/tests"
+    --test-release-dir "$<TARGET_FILE_DIR:blender>/${BLENDER_VERSION}"
+)

@@ -21,42 +21,48 @@
 
 #include <string>
 
-extern "C" {
 #include "BLI_path_util.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_appdir.h"
 
+extern "C" {
 /* Workaround to make it possible to pass a path at runtime to USD. See creator.c. */
 void usd_initialise_plugin_path(const char *datafiles_usd_path);
 }
 
-DEFINE_string(test_usd_datafiles_dir, "", "The bin/{BLENDER_VERSION}/datafiles/usd directory.");
+namespace blender::io::usd {
 
 class USDStageCreationTest : public testing::Test {
 };
 
 TEST_F(USDStageCreationTest, JSONFileLoadingTest)
 {
-  if (FLAGS_test_usd_datafiles_dir.empty()) {
-    FAIL() << "Pass the --test-usd-datafiles-dir flag";
+  const std::string &release_dir = blender::tests::flags_test_release_dir();
+  if (release_dir.empty()) {
+    FAIL();
   }
 
-  usd_initialise_plugin_path(FLAGS_test_usd_datafiles_dir.c_str());
+  char usd_datafiles_dir[FILE_MAX];
+  BLI_path_join(usd_datafiles_dir, FILE_MAX, release_dir.c_str(), "datafiles", "usd", nullptr);
+
+  usd_initialise_plugin_path(usd_datafiles_dir);
 
   /* Simply the ability to create a USD Stage for a specific filename means that the extension
-   * has been recognised by the USD library, and that a USD plugin has been loaded to write such
+   * has been recognized by the USD library, and that a USD plugin has been loaded to write such
    * files. Practically, this is a test to see whether the USD JSON files can be found and
    * loaded. */
   std::string filename = "usd-stage-creation-test.usdc";
   pxr::UsdStageRefPtr usd_stage = pxr::UsdStage::CreateNew(filename);
   if (usd_stage != nullptr) {
-    /* Even though we don't call usd_stage->SaveFile(), a file is still created on the filesystem
-     * when we call CreateNew(). It's immediately closed, though, so we can safely call unlink()
-     * here. */
+    /* Even though we don't call `usd_stage->SaveFile()`, a file is still created on the
+     * file-system when we call CreateNew(). It's immediately closed, though,
+     * so we can safely call `unlink()` here. */
     unlink(filename.c_str());
   }
   else {
     FAIL() << "unable to find suitable USD plugin to write " << filename;
   }
 }
+
+}  // namespace blender::io::usd
