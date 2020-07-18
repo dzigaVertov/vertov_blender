@@ -938,7 +938,7 @@ void fsmenu_read_system(struct FSMenu *fsmenu, int read_bookmarks)
 
       fp = setmntent(MOUNTED, "r");
       if (fp == NULL) {
-        fprintf(stderr, "could not get a list of mounted filesystems\n");
+        fprintf(stderr, "could not get a list of mounted file-systems\n");
       }
       else {
         while ((mnt = getmntent(fp))) {
@@ -1129,10 +1129,13 @@ int fsmenu_get_active_indices(struct FSMenu *fsmenu, enum FSMenuCategory categor
  * before being defined as unreachable by the OS, we need to validate the bookmarks in an async
  * job...
  */
-static void fsmenu_bookmark_validate_job_startjob(void *fsmenuv,
-                                                  short *stop,
-                                                  short *do_update,
-                                                  float *UNUSED(progress))
+static void fsmenu_bookmark_validate_job_startjob(
+    void *fsmenuv,
+    /* Cannot be const, this function implements wm_jobs_start_callback.
+     * NOLINTNEXTLINE: readability-non-const-parameter. */
+    short *stop,
+    short *do_update,
+    float *UNUSED(progress))
 {
   FSMenu *fsmenu = fsmenuv;
 
