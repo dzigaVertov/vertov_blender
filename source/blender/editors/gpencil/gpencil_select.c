@@ -1749,6 +1749,7 @@ static bool gpencil_generic_stroke_select(bContext *C,
 {
   GP_SpaceConversion gsc = {NULL};
   bool changed = false;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   /* init space conversion stuff */
   gpencil_point_conversion_init(C, &gsc);
 
@@ -1819,6 +1820,15 @@ static bool gpencil_generic_stroke_select(bContext *C,
       mval[1] = (box.ymax + box.ymin) / 2;
 
       whole = ED_gpencil_stroke_point_is_inside(gps_active, &gsc, mval, gpstroke_iter.diff_mat);
+    }
+
+    if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
+      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+      BKE_gpencil_curve_sync_selection(gps);
+      gps->editcurve->resolution = gpd->editcurve_resolution;
+      gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
+      changed = true;
     }
 
     /* if stroke mode expand selection. */
@@ -1892,7 +1902,8 @@ static int gpencil_generic_select_exec(bContext *C,
     changed = gpencil_generic_curve_select(
         C, ob, is_inside_fn, box, user_data, strokemode, sel_op);
   }
-  else {
+
+  if (changed == false) {
     changed = gpencil_generic_stroke_select(
         C, ob, gpd, is_inside_fn, box, user_data, strokemode, segmentmode, sel_op, scale);
   }
