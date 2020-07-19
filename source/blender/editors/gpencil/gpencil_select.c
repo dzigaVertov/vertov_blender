@@ -1691,15 +1691,15 @@ static bool gpencil_generic_curve_select(bContext *C,
       }
     }
 
-    if (!hit) {
-      /* check if we selected the inside of a filled curve */
-      MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
-      if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
-        continue;
-      }
+    // if (!hit) {
+    //   /* check if we selected the inside of a filled curve */
+    //   MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
+    //   if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
+    //     continue;
+    //   }
 
-      whole = gpencil_stroke_fill_isect_rect(region, gps, gps_iter.diff_mat, box);
-    }
+    //   whole = gpencil_stroke_fill_isect_rect(region, gps, gps_iter.diff_mat, box);
+    // }
 
     /* select the entire curve */
     if (strokemode || whole) {
@@ -1822,14 +1822,14 @@ static bool gpencil_generic_stroke_select(bContext *C,
       whole = ED_gpencil_stroke_point_is_inside(gps_active, &gsc, mval, gpstroke_iter.diff_mat);
     }
 
-    if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
-      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-      BKE_gpencil_curve_sync_selection(gps);
-      gps->editcurve->resolution = gpd->editcurve_resolution;
-      gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-      BKE_gpencil_stroke_geometry_update(gpd, gps);
-      changed = true;
-    }
+    // if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
+    //   BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+    //   BKE_gpencil_curve_sync_selection(gps);
+    //   gps->editcurve->resolution = gpd->editcurve_resolution;
+    //   gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    //   BKE_gpencil_stroke_geometry_update(gpd, gps);
+    //   changed = true;
+    // }
 
     /* if stroke mode expand selection. */
     if ((strokemode) || (whole)) {
