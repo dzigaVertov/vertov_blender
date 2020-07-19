@@ -165,21 +165,21 @@ static void deselect_all_selected(bContext *C)
         pt->flag &= ~GP_SPOINT_SELECT;
       }
 
-      /* deselect curve and curve points */
-      if (gps->editcurve != NULL) {
-        bGPDcurve *gpc = gps->editcurve;
-        for (int j = 0; j < gpc->tot_curve_points; j++) {
-          bGPDcurve_point *gpc_pt = &gpc->curve_points[j];
-          BezTriple *bezt = &gpc_pt->bezt;
-          gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
-          BEZT_DESEL_ALL(bezt);
-        }
-
-        gpc->flag &= ~GP_CURVE_SELECT;
-      }
-
       /* deselect stroke itself too */
       gps->flag &= ~GP_STROKE_SELECT;
+    }
+
+    /* deselect curve and curve points */
+    if (gps->editcurve != NULL) {
+      bGPDcurve *gpc = gps->editcurve;
+      for (int j = 0; j < gpc->tot_curve_points; j++) {
+        bGPDcurve_point *gpc_pt = &gpc->curve_points[j];
+        BezTriple *bezt = &gpc_pt->bezt;
+        gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(bezt);
+      }
+
+      gpc->flag &= ~GP_CURVE_SELECT;
     }
   }
   CTX_DATA_END;
