@@ -1565,16 +1565,21 @@ static bool gpencil_stroke_fill_isect_rect(ARegion *region,
       DO_MINMAX2(pt3, tri_min, tri_max);
 
       rcti tri_bb = {tri_min[0], tri_max[0], tri_min[1], tri_max[1]};
-      if (BLI_rcti_inside_rcti(&rect, &tri_bb) || BLI_rcti_inside_rcti(&tri_bb, &rect)) {
+      /* Case 1: triangle is entirely inside box selection */
+      /* (XXX: Can this even happen with no point inside the box?) */
+      if (BLI_rcti_inside_rcti(&tri_bb, &rect)) {
         hit = true;
         break;
       }
 
+      /* Case 2: rectangle intersects sides of triangle */
       if (BLI_rcti_isect_segment(&rect, pt1, pt2) || BLI_rcti_isect_segment(&rect, pt2, pt3) ||
           BLI_rcti_isect_segment(&rect, pt3, pt1)) {
         hit = true;
         break;
       }
+
+      /* TODO: Case 3: rectangle is inside the triangle */
     }
   }
 
