@@ -15,13 +15,15 @@
  */
 
 #include "simulation_collect_influences.hh"
-#include "SIM_particle_function.hh"
+#include "particle_function.hh"
 
 #include "FN_attributes_ref.hh"
 #include "FN_multi_function_network_evaluation.hh"
 #include "FN_multi_function_network_optimization.hh"
 
 #include "NOD_node_tree_multi_function.hh"
+
+#include "BLI_rand.hh"
 
 namespace blender::sim {
 
@@ -43,10 +45,15 @@ static std::string dnode_to_path(const nodes::DNode &dnode)
   return path;
 }
 
+static Span<const nodes::DNode *> get_particle_simulation_nodes(const nodes::DerivedNodeTree &tree)
+{
+  return tree.nodes_by_type("SimulationNodeParticleSimulation");
+}
+
 static std::optional<Array<std::string>> compute_global_string_inputs(
     nodes::MFNetworkTreeMap &network_map, Span<const fn::MFInputSocket *> sockets)
 {
-  uint amount = sockets.size();
+  int amount = sockets.size();
   if (amount == 0) {
     return Array<std::string>();
   }
@@ -60,7 +67,7 @@ static std::optional<Array<std::string>> compute_global_string_inputs(
   fn::MFParamsBuilder params{network_fn, 1};
 
   Array<std::string> strings(amount, NoInitialization());
-  for (uint i : IndexRange(amount)) {
+  for (int i : IndexRange(amount)) {
     params.add_uninitialized_single_output(
         fn::GMutableSpan(fn::CPPType::get<std::string>(), strings.data() + i, 1));
   }
@@ -94,7 +101,7 @@ static void find_and_deduplicate_particle_attribute_nodes(nodes::MFNetworkTreeMa
 
   Map<std::pair<std::string, fn::MFDataType>, Vector<fn::MFNode *>>
       attribute_nodes_by_name_and_type;
-  for (uint i : attribute_names->index_range()) {
+  for (int i : attribute_names->index_range()) {
     attribute_nodes_by_name_and_type
         .lookup_or_add_default(
             {(*attribute_names)[i], name_sockets[i]->node().output(0).data_type()})
@@ -191,13 +198,16 @@ class ParticleFunctionForce : public ParticleForce {
   {
   }
 
-  void add_force(fn::AttributesRef attributes, MutableSpan<float3> r_combined_force) const override
+  void add_force(ParticleForceContext &context) const override
   {
-    IndexMask mask = IndexRange(attributes.size());
-    ParticleFunctionEvaluator evaluator{particle_fn_, mask, attributes};
+    IndexMask mask = context.particle_chunk().index_mask();
+    MutableSpan<float3> r_combined_force = context.force_dst();
+
+    ParticleFunctionEvaluator evaluator{particle_fn_, context.particle_chunk()};
     evaluator.compute();
     fn::VSpan<float3> forces = evaluator.get<float3>(0, "Force");
-    for (uint i : mask) {
+
+    for (int64_t i : mask) {
       r_combined_force[i] += forces[i];
     }
   }
@@ -238,12 +248,71 @@ static void collect_forces(nodes::MFNetworkTreeMap &network_map,
                            DummyDataSources &data_sources,
                            SimulationInfluences &r_influences)
 {
-  for (const nodes::DNode *dnode :
-       network_map.tree().nodes_by_type("SimulationNodeParticleSimulation")) {
+  for (const nodes::DNode *dnode : get_particle_simulation_nodes(network_map.tree())) {
     std::string name = dnode_to_path(*dnode);
     Vector<const ParticleForce *> forces = create_forces_for_particle_simulation(
         *dnode, network_map, resources, data_sources);
     r_influences.particle_forces.add_new(std::move(name), std::move(forces));
+  }
+}
+
+class MyBasicEmitter : public ParticleEmitter {
+ private:
+  std::string name_;
+
+ public:
+  MyBasicEmitter(std::string name) : name_(std::move(name))
+  {
+  }
+
+  void emit(ParticleEmitterContext &context) const override
+  {
+    ParticleAllocator *allocator = context.try_get_particle_allocator(name_);
+    if (allocator == nullptr) {
+      return;
+    }
+
+    fn::MutableAttributesRef attributes = allocator->allocate(10);
+    RandomNumberGenerator rng{(uint32_t)context.simulation_time_interval().start() ^
+                              (uint32_t)DefaultHash<std::string>{}(name_)};
+
+    MutableSpan<float3> positions = attributes.get<float3>("Position");
+    MutableSpan<float3> velocities = attributes.get<float3>("Velocity");
+    MutableSpan<float> birth_times = attributes.get<float>("Birth Time");
+
+    for (int i : IndexRange(attributes.size())) {
+      positions[i] = rng.get_unit_float3();
+      velocities[i] = rng.get_unit_float3();
+      birth_times[i] = context.simulation_time_interval().start();
+    }
+  }
+};
+
+static void collect_emitters(nodes::MFNetworkTreeMap &network_map,
+                             ResourceCollector &resources,
+                             SimulationInfluences &r_influences)
+{
+  for (const nodes::DNode *dnode : get_particle_simulation_nodes(network_map.tree())) {
+    std::string name = dnode_to_path(*dnode);
+    ParticleEmitter &emitter = resources.construct<MyBasicEmitter>(AT, name);
+    r_influences.particle_emitters.append(&emitter);
+  }
+}
+
+static void prepare_particle_attribute_builders(nodes::MFNetworkTreeMap &network_map,
+                                                ResourceCollector &resources,
+                                                SimulationInfluences &r_influences)
+{
+  for (const nodes::DNode *dnode : get_particle_simulation_nodes(network_map.tree())) {
+    std::string name = dnode_to_path(*dnode);
+    fn::AttributesInfoBuilder &builder = resources.construct<fn::AttributesInfoBuilder>(AT);
+    builder.add<float3>("Position", {0, 0, 0});
+    builder.add<float3>("Velocity", {0, 0, 0});
+    builder.add<int>("ID", 0);
+    /* TODO: Use bool property, but need to add CD_PROP_BOOL first. */
+    builder.add<int>("Dead", 0);
+    builder.add<float>("Birth Time", 0.0f);
+    r_influences.particle_attributes_builder.add_new(std::move(name), &builder);
   }
 }
 
@@ -258,6 +327,8 @@ void collect_simulation_influences(Simulation &simulation,
   fn::MFNetwork &network = resources.construct<fn::MFNetwork>(AT);
   nodes::MFNetworkTreeMap network_map = insert_node_tree_into_mf_network(network, tree, resources);
 
+  prepare_particle_attribute_builders(network_map, resources, r_influences);
+
   DummyDataSources data_sources;
   find_and_deduplicate_particle_attribute_nodes(network_map, data_sources);
 
@@ -267,8 +338,9 @@ void collect_simulation_influences(Simulation &simulation,
   // WM_clipboard_text_set(network.to_dot().c_str(), false);
 
   collect_forces(network_map, resources, data_sources, r_influences);
+  collect_emitters(network_map, resources, r_influences);
 
-  for (const nodes::DNode *dnode : tree.nodes_by_type("SimulationNodeParticleSimulation")) {
+  for (const nodes::DNode *dnode : get_particle_simulation_nodes(tree)) {
     r_states_info.particle_simulation_names.add(dnode_to_path(*dnode));
   }
 }
