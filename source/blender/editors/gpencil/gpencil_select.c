@@ -927,14 +927,9 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
     GP_EDITABLE_STROKES_BEGIN (gp_iter, C, gpl, gps) {
       if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         bGPDcurve *editcurve = gps->editcurve;
-        int i;
 
-        /* First Pass: Go in forward order,
-         * expanding selection if previous was selected (pre changes).
-         * - This pass covers the "after" edges of selection islands
-         */
         bool prev_sel = false;
-        for (i = 0; i < editcurve->tot_curve_points; i++) {
+        for (int i = 0; i < editcurve->tot_curve_points; i++) {
           bGPDcurve_point *gpc_pt = &editcurve->curve_points[i];
           BezTriple *bezt = &gpc_pt->bezt;
           if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
@@ -952,11 +947,8 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
           }
         }
 
-        /* Second Pass: Go in reverse order, doing the same as before (except in opposite order)
-         * - This pass covers the "before" edges of selection islands
-         */
         prev_sel = false;
-        for (i = editcurve->tot_curve_points - 1; i > 0; i--) {
+        for (int i = editcurve->tot_curve_points - 1; i >= 0; i--) {
           bGPDcurve_point *gpc_pt = &editcurve->curve_points[i];
           BezTriple *bezt = &gpc_pt->bezt;
           if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
