@@ -401,6 +401,7 @@ static void gpencil_editstroke_deselect_all(bGPDcurve *gpc)
     gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
     BEZT_DESEL_ALL(bezt);
   }
+  gpc->flag &= ~GP_CURVE_SELECT;
 }
 
 /**
