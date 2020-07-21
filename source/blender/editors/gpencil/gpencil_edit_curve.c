@@ -156,12 +156,6 @@ static int gpencil_editcurve_set_handle_type_exec(bContext *C, wmOperator *op)
 
       if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
         BezTriple *bezt = &gpc_pt->bezt;
-        bGPDcurve_point *gpc_pt_prev = (i > 0) ? &gpc->curve_points[i - 1] : NULL;
-        bGPDcurve_point *gpc_pt_next = (i < gpc->tot_curve_points - 1) ?
-                                           &gpc->curve_points[i + 1] :
-                                           NULL;
-        BezTriple *bezt_prev = gpc_pt_prev != NULL ? &gpc_pt_prev->bezt : NULL;
-        BezTriple *bezt_next = gpc_pt_next != NULL ? &gpc_pt_next->bezt : NULL;
 
         if (bezt->f2 & SELECT) {
           bezt->h1 = handle_type;
