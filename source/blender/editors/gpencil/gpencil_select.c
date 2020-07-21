@@ -2464,7 +2464,6 @@ static int gpencil_select_vertex_color_exec(bContext *C, wmOperator *op)
   ToolSettings *ts = CTX_data_tool_settings(C);
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   const float threshold = RNA_int_get(op->ptr, "threshold");
   const int selectmode = gpencil_select_mode_from_vertex(ts->gpencil_selectmode_vertex);
