@@ -3067,7 +3067,6 @@ static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 {
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Object *obact = CTX_data_active_object(C);
-  Object *ob_eval = DEG_get_evaluated_object(depsgraph, obact);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 

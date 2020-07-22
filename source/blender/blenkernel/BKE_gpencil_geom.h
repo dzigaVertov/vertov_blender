@@ -84,6 +84,20 @@ void BKE_gpencil_stroke_uv_update(struct bGPDstroke *gps);
 
 void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
 
+typedef struct GPencilPointCoordinates {
+  /* This is used when doing "move only origin" in object_data_transform.c.
+   * pressure is needs to be stored here as it is tied to object scale. */
+  float co[3];
+  float pressure;
+} GPencilPointCoordinates;
+
+int BKE_gpencil_stroke_point_count(struct bGPdata *gpd);
+void BKE_gpencil_point_coords_get(struct bGPdata *gpd, GPencilPointCoordinates *elem_data);
+void BKE_gpencil_point_coords_apply(struct bGPdata *gpd, const GPencilPointCoordinates *elem_data);
+void BKE_gpencil_point_coords_apply_with_mat4(struct bGPdata *gpd,
+                                              const GPencilPointCoordinates *elem_data,
+                                              const float mat[4][4]);
+
 bool BKE_gpencil_stroke_sample(struct bGPdata *gpd,
                                struct bGPDstroke *gps,
                                const float dist,
@@ -110,6 +124,8 @@ bool BKE_gpencil_stroke_split(struct bGPdata *gpd,
 bool BKE_gpencil_stroke_shrink(struct bGPDstroke *gps, const float dist);
 
 float BKE_gpencil_stroke_length(const struct bGPDstroke *gps, bool use_3d);
+
+void BKE_gpencil_stroke_set_random_color(struct bGPDstroke *gps);
 
 void BKE_gpencil_convert_mesh(struct Main *bmain,
                               struct Depsgraph *depsgraph,
