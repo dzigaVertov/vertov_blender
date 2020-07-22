@@ -38,8 +38,8 @@ struct Curve;
 
 #define GP_MATERIAL_BUFFER_LEN 256
 
-#define GP_DEFAULT_CURVE_RESOLUTION 16
-#define GP_DEFAULT_CURVE_ERROR 0.01f
+#define GP_DEFAULT_CURVE_RESOLUTION 32
+#define GP_DEFAULT_CURVE_ERROR 0.1f
 
 /* ***************************************** */
 /* GP Stroke Points */

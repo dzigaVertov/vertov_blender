@@ -2376,11 +2376,12 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "use_adaptive_curve_resolution", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_ADAPTIVE_RESOLUTION);
+  RNA_def_property_boolean_default(prop, true);
   RNA_def_property_ui_text(prop,
                            "Adaptive Resolution",
                            "Set the resolution of each editcurve segment dynamically depending on "
                            "the length of the segment. The resolution is the number of points "
-                           "generated per unit distance. ");
+                           "generated per unit distance");
   RNA_def_property_update(
       prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
 

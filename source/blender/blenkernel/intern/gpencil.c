@@ -536,6 +536,7 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
   gpd->flag |= GP_DATA_VIEWALIGN;
   /* always enable object onion skin switch */
   gpd->flag |= GP_DATA_SHOW_ONIONSKINS;
+  
   /* GP object specific settings */
   ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 
@@ -543,6 +544,8 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
   gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
   gpd->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
+  /* use adaptive curve resolution by default */
+  gpd->flag |= GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
 
   gpd->zdepth_offset = 0.150f;
 
