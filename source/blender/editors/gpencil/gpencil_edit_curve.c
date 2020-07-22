@@ -90,7 +90,6 @@ static int gpencil_stroke_enter_editcurve_mode_exec(bContext *C, wmOperator *op)
           if ((gps->flag & GP_STROKE_SELECT && gps->editcurve == NULL) ||
               (gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE)) {
             BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-            gps->editcurve->resolution = gpd->editcurve_resolution;
             /* Update the selection from the stroke to the curve. */
             BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
             gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;

@@ -237,7 +237,6 @@ static void rna_GPencil_stroke_curve_resolution_update(Main *bmain, Scene *scene
         bGPDframe *gpf = gpl->actframe;
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
-            gps->editcurve->resolution = gpd->editcurve_resolution;
             gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
             BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
@@ -2372,6 +2371,16 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       prop,
       "Curve Resolution",
       "Number of segments generated between control points when editing strokes in curve mode");
+  RNA_def_property_update(
+      prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
+
+  prop = RNA_def_property(srna, "use_adaptive_curve_resolution", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_ADAPTIVE_RESOLUTION);
+  RNA_def_property_ui_text(prop,
+                           "Adaptive Resolution",
+                           "Set the resolution of each editcurve segment dynamically depending on "
+                           "the length of the segment. The resolution is the number of points "
+                           "generated per unit distance. ");
   RNA_def_property_update(
       prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
 
