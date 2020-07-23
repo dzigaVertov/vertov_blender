@@ -2115,6 +2115,139 @@ static int gpencil_delete_selected_strokes(bContext *C)
 
 /* ----------------------------------- */
 
+static bool gpencil_dissole_selected_curve_points(bContext *C, bGPdata *gpd, eGP_DissolveMode mode)
+{
+  bool changed = false;
+  GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+  {
+    if (gpc->flag & GP_CURVE_SELECT) {
+      int first = 0, last = 0;
+      int num_points_remaining = gpc->tot_curve_points;
+
+      switch (mode) {
+        case GP_DISSOLVE_POINTS:
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if (cpt->flag & GP_CURVE_POINT_SELECT) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        case GP_DISSOLVE_BETWEEN:
+          first = -1;
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if (cpt->flag & GP_CURVE_POINT_SELECT) {
+              if (first < 0) {
+                first = i;
+              }
+              last = i;
+            }
+          }
+
+          for (int i = first + 1; i < last; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        case GP_DISSOLVE_UNSELECT:
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        default:
+          return false;
+          break;
+      }
+
+      if (num_points_remaining < 1) {
+        /* Delete stroke */
+        BKE_gpencil_free_stroke(gps);
+        BLI_freelinkN(&gpf_->strokes, gps);
+        DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+      }
+      else {
+        bGPDcurve_point *new_points = MEM_callocN(sizeof(bGPDcurve_point) * num_points_remaining,
+                                                  __func__);
+
+        int idx = 0;
+        switch (mode) {
+          case GP_DISSOLVE_POINTS:
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+            break;
+          case GP_DISSOLVE_BETWEEN:
+            for (int i = 0; i < first; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+
+              *new_cpt = *cpt;
+              idx++;
+            }
+
+            for (int i = first; i < last; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if (cpt->flag & GP_CURVE_POINT_SELECT) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+
+            for (int i = last; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+
+              *new_cpt = *cpt;
+              idx++;
+            }
+            break;
+          case GP_DISSOLVE_UNSELECT:
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if (cpt->flag & GP_CURVE_POINT_SELECT) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+            break;
+          default:
+            return false;
+            break;
+        }
+
+        if (gpc->curve_points != NULL) {
+          MEM_freeN(gpc->curve_points);
+        }
+
+        gpc->curve_points = new_points;
+        gpc->tot_curve_points = num_points_remaining;
+
+        BKE_gpencil_editcurve_recalculate_handles(gps);
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+      }
+
+      changed = true;
+    }
+  }
+  GP_EDITABLE_CURVES_END(gps_iter);
+
+  return changed;
+}
+
 static bool gpencil_dissolve_selected_stroke_points(bContext *C,
                                                     bGPdata *gpd,
                                                     eGP_DissolveMode mode)
@@ -2332,7 +2465,7 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
   bool changed = false;
 
   if (is_curve_edit) {
-    /* TODO: do curve point dissolve */
+    changed = gpencil_dissole_selected_curve_points(C, gpd, mode);
   }
   else {
     changed = gpencil_dissolve_selected_stroke_points(C, gpd, mode);
