@@ -43,6 +43,8 @@
 
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
+#include "BKE_gpencil_geom.h"
 #include "BKE_material.h"
 #include "BKE_report.h"
 
@@ -163,21 +165,21 @@ static void deselect_all_selected(bContext *C)
         pt->flag &= ~GP_SPOINT_SELECT;
       }
 
-      /* deselect curve and curve points */
-      if (gps->editcurve != NULL) {
-        bGPDcurve *gpc = gps->editcurve;
-        for (int j = 0; j < gpc->tot_curve_points; j++) {
-          bGPDcurve_point *gpc_pt = &gpc->curve_points[j];
-          BezTriple *bezt = &gpc_pt->bezt;
-          gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
-          BEZT_DESEL_ALL(bezt);
-        }
-
-        gpc->flag &= ~GP_CURVE_SELECT;
-      }
-
       /* deselect stroke itself too */
       gps->flag &= ~GP_STROKE_SELECT;
+    }
+
+    /* deselect curve and curve points */
+    if (gps->editcurve != NULL) {
+      bGPDcurve *gpc = gps->editcurve;
+      for (int j = 0; j < gpc->tot_curve_points; j++) {
+        bGPDcurve_point *gpc_pt = &gpc->curve_points[j];
+        BezTriple *bezt = &gpc_pt->bezt;
+        gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(bezt);
+      }
+
+      gpc->flag &= ~GP_CURVE_SELECT;
     }
   }
   CTX_DATA_END;
@@ -925,14 +927,9 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
     GP_EDITABLE_STROKES_BEGIN (gp_iter, C, gpl, gps) {
       if (gps->editcurve != NULL && gps->flag & GP_STROKE_SELECT) {
         bGPDcurve *editcurve = gps->editcurve;
-        int i;
 
-        /* First Pass: Go in forward order,
-         * expanding selection if previous was selected (pre changes).
-         * - This pass covers the "after" edges of selection islands
-         */
         bool prev_sel = false;
-        for (i = 0; i < editcurve->tot_curve_points; i++) {
+        for (int i = 0; i < editcurve->tot_curve_points; i++) {
           bGPDcurve_point *gpc_pt = &editcurve->curve_points[i];
           BezTriple *bezt = &gpc_pt->bezt;
           if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
@@ -950,11 +947,8 @@ static int gpencil_select_more_exec(bContext *C, wmOperator *UNUSED(op))
           }
         }
 
-        /* Second Pass: Go in reverse order, doing the same as before (except in opposite order)
-         * - This pass covers the "before" edges of selection islands
-         */
         prev_sel = false;
-        for (i = editcurve->tot_curve_points - 1; i > 0; i--) {
+        for (int i = editcurve->tot_curve_points - 1; i >= 0; i--) {
           bGPDcurve_point *gpc_pt = &editcurve->curve_points[i];
           BezTriple *bezt = &gpc_pt->bezt;
           if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
@@ -1571,16 +1565,21 @@ static bool gpencil_stroke_fill_isect_rect(ARegion *region,
       DO_MINMAX2(pt3, tri_min, tri_max);
 
       rcti tri_bb = {tri_min[0], tri_max[0], tri_min[1], tri_max[1]};
-      if (BLI_rcti_inside_rcti(&rect, &tri_bb) || BLI_rcti_inside_rcti(&tri_bb, &rect)) {
+      /* Case 1: triangle is entirely inside box selection */
+      /* (XXX: Can this even happen with no point inside the box?) */
+      if (BLI_rcti_inside_rcti(&tri_bb, &rect)) {
         hit = true;
         break;
       }
 
+      /* Case 2: rectangle intersects sides of triangle */
       if (BLI_rcti_isect_segment(&rect, pt1, pt2) || BLI_rcti_isect_segment(&rect, pt2, pt3) ||
           BLI_rcti_isect_segment(&rect, pt3, pt1)) {
         hit = true;
         break;
       }
+
+      /* TODO: Case 3: rectangle is inside the triangle */
     }
   }
 
@@ -1689,15 +1688,15 @@ static bool gpencil_generic_curve_select(bContext *C,
       }
     }
 
-    if (!hit) {
-      /* check if we selected the inside of a filled curve */
-      MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
-      if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
-        continue;
-      }
+    // if (!hit) {
+    //   /* check if we selected the inside of a filled curve */
+    //   MaterialGPencilStyle *gp_style = BKE_gpencil_material_settings(ob, gps->mat_nr + 1);
+    //   if ((gp_style->flag & GP_MATERIAL_FILL_SHOW) == 0) {
+    //     continue;
+    //   }
 
-      whole = gpencil_stroke_fill_isect_rect(region, gps, gps_iter.diff_mat, box);
-    }
+    //   whole = gpencil_stroke_fill_isect_rect(region, gps, gps_iter.diff_mat, box);
+    // }
 
     /* select the entire curve */
     if (strokemode || whole) {
@@ -1747,6 +1746,7 @@ static bool gpencil_generic_stroke_select(bContext *C,
 {
   GP_SpaceConversion gsc = {NULL};
   bool changed = false;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   /* init space conversion stuff */
   gpencil_point_conversion_init(C, &gsc);
 
@@ -1819,6 +1819,14 @@ static bool gpencil_generic_stroke_select(bContext *C,
       whole = ED_gpencil_stroke_point_is_inside(gps_active, &gsc, mval, gpstroke_iter.diff_mat);
     }
 
+    // if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
+    //   BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+    //   BKE_gpencil_curve_sync_selection(gps);
+    //   gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    //   BKE_gpencil_stroke_geometry_update(gpd, gps);
+    //   changed = true;
+    // }
+
     /* if stroke mode expand selection. */
     if ((strokemode) || (whole)) {
       const bool is_select = BKE_gpencil_stroke_select_check(gps_active) || whole;
@@ -1890,7 +1898,8 @@ static int gpencil_generic_select_exec(bContext *C,
     changed = gpencil_generic_curve_select(
         C, ob, is_inside_fn, box, user_data, strokemode, sel_op);
   }
-  else {
+
+  if (changed == false) {
     changed = gpencil_generic_stroke_select(
         C, ob, gpd, is_inside_fn, box, user_data, strokemode, segmentmode, sel_op, scale);
   }
@@ -2200,6 +2209,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   /* select all handles if the click was on the curve but not on a handle */
   if (is_curve_edit && hit_point != NULL) {
     whole = true;
+    hit_curve = hit_stroke->editcurve;
   }
 
   /* adjust selection behavior - for toggle option */
@@ -2225,6 +2235,13 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 
   /* Perform selection operations... */
   if (whole) {
+    /* Generate editcurve if it does not exist */
+    if (is_curve_edit && hit_curve == NULL) {
+      BKE_gpencil_stroke_editcurve_update(hit_stroke, gpd->curve_edit_threshold);
+      hit_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, hit_stroke);
+      hit_curve = hit_stroke->editcurve;
+    }
     /* select all curve points */
     if (hit_curve != NULL) {
       for (int i = 0; i < hit_curve->tot_curve_points; i++) {

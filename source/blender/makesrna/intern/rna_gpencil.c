@@ -186,7 +186,6 @@ static void rna_GPencil_curve_edit_mode_toggle(Main *bmain, Scene *scene, Pointe
 {
   ToolSettings *ts = scene->toolsettings;
   bGPdata *gpd = (bGPdata *)ptr->owner_id;
-  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
   /* Curve edit mode is turned on. */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
@@ -196,62 +195,11 @@ static void rna_GPencil_curve_edit_mode_toggle(Main *bmain, Scene *scene, Pointe
       ts->gpencil_selectmode_edit = GP_SELECTMODE_POINT;
     }
 
-    /* For all selected strokes, update edit curve. */
-    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-      if (!BKE_gpencil_layer_is_editable(gpl)) {
-        continue;
-      }
-      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
-      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
-          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-            /* skip deselected stroke */
-            if (!(gps->flag & GP_STROKE_SELECT)) {
-              continue;
-            }
-
-            /* Generate the curve if there is none or the stroke was changed */
-            if (gps->editcurve == NULL) {
-              BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-              /* Continue if curve could not be generated. */
-              if (gps->editcurve == NULL) {
-                continue;
-              }
-            }
-            else if (gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
-              BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
-            }
-            /* Update the selection from the stroke to the curve. */
-            BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
-
-            gps->editcurve->resolution = gpd->editcurve_resolution;
-            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-            BKE_gpencil_stroke_geometry_update(gpd, gps);
-          }
-        }
-      }
-    }
+    BKE_gpencil_strokes_selected_update_editcurve(gpd);
   }
   /* Curve edit mode is turned off. */
   else {
-    /* Sync selection for all strokes with editcurve. */
-    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-      if (!BKE_gpencil_layer_is_editable(gpl)) {
-        continue;
-      }
-      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
-      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && is_multiedit)) {
-          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-            bGPDcurve *gpc = gps->editcurve;
-            if (gpc != NULL) {
-              /* Update the selection of every stroke that has an editcurve */
-              BKE_gpencil_stroke_editcurve_sync_selection(gps, gpc);
-            }
-          }
-        }
-      }
-    }
+    BKE_gpencil_strokes_selected_sync_selection_editcurve(gpd);
   }
 
   /* Standard update. */
@@ -289,7 +237,6 @@ static void rna_GPencil_stroke_curve_resolution_update(Main *bmain, Scene *scene
         bGPDframe *gpf = gpl->actframe;
         LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
           if (gps->editcurve != NULL) {
-            gps->editcurve->resolution = gpd->editcurve_resolution;
             gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
             BKE_gpencil_stroke_geometry_update(gpd, gps);
           }
@@ -2424,6 +2371,17 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
       prop,
       "Curve Resolution",
       "Number of segments generated between control points when editing strokes in curve mode");
+  RNA_def_property_update(
+      prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
+
+  prop = RNA_def_property(srna, "use_adaptive_curve_resolution", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_CURVE_ADAPTIVE_RESOLUTION);
+  RNA_def_property_boolean_default(prop, true);
+  RNA_def_property_ui_text(prop,
+                           "Adaptive Resolution",
+                           "Set the resolution of each editcurve segment dynamically depending on "
+                           "the length of the segment. The resolution is the number of points "
+                           "generated per unit distance");
   RNA_def_property_update(
       prop, NC_GPENCIL | ND_DATA, "rna_GPencil_stroke_curve_resolution_update");
 

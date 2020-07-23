@@ -307,13 +307,14 @@ void blo_do_versions_290(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
     /* Init grease pencil default curve resolution. */
     if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "editcurve_resolution")) {
-      for (bGPdata *gpd = bmain->gpencils.first; gpd; gpd = gpd->id.next) {
+      LISTBASE_FOREACH (bGPdata *, gpd, &bmain->gpencils) {
         gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
+        gpd->flag |= GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
       }
     }
     /* Init grease pencil curve editing error threshold. */
     if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "float", "curve_edit_threshold")) {
-      for (bGPdata *gpd = bmain->gpencils.first; gpd; gpd = gpd->id.next) {
+      LISTBASE_FOREACH (bGPdata *, gpd, &bmain->gpencils) {
         gpd->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
       }
     }

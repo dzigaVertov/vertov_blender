@@ -38,8 +38,8 @@ struct Curve;
 
 #define GP_MATERIAL_BUFFER_LEN 256
 
-#define GP_DEFAULT_CURVE_RESOLUTION 16
-#define GP_DEFAULT_CURVE_ERROR 0.01f
+#define GP_DEFAULT_CURVE_RESOLUTION 32
+#define GP_DEFAULT_CURVE_ERROR 0.1f
 
 /* ***************************************** */
 /* GP Stroke Points */
@@ -212,11 +212,9 @@ typedef struct bGPDcurve {
   bGPDcurve_point *curve_points;
   /** Total number of curve points. */
   int tot_curve_points;
-  /** Resolution for curve sampling */
-  int resolution;
   /** General flag. */
   short flag;
-  char _pad[6];
+  char _pad[2];
 } bGPDcurve;
 
 /* bGPDcurve_Flag->flag */
@@ -756,6 +754,8 @@ typedef enum eGPdata_Flag {
 
   /* Enable Bezier Editing Curve (a submode of Edit mode). */
   GP_DATA_CURVE_EDIT_MODE = (1 << 21),
+  /* Use adaptive curve resolution */
+  GP_DATA_CURVE_ADAPTIVE_RESOLUTION = (1 << 22),
 } eGPdata_Flag;
 
 /* gpd->onion_flag */
