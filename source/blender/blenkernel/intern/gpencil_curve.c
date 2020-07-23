@@ -53,8 +53,6 @@
 
 #include "DEG_depsgraph_query.h"
 
-#define POINT_DIM 3
-
 /* Helper: Check materials with same color. */
 static int gpencil_check_same_material_color(Object *ob_gp, float color[4], Material **r_mat)
 {
@@ -471,15 +469,26 @@ void BKE_gpencil_convert_curve(Main *bmain,
  */
 bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_threshold)
 {
+#define POINT_DIM 9
   if (gps->totpoints < 1) {
     return NULL;
   }
 
   float *points = MEM_callocN(sizeof(float) * gps->totpoints * POINT_DIM, __func__);
+  float diag_length = len_v3v3(gps->boundbox_min, gps->boundbox_max);
+  float tmp_vec[3];
+
   for (int i = 0; i < gps->totpoints; i++) {
     bGPDspoint *pt = &gps->points[i];
-    float *to = &points[i * POINT_DIM];
-    copy_v3_v3(to, &pt->x);
+    int row = i * POINT_DIM;
+
+    /* normalize coordinate to 0..1 */
+    sub_v3_v3v3(tmp_vec, &pt->x, gps->boundbox_min);
+    mul_v3_v3fl(&points[row], tmp_vec, 1.0f / diag_length);
+
+    points[row + 3] = pt->pressure;
+    points[row + 4] = pt->strength;
+    copy_v4_v4(&points[row + 5], pt->vert_color);
   }
 
   uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
@@ -487,40 +496,52 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
     calc_flag |= CURVE_FIT_CALC_CYCLIC;
   }
 
+  /* TODO: make this a parameter */
+  float corner_angle = M_PI_2;
+
   float *r_cubic_array = NULL;
   unsigned int r_cubic_array_len = 0;
   unsigned int *r_cubic_orig_index = NULL;
   unsigned int *r_corners_index_array = NULL;
   unsigned int r_corners_index_len = 0;
-  int r = curve_fit_cubic_to_points_fl(points,
-                                       gps->totpoints,
-                                       POINT_DIM,
-                                       error_threshold,
-                                       calc_flag,
-                                       NULL,
-                                       0,
-                                       &r_cubic_array,
-                                       &r_cubic_array_len,
-                                       &r_cubic_orig_index,
-                                       &r_corners_index_array,
-                                       &r_corners_index_len);
+  int r = curve_fit_cubic_to_points_refit_fl(points,
+                                             gps->totpoints,
+                                             POINT_DIM,
+                                             error_threshold,
+                                             calc_flag,
+                                             NULL,
+                                             0,
+                                             corner_angle,
+                                             &r_cubic_array,
+                                             &r_cubic_array_len,
+                                             &r_cubic_orig_index,
+                                             &r_corners_index_array,
+                                             &r_corners_index_len);
 
   if (r != 0 || r_cubic_array_len < 1) {
     return NULL;
   }
+
+  uint curve_point_size = 3 * POINT_DIM;
 
   bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(r_cubic_array_len);
 
   for (int i = 0; i < r_cubic_array_len; i++) {
     bGPDcurve_point *cpt = &editcurve->curve_points[i];
     BezTriple *bezt = &cpt->bezt;
-    bGPDspoint *orig_pt = &gps->points[r_cubic_orig_index[i]];
+    float *curve_point = &r_cubic_array[i * curve_point_size];
+
     for (int j = 0; j < 3; j++) {
-      copy_v3_v3(bezt->vec[j], &r_cubic_array[i * 3 * POINT_DIM + j * 3]);
+      float *bez = &curve_point[j * POINT_DIM];
+      copy_v3_v3(tmp_vec, bez);
+      mul_v3_fl(tmp_vec, diag_length);
+      add_v3_v3v3(bezt->vec[j], tmp_vec, gps->boundbox_min);
     }
-    cpt->pressure = orig_pt->pressure;
-    cpt->strength = orig_pt->strength;
-    copy_v4_v4(cpt->vert_color, orig_pt->vert_color);
+
+    float *ctrl_point = &curve_point[1 * POINT_DIM];
+    cpt->pressure = ctrl_point[3];
+    cpt->strength = ctrl_point[4];
+    copy_v4_v4(cpt->vert_color, &ctrl_point[5]);
 
     /* default handle type */
     bezt->h1 |= HD_ALIGN;
@@ -540,6 +561,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
     free(r_cubic_orig_index);
   }
 
+#undef POINT_DIM
   return editcurve;
 }
 
