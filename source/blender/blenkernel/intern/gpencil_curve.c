@@ -53,6 +53,8 @@
 
 #include "DEG_depsgraph_query.h"
 
+#define COORD_FITTING_INFLUENCE 20.0f
+
 /* Helper: Check materials with same color. */
 static int gpencil_check_same_material_color(Object *ob_gp, float color[4], Material **r_mat)
 {
@@ -484,11 +486,12 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
 
     /* normalize coordinate to 0..1 */
     sub_v3_v3v3(tmp_vec, &pt->x, gps->boundbox_min);
-    mul_v3_v3fl(&points[row], tmp_vec, 1.0f / diag_length);
+    mul_v3_v3fl(&points[row], tmp_vec, COORD_FITTING_INFLUENCE / diag_length);
+    points[row + 3] = pt->pressure / diag_length;
 
-    points[row + 3] = pt->pressure;
-    points[row + 4] = pt->strength;
-    copy_v4_v4(&points[row + 5], pt->vert_color);
+    /* strength and color are already normalized */
+    points[row + 4] = pt->strength / diag_length;
+    mul_v4_v4fl(&points[row + 5], pt->vert_color, 1.0f / diag_length);
   }
 
   uint calc_flag = CURVE_FIT_CALC_HIGH_QUALIY;
@@ -533,15 +536,13 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
 
     for (int j = 0; j < 3; j++) {
       float *bez = &curve_point[j * POINT_DIM];
-      copy_v3_v3(tmp_vec, bez);
-      mul_v3_fl(tmp_vec, diag_length);
-      add_v3_v3v3(bezt->vec[j], tmp_vec, gps->boundbox_min);
+      madd_v3_v3v3fl(bezt->vec[j], gps->boundbox_min, bez, diag_length / COORD_FITTING_INFLUENCE);
     }
 
     float *ctrl_point = &curve_point[1 * POINT_DIM];
-    cpt->pressure = ctrl_point[3];
-    cpt->strength = ctrl_point[4];
-    copy_v4_v4(cpt->vert_color, &ctrl_point[5]);
+    cpt->pressure = ctrl_point[3] * diag_length;
+    cpt->strength = ctrl_point[4] * diag_length;
+    mul_v4_v4fl(cpt->vert_color, &ctrl_point[5], diag_length);
 
     /* default handle type */
     bezt->h1 |= HD_ALIGN;
