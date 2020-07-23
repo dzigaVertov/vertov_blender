@@ -17,11 +17,12 @@
 #include "simulation_solver.hh"
 
 #include "BKE_customdata.h"
-#include "BKE_lib_id.h"
 #include "BKE_persistent_data_handle.hh"
 
 #include "BLI_rand.hh"
 #include "BLI_set.hh"
+
+#include "DEG_depsgraph_query.h"
 
 namespace blender::sim {
 
@@ -246,56 +247,10 @@ BLI_NOINLINE static void remove_dead_and_add_new_particles(ParticleSimulationSta
   state.next_particle_id += allocator.total_allocated();
 }
 
-static void update_persistent_data_handles(Simulation &simulation,
-                                           const VectorSet<ID *> &used_data_blocks)
-{
-  Set<ID *> contained_ids;
-  Set<int> used_handles;
-
-  /* Remove handles that have been invalidated. */
-  LISTBASE_FOREACH_MUTABLE (
-      PersistentDataHandleItem *, handle_item, &simulation.persistent_data_handles) {
-    if (handle_item->id == nullptr) {
-      BLI_remlink(&simulation.persistent_data_handles, handle_item);
-      continue;
-    }
-    if (!used_data_blocks.contains(handle_item->id)) {
-      id_us_min(handle_item->id);
-      BLI_remlink(&simulation.persistent_data_handles, handle_item);
-      MEM_freeN(handle_item);
-      continue;
-    }
-    contained_ids.add_new(handle_item->id);
-    used_handles.add_new(handle_item->handle);
-  }
-
-  /* Add new handles that are not in the list yet. */
-  int next_handle = 0;
-  for (ID *id : used_data_blocks) {
-    if (contained_ids.contains(id)) {
-      continue;
-    }
-
-    /* Find the next available handle. */
-    while (used_handles.contains(next_handle)) {
-      next_handle++;
-    }
-    used_handles.add_new(next_handle);
-
-    PersistentDataHandleItem *handle_item = (PersistentDataHandleItem *)MEM_callocN(
-        sizeof(*handle_item), AT);
-    /* Cannot store const pointers in DNA. */
-    id_us_plus(id);
-    handle_item->id = id;
-    handle_item->handle = next_handle;
-
-    BLI_addtail(&simulation.persistent_data_handles, handle_item);
-  }
-}
-
 void initialize_simulation_states(Simulation &simulation,
                                   Depsgraph &UNUSED(depsgraph),
-                                  const SimulationInfluences &UNUSED(influences))
+                                  const SimulationInfluences &UNUSED(influences),
+                                  const bke::PersistentDataHandleMap &UNUSED(handle_map))
 {
   simulation.current_simulation_time = 0.0f;
 }
@@ -303,29 +258,24 @@ void initialize_simulation_states(Simulation &simulation,
 void solve_simulation_time_step(Simulation &simulation,
                                 Depsgraph &depsgraph,
                                 const SimulationInfluences &influences,
+                                const bke::PersistentDataHandleMap &handle_map,
                                 float time_step)
 {
-  update_persistent_data_handles(simulation, influences.used_data_blocks);
-
-  bke::PersistentDataHandleMap handle_map;
-  LISTBASE_FOREACH (PersistentDataHandleItem *, handle, &simulation.persistent_data_handles) {
-    handle_map.add(handle->handle, *handle->id);
+  SimulationStateMap state_map;
+  LISTBASE_FOREACH (SimulationState *, state, &simulation.states) {
+    state_map.add(state);
   }
 
   SimulationSolveContext solve_context{simulation,
                                        depsgraph,
                                        influences,
                                        TimeInterval(simulation.current_simulation_time, time_step),
+                                       state_map,
                                        handle_map};
   TimeInterval simulation_time_interval{simulation.current_simulation_time, time_step};
 
-  Vector<SimulationState *> simulation_states{simulation.states};
-  Vector<ParticleSimulationState *> particle_simulation_states;
-  for (SimulationState *state : simulation_states) {
-    if (state->type == SIM_STATE_TYPE_PARTICLES) {
-      particle_simulation_states.append((ParticleSimulationState *)state);
-    }
-  }
+  Span<ParticleSimulationState *> particle_simulation_states =
+      state_map.lookup<ParticleSimulationState>();
 
   Map<std::string, std::unique_ptr<fn::AttributesInfo>> attribute_infos;
   Map<std::string, std::unique_ptr<ParticleAllocator>> particle_allocators_map;

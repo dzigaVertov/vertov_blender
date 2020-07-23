@@ -2275,6 +2275,24 @@ void DepsgraphRelationBuilder::build_light(Light *lamp)
   add_relation(lamp_parameters_key, shading_key, "Light Shading Parameters");
 }
 
+void DepsgraphRelationBuilder::build_nodetree_socket(bNodeSocket *socket)
+{
+  build_idproperties(socket->prop);
+
+  if (socket->type == SOCK_OBJECT) {
+    Object *object = ((bNodeSocketValueObject *)socket->default_value)->value;
+    if (object != nullptr) {
+      build_object(object);
+    }
+  }
+  else if (socket->type == SOCK_IMAGE) {
+    Image *image = ((bNodeSocketValueImage *)socket->default_value)->value;
+    if (image != nullptr) {
+      build_image(image);
+    }
+  }
+}
+
 void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
 {
   if (ntree == nullptr) {
@@ -2291,10 +2309,10 @@ void DepsgraphRelationBuilder::build_nodetree(bNodeTree *ntree)
   LISTBASE_FOREACH (bNode *, bnode, &ntree->nodes) {
     build_idproperties(bnode->prop);
     LISTBASE_FOREACH (bNodeSocket *, socket, &bnode->inputs) {
-      build_idproperties(socket->prop);
+      build_nodetree_socket(socket);
     }
     LISTBASE_FOREACH (bNodeSocket *, socket, &bnode->outputs) {
-      build_idproperties(socket->prop);
+      build_nodetree_socket(socket);
     }
 
     ID *id = bnode->id;
@@ -2601,13 +2619,40 @@ void DepsgraphRelationBuilder::build_simulation(Simulation *simulation)
   if (built_map_.checkIsBuiltAndTag(simulation)) {
     return;
   }
+  build_idproperties(simulation->id.properties);
   build_animdata(&simulation->id);
   build_parameters(&simulation->id);
 
-  OperationKey simulation_update_key(
+  build_nodetree(simulation->nodetree);
+  build_nested_nodetree(&simulation->id, simulation->nodetree);
+
+  OperationKey simulation_eval_key(
       &simulation->id, NodeType::SIMULATION, OperationCode::SIMULATION_EVAL);
   TimeSourceKey time_src_key;
-  add_relation(time_src_key, simulation_update_key, "TimeSrc -> Simulation");
+  add_relation(time_src_key, simulation_eval_key, "TimeSrc -> Simulation");
+
+  OperationKey nodetree_key(
+      &simulation->nodetree->id, NodeType::PARAMETERS, OperationCode::PARAMETERS_EXIT);
+  add_relation(nodetree_key, simulation_eval_key, "NodeTree -> Simulation", 0);
+
+  LISTBASE_FOREACH (
+      PersistentDataHandleItem *, handle_item, &simulation->persistent_data_handles) {
+    if (handle_item->id == nullptr) {
+      continue;
+    }
+    build_id(handle_item->id);
+    if (GS(handle_item->id->name) == ID_OB) {
+      Object *object = (Object *)handle_item->id;
+      if (handle_item->flag & SIM_HANDLE_DEPENDS_ON_TRANSFORM) {
+        ComponentKey object_transform_key(&object->id, NodeType::TRANSFORM);
+        add_relation(object_transform_key, simulation_eval_key, "Object Transform -> Simulation");
+      }
+      if (handle_item->flag & SIM_HANDLE_DEPENDS_ON_GEOMETRY) {
+        ComponentKey object_geometry_key(&object->id, NodeType::GEOMETRY);
+        add_relation(object_geometry_key, simulation_eval_key, "Object Geometry -> Simulation");
+      }
+    }
+  }
 }
 
 void DepsgraphRelationBuilder::build_scene_sequencer(Scene *scene)
