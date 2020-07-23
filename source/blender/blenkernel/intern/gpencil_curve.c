@@ -684,11 +684,11 @@ void BKE_gpencil_stroke_editcurve_sync_selection(bGPDstroke *gps, bGPDcurve *gpc
 static void gpencil_interpolate_fl_from_to(
     float from, float to, float *point_offset, int it, int stride)
 {
-  /* linear interpolation */
+  /* smooth interpolation */
   float *r = point_offset;
   for (int i = 0; i <= it; i++) {
     float fac = (float)i / (float)it;
-    // fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
+    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
     *r = interpf(to, from, fac);
     r = POINTER_OFFSET(r, stride);
   }
@@ -697,11 +697,11 @@ static void gpencil_interpolate_fl_from_to(
 static void gpencil_interpolate_v4_from_to(
     float from[4], float to[4], float *point_offset, int it, int stride)
 {
-  /* linear interpolation */
+  /* smooth interpolation */
   float *r = point_offset;
   for (int i = 0; i <= it; i++) {
     float fac = (float)i / (float)it;
-    // fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
+    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
     interp_v4_v4v4(r, from, to, fac);
     r = POINTER_OFFSET(r, stride);
   }
