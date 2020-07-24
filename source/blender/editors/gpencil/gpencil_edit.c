@@ -2061,49 +2061,37 @@ static int gpencil_delete_selected_strokes(bContext *C)
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve delete */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+    bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
-      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+    for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+      if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
 
-          if (gpf == NULL) {
+        if (gpf == NULL) {
+          continue;
+        }
+
+        /* simply delete strokes which are selected */
+        LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
+
+          /* skip strokes that are invalid for current view */
+          if (ED_gpencil_stroke_can_use(C, gps) == false) {
             continue;
           }
 
-          /* simply delete strokes which are selected */
-          LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
+          /* free stroke if selected */
+          if (gps->flag & GP_STROKE_SELECT) {
+            /* free stroke memory arrays, then stroke itself */
+            BKE_gpencil_free_stroke(gps);
+            BLI_freelinkN(&gpf->strokes, gps);
 
-            /* skip strokes that are invalid for current view */
-            if (ED_gpencil_stroke_can_use(C, gps) == false) {
-              continue;
-            }
-
-            /* free stroke if selected */
-            if (gps->flag & GP_STROKE_SELECT) {
-              /* free stroke memory arrays, then stroke itself */
-              if (gps->points) {
-                MEM_freeN(gps->points);
-              }
-              if (gps->dvert) {
-                BKE_gpencil_free_stroke_weights(gps);
-                MEM_freeN(gps->dvert);
-              }
-              MEM_SAFE_FREE(gps->triangles);
-              BLI_freelinkN(&gpf->strokes, gps);
-
-              changed = true;
-            }
+            changed = true;
           }
         }
       }
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   if (changed) {
     DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
@@ -2115,7 +2103,9 @@ static int gpencil_delete_selected_strokes(bContext *C)
 
 /* ----------------------------------- */
 
-static bool gpencil_dissole_selected_curve_points(bContext *C, bGPdata *gpd, eGP_DissolveMode mode)
+static bool gpencil_dissolve_selected_curve_points(bContext *C,
+                                                   bGPdata *gpd,
+                                                   eGP_DissolveMode mode)
 {
   bool changed = false;
   GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
@@ -2169,7 +2159,6 @@ static bool gpencil_dissole_selected_curve_points(bContext *C, bGPdata *gpd, eGP
         /* Delete stroke */
         BKE_gpencil_free_stroke(gps);
         BLI_freelinkN(&gpf_->strokes, gps);
-        DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
       }
       else {
         bGPDcurve_point *new_points = MEM_callocN(sizeof(bGPDcurve_point) * num_points_remaining,
@@ -2311,18 +2300,8 @@ static bool gpencil_dissolve_selected_stroke_points(bContext *C,
       /* if no points are left, we simply delete the entire stroke */
       if (tot <= 0) {
         /* remove the entire stroke */
-        if (gps->points) {
-          MEM_freeN(gps->points);
-        }
-        if (gps->dvert) {
-          BKE_gpencil_free_stroke_weights(gps);
-          MEM_freeN(gps->dvert);
-        }
-        if (gps->triangles) {
-          MEM_freeN(gps->triangles);
-        }
+        BKE_gpencil_free_stroke(gps);
         BLI_freelinkN(&gpf_->strokes, gps);
-        DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
       }
       else {
         /* just copy all points to keep into a smaller buffer */
@@ -2465,7 +2444,7 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
   bool changed = false;
 
   if (is_curve_edit) {
-    changed = gpencil_dissole_selected_curve_points(C, gpd, mode);
+    changed = gpencil_dissolve_selected_curve_points(C, gpd, mode);
   }
   else {
     changed = gpencil_dissolve_selected_stroke_points(C, gpd, mode);
@@ -2741,6 +2720,18 @@ void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
   BKE_gpencil_free_stroke(gps);
 }
 
+void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
+                                         bGPDframe *gpf,
+                                         bGPDstroke *gps,
+                                         bGPDstroke *next_stroke,
+                                         bGPDcurve *gpc,
+                                         int tag_flags,
+                                         bool select,
+                                         int limit)
+{
+  return NULL;
+}
+
 /* Split selected strokes into segments, splitting on selected points */
 static int gpencil_delete_selected_points(bContext *C)
 {
@@ -2750,48 +2741,51 @@ static int gpencil_delete_selected_points(bContext *C)
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
   bool changed = false;
 
-  if (is_curve_edit) {
-    /* TODO: do curve point delete */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+    bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
-      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+    for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+      if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
 
-          if (gpf == NULL) {
+        if (gpf == NULL) {
+          continue;
+        }
+
+        /* simply delete strokes which are selected */
+        LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
+
+          /* skip strokes that are invalid for current view */
+          if (ED_gpencil_stroke_can_use(C, gps) == false) {
+            continue;
+          }
+          /* check if the color is editable */
+          if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
             continue;
           }
 
-          /* simply delete strokes which are selected */
-          LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
+          if (gps->flag & GP_STROKE_SELECT) {
+            /* deselect old stroke, since it will be used as template for the new strokes */
+            gps->flag &= ~GP_STROKE_SELECT;
 
-            /* skip strokes that are invalid for current view */
-            if (ED_gpencil_stroke_can_use(C, gps) == false) {
-              continue;
+            if (is_curve_edit) {
+              /* TODO: do curve point delete */
+              bGPDcurve *gpc = gps->editcurve;
+              gpencil_curve_delete_tagged_points(
+                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT);
             }
-            /* check if the color is editable */
-            if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
-              continue;
-            }
-
-            if (gps->flag & GP_STROKE_SELECT) {
-              /* deselect old stroke, since it will be used as template for the new strokes */
-              gps->flag &= ~GP_STROKE_SELECT;
-
+            else {
               /* delete unwanted points by splitting stroke into several smaller ones */
               gpencil_stroke_delete_tagged_points(
                   gpd, gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
-
-              changed = true;
             }
+
+            changed = true;
           }
         }
       }
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   if (changed) {
     DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
