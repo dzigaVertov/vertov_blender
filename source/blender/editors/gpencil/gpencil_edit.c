@@ -860,7 +860,7 @@ static void gpencil_duplicate_points(bGPdata *gpd,
         bGPDstroke *gpsd;
 
         /* make a stupid copy first of the entire stroke (to get the flags too) */
-        gpsd = BKE_gpencil_stroke_duplicate((bGPDstroke *)gps, false);
+        gpsd = BKE_gpencil_stroke_duplicate((bGPDstroke *)gps, false, true);
 
         /* saves original layer name */
         BLI_strncpy(gpsd->runtime.tmp_layerinfo, layername, sizeof(gpsd->runtime.tmp_layerinfo));
@@ -944,7 +944,7 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
             bGPDstroke *gpsd;
 
             /* make direct copies of the stroke and its points */
-            gpsd = BKE_gpencil_stroke_duplicate(gps, true);
+            gpsd = BKE_gpencil_stroke_duplicate(gps, true, true);
 
             BLI_strncpy(
                 gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
@@ -1066,7 +1066,7 @@ static void gpencil_add_move_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gp
     pt = &gps->points[i];
     if (pt->flag == GP_SPOINT_SELECT) {
       /* duplicate original stroke data */
-      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false);
+      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false, true);
       gps_new->prev = gps_new->next = NULL;
 
       /* add new points array */
@@ -1420,7 +1420,7 @@ static int gpencil_strokes_copy_exec(bContext *C, wmOperator *op)
             bGPDstroke *gpsd;
 
             /* make direct copies of the stroke and its points */
-            gpsd = BKE_gpencil_stroke_duplicate(gps, false);
+            gpsd = BKE_gpencil_stroke_duplicate(gps, false, true);
 
             /* saves original layer name */
             BLI_strncpy(
@@ -1615,7 +1615,7 @@ static int gpencil_strokes_paste_exec(bContext *C, wmOperator *op)
         gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_ADD_NEW);
         if (gpf) {
           /* Create new stroke */
-          bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, true);
+          bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, true, true);
           new_stroke->runtime.tmp_layerinfo[0] = '\0';
           new_stroke->next = new_stroke->prev = NULL;
 
@@ -2479,7 +2479,7 @@ static void gpencil_stroke_join_islands(bGPdata *gpd,
   const int totpoints = gps_first->totpoints + gps_last->totpoints;
 
   /* create new stroke */
-  bGPDstroke *join_stroke = BKE_gpencil_stroke_duplicate(gps_first, false);
+  bGPDstroke *join_stroke = BKE_gpencil_stroke_duplicate(gps_first, false, true);
 
   join_stroke->points = MEM_callocN(sizeof(bGPDspoint) * totpoints, __func__);
   join_stroke->totpoints = totpoints;
@@ -2625,7 +2625,7 @@ void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
     /* Create each new stroke... */
     for (idx = 0; idx < num_islands; idx++) {
       tGPDeleteIsland *island = &islands[idx];
-      new_stroke = BKE_gpencil_stroke_duplicate(gps, false);
+      new_stroke = BKE_gpencil_stroke_duplicate(gps, false, true);
 
       /* if cyclic and first stroke, save to join later */
       if ((is_cyclic) && (gps_first == NULL)) {
@@ -2720,16 +2720,62 @@ void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
   BKE_gpencil_free_stroke(gps);
 }
 
-void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
-                                         bGPDframe *gpf,
-                                         bGPDstroke *gps,
-                                         bGPDstroke *next_stroke,
-                                         bGPDcurve *gpc,
-                                         int tag_flags,
-                                         bool select,
-                                         int limit)
+void gpencil_curve_delete_tagged_points(bGPdata *gpd,
+                                        bGPDframe *gpf,
+                                        bGPDstroke *gps,
+                                        bGPDstroke *next_stroke,
+                                        bGPDcurve *gpc,
+                                        int tag_flags,
+                                        bool select,
+                                        int limit)
 {
-  return NULL;
+  if (gpc == NULL) {
+    return;
+  }
+  const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+
+  int idx_start = 0;
+  int idx_end = 0;
+  bool prev_selected = gpc->curve_points[0].flag & tag_flags;
+  for (int i = 1; i < gpc->tot_curve_points; i++) {
+    bool selected = gpc->curve_points[i].flag & tag_flags;
+    if (prev_selected == true && selected == false) {
+      idx_start = i;
+    }
+    if ((prev_selected == false && selected == true) ||
+        (selected == false && i == gpc->tot_curve_points - 1)) {
+      idx_end = selected ? i - 1 : i;
+
+      int island_length = idx_end - idx_start + 1;
+      bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
+      new_stroke->points = NULL;
+      new_stroke->flag &= ~GP_STROKE_CYCLIC;
+      new_stroke->editcurve = BKE_gpencil_stroke_editcurve_new(island_length);
+
+      bGPDcurve *new_gpc = new_stroke->editcurve;
+      memcpy(new_gpc->curve_points,
+             gpc->curve_points + idx_start,
+             sizeof(bGPDcurve_point) * island_length);
+
+      BKE_gpencil_editcurve_recalculate_handles(new_stroke);
+      new_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+      /* Calc geometry data. */
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+
+      if (next_stroke) {
+        BLI_insertlinkbefore(&gpf->strokes, next_stroke, new_stroke);
+      }
+      else {
+        BLI_addtail(&gpf->strokes, new_stroke);
+      }
+    }
+    prev_selected = selected;
+  }
+
+  /* Delete the old stroke */
+  BLI_remlink(&gpf->strokes, gps);
+  BKE_gpencil_free_stroke(gps);
 }
 
 /* Split selected strokes into segments, splitting on selected points */
@@ -2771,7 +2817,7 @@ static int gpencil_delete_selected_points(bContext *C)
               /* TODO: do curve point delete */
               bGPDcurve *gpc = gps->editcurve;
               gpencil_curve_delete_tagged_points(
-                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT);
+                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT, false, 0);
             }
             else {
               /* delete unwanted points by splitting stroke into several smaller ones */
@@ -3791,7 +3837,7 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
 
           /* create a new stroke if was not created before (only created if something to join) */
           if (new_stroke == NULL) {
-            new_stroke = BKE_gpencil_stroke_duplicate(stroke_a, true);
+            new_stroke = BKE_gpencil_stroke_duplicate(stroke_a, true, true);
 
             /* if new, set current color */
             if (type == GP_STROKE_JOINCOPY) {
@@ -4752,7 +4798,7 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
                 }
                 else {
                   /* make copy of source stroke */
-                  bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true);
+                  bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true, true);
 
                   /* Reassign material. */
                   gps_dst->mat_nr = idx;
@@ -4921,7 +4967,7 @@ static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
             }
             else {
               /* make copy of source stroke */
-              bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true);
+              bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true, true);
 
               /* link to same frame */
               BLI_addtail(&gpf->strokes, gps_dst);

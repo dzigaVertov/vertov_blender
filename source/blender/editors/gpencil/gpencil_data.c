@@ -580,7 +580,7 @@ static int gpencil_layer_duplicate_object_exec(bContext *C, wmOperator *op)
     LISTBASE_FOREACH (bGPDstroke *, gps_src, &gpf_src->strokes) {
 
       /* Make copy of source stroke. */
-      bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+      bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
 
       /* Check if material is in destination object,
        * otherwise add the slot with the material. */
