@@ -1285,7 +1285,8 @@ void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
       /* curve geometry was updated: stroke needs recalculation */
       if (gps->flag & GP_STROKE_NEEDS_CURVE_UPDATE) {
         bool is_adaptive = gpd->flag & GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
-        BKE_gpencil_stroke_update_geometry_from_editcurve(gps, gpd->editcurve_resolution, is_adaptive);
+        BKE_gpencil_stroke_update_geometry_from_editcurve(
+            gps, gpd->editcurve_resolution, is_adaptive);
         gps->flag &= ~GP_STROKE_NEEDS_CURVE_UPDATE;
       }
     }
@@ -2629,10 +2630,9 @@ void BKE_gpencil_stroke_set_random_color(bGPDstroke *gps)
 
   float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
   bGPDspoint *pt = &gps->points[0];
-  color[0] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints, pt->x));
-  color[1] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints, pt->y));
-  color[2] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints, pt->z));
-
+  color[0] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints / 5, pt->x + pt->z));
+  color[1] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints + pt->x, pt->y * pt->z + pt->x));
+  color[2] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints - pt->x, pt->z * pt->x + pt->y));
   for (int i = 0; i < gps->totpoints; i++) {
     pt = &gps->points[i];
     copy_v4_v4(pt->vert_color, color);
