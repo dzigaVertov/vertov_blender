@@ -55,6 +55,10 @@
 
 #define COORD_FITTING_INFLUENCE 20.0f
 
+/* -------------------------------------------------------------------- */
+/** \name Convert to curve object
+ * \{ */
+
 /* Helper: Check materials with same color. */
 static int gpencil_check_same_material_color(Object *ob_gp, float color[4], Material **r_mat)
 {
@@ -466,15 +470,46 @@ void BKE_gpencil_convert_curve(Main *bmain,
   DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 }
 
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Editcurve kernel functions
+ * \{ */
+
 /**
  * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
  */
 bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_threshold)
 {
-#define POINT_DIM 9
   if (gps->totpoints < 1) {
     return NULL;
   }
+  else if (gps->totpoints == 1) {
+    bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(1);
+    bGPDspoint *pt = &gps->points[0];
+    bGPDcurve_point *cpt = &editcurve->curve_points[0];
+    BezTriple *bezt = &cpt->bezt;
+
+    float tmp_vec[3];
+    for (int j = 0; j < 3; j++) {
+      copy_v3_v3(tmp_vec, &pt->x);
+      tmp_vec[0] += (j - 1);
+      copy_v3_v3(bezt->vec[j], tmp_vec);
+    }
+
+    cpt->pressure = pt->pressure;
+    cpt->strength = pt->strength;
+    copy_v4_v4(cpt->vert_color, pt->vert_color);
+
+    /* default handle type */
+    bezt->h1 |= HD_ALIGN;
+    bezt->h2 |= HD_ALIGN;
+
+    cpt->point_index = 0;
+
+    return editcurve;
+  }
+#define POINT_DIM 9
 
   float *points = MEM_callocN(sizeof(float) * gps->totpoints * POINT_DIM, __func__);
   float diag_length = len_v3v3(gps->boundbox_min, gps->boundbox_max);
@@ -688,7 +723,7 @@ static void gpencil_interpolate_fl_from_to(
   float *r = point_offset;
   for (int i = 0; i <= it; i++) {
     float fac = (float)i / (float)it;
-    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
+    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac;  // smooth
     *r = interpf(to, from, fac);
     r = POINTER_OFFSET(r, stride);
   }
@@ -701,7 +736,7 @@ static void gpencil_interpolate_v4_from_to(
   float *r = point_offset;
   for (int i = 0; i <= it; i++) {
     float fac = (float)i / (float)it;
-    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac; // smooth
+    fac = 3.0f * fac * fac - 2.0f * fac * fac * fac;  // smooth
     interp_v4_v4v4(r, from, to, fac);
     r = POINTER_OFFSET(r, stride);
   }
@@ -766,7 +801,7 @@ static float *gpencil_stroke_points_from_editcurve_adaptive_resolu(
   const uint num_segments = (is_cyclic) ? curve_point_array_len : curve_point_array_len - 1;
   int *segment_point_lengths = MEM_callocN(sizeof(int) * num_segments, __func__);
 
-  uint points_len = 0;
+  uint points_len = 1;
   for (int i = 0; i < cpt_last; i++) {
     bGPDcurve_point *cpt = &curve_point_array[i];
     bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
@@ -786,7 +821,6 @@ static float *gpencil_stroke_points_from_editcurve_adaptive_resolu(
     segment_point_lengths[cpt_last] = segment_resolu;
     points_len += segment_resolu;
   }
-  points_len += 1;
 
   float(*r_points)[9] = MEM_callocN((stride * points_len * (is_cyclic ? 2 : 1)), __func__);
   float *points_offset = &r_points[0][0];
@@ -873,6 +907,33 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
   bGPDcurve *editcurve = gps->editcurve;
   bGPDcurve_point *curve_point_array = editcurve->curve_points;
   int curve_point_array_len = editcurve->tot_curve_points;
+  if (curve_point_array_len == 0) {
+    return;
+  }
+  else if (curve_point_array_len == 1) {
+    bGPDcurve_point *cpt = &curve_point_array[0];
+    /* resize stroke point array */
+    gps->totpoints = 1;
+    gps->points = MEM_recallocN(gps->points, sizeof(bGPDspoint) * gps->totpoints);
+    if (gps->dvert != NULL) {
+      gps->dvert = MEM_recallocN(gps->dvert, sizeof(MDeformVert) * gps->totpoints);
+    }
+
+    bGPDspoint *pt = &gps->points[0];
+    copy_v3_v3(&pt->x, &cpt->bezt.vec[0]);
+
+    pt->pressure = cpt->pressure;
+    pt->strength = cpt->strength;
+
+    copy_v4_v4(pt->vert_color, &cpt->vert_color);
+
+    /* deselect */
+    pt->flag &= ~GP_SPOINT_SELECT;
+    gps->flag &= ~GP_STROKE_SELECT;
+
+    return;
+  }
+
   bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
 
   int points_len = 0;
