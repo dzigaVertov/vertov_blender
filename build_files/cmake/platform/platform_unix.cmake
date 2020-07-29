@@ -37,10 +37,10 @@ if(NOT DEFINED LIBDIR)
     set(LIBDIR ${LIBDIR_CENTOS7_ABI})
     set(WITH_CXX11_ABI OFF)
 
-    if(CMAKE_COMPILER_IS_GNUCC AND
-       CMAKE_C_COMPILER_VERSION VERSION_LESS 9.3)
-      message(FATAL_ERROR "GCC version must be at least 9.3 for precompiled libraries, found ${CMAKE_C_COMPILER_VERSION}")
-    endif()
+    # if(CMAKE_COMPILER_IS_GNUCC AND
+    #    CMAKE_C_COMPILER_VERSION VERSION_LESS 9.3)
+    #   message(FATAL_ERROR "GCC version must be at least 9.3 for precompiled libraries, found ${CMAKE_C_COMPILER_VERSION}")
+    # endif()
   endif()
 
   # Avoid namespace pollustion.

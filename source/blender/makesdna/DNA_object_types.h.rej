@@ -1,0 +1,24 @@
+diff a/source/blender/makesdna/DNA_object_types.h b/source/blender/makesdna/DNA_object_types.h	(rejected hunks)
+@@ -58,8 +58,11 @@ typedef struct bDeformGroup {
+   struct bDeformGroup *next, *prev;
+   /** MAX_VGROUP_NAME. */
+   char name[64];
+-  /* need this flag for locking weights */
+-  char flag, _pad0[7];
++  unsigned int bone_group;
++  /* need this flag for locking weights */  
++  char flag;
++  char _pad[7];
++  /* char _pad0[1]; */
+ } bDeformGroup;
+ 
+ /* Face Maps*/
+@@ -68,7 +71,7 @@ typedef struct bFaceMap {
+   /** MAX_VGROUP_NAME. */
+   char name[64];
+   char flag;
+-  char _pad0[7];
++  char _pad0[4];
+ } bFaceMap;
+ 
+ #define MAX_VGROUP_NAME 64
