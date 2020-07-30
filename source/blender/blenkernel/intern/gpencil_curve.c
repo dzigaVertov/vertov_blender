@@ -988,7 +988,7 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
 
   bool changed = false;
   bGPDcurve *gpc = gps->editcurve;
-  if (gpc->tot_curve_points < 1) {
+  if (gpc->tot_curve_points < 2) {
     return;
   }
 

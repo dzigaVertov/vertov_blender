@@ -2057,7 +2057,6 @@ typedef enum eGP_DissolveMode {
 static int gpencil_delete_selected_strokes(bContext *C)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
   bool changed = false;
@@ -2720,19 +2719,22 @@ void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
   BKE_gpencil_free_stroke(gps);
 }
 
-void gpencil_curve_delete_tagged_points(bGPdata *gpd,
-                                        bGPDframe *gpf,
-                                        bGPDstroke *gps,
-                                        bGPDstroke *next_stroke,
-                                        bGPDcurve *gpc,
-                                        int tag_flags,
-                                        bool select,
-                                        int limit)
+static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
+                                               bGPDframe *gpf,
+                                               bGPDstroke *gps,
+                                               bGPDstroke *next_stroke,
+                                               bGPDcurve *gpc,
+                                               int tag_flags,
+                                               bool select,
+                                               int limit)
 {
   if (gpc == NULL) {
     return;
   }
   const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+  const int idx_last = gpc->tot_curve_points - 1;
+  bGPDstroke *gps_first = NULL;
+  bGPDstroke *gps_last = NULL;
 
   int idx_start = 0;
   int idx_end = 0;
@@ -2742,15 +2744,34 @@ void gpencil_curve_delete_tagged_points(bGPdata *gpd,
     if (prev_selected == true && selected == false) {
       idx_start = i;
     }
-    if ((prev_selected == false && selected == true) ||
-        (selected == false && i == gpc->tot_curve_points - 1)) {
-      idx_end = selected ? i - 1 : i;
+    /* Island ends if the current point is selected or if we reached the end of the stroke */
+    if ((prev_selected == false && selected == true) || (selected == false && i == idx_last)) {
 
+      idx_end = selected ? i - 1 : i;
       int island_length = idx_end - idx_start + 1;
+
+      /* If an island has only a single curve point, there is no curve segment, so skip island */
+      if (island_length == 1) {
+        if (is_cyclic) {
+          if (idx_start > 0 && idx_end < idx_last) {
+            prev_selected = selected;
+            continue;
+          }
+        }
+        else {
+          prev_selected = selected;
+          continue;
+        }
+      }
+
       bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
       new_stroke->points = NULL;
       new_stroke->flag &= ~GP_STROKE_CYCLIC;
       new_stroke->editcurve = BKE_gpencil_stroke_editcurve_new(island_length);
+
+      if (gps_first == NULL) {
+        gps_first = new_stroke;
+      }
 
       bGPDcurve *new_gpc = new_stroke->editcurve;
       memcpy(new_gpc->curve_points,
@@ -2769,8 +2790,36 @@ void gpencil_curve_delete_tagged_points(bGPdata *gpd,
       else {
         BLI_addtail(&gpf->strokes, new_stroke);
       }
+
+      gps_last = new_stroke;
     }
     prev_selected = selected;
+  }
+
+  /* join first and last stroke if cyclic */
+  if (is_cyclic && gps_first != NULL && gps_last != NULL && gps_first != gps_last) {
+    bGPDcurve *gpc_first = gps_first->editcurve;
+    bGPDcurve *gpc_last = gps_last->editcurve;
+    int first_tot_points = gpc_first->tot_curve_points;
+    int old_tot_points = gpc_last->tot_curve_points;
+
+    gpc_last->tot_curve_points = first_tot_points + old_tot_points;
+    gpc_last->curve_points = MEM_recallocN(gpc_last->curve_points,
+                                           sizeof(bGPDcurve_point) * gpc_last->tot_curve_points);
+    /* copy data from first to last */
+    memcpy(gpc_last->curve_points + old_tot_points,
+           gpc_first->curve_points,
+           sizeof(bGPDcurve_point) * first_tot_points);
+
+    BKE_gpencil_editcurve_recalculate_handles(gps_last);
+    gps_last->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+    /* Calc geometry data. */
+    BKE_gpencil_stroke_geometry_update(gpd, gps_last);
+
+    /* remove first one */
+    BLI_remlink(&gpf->strokes, gps_first);
+    BKE_gpencil_free_stroke(gps_first);
   }
 
   /* Delete the old stroke */
@@ -2814,7 +2863,6 @@ static int gpencil_delete_selected_points(bContext *C)
             gps->flag &= ~GP_STROKE_SELECT;
 
             if (is_curve_edit) {
-              /* TODO: do curve point delete */
               bGPDcurve *gpc = gps->editcurve;
               gpencil_curve_delete_tagged_points(
                   gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT, false, 0);
