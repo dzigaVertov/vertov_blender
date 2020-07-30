@@ -24,11 +24,8 @@
 #ifndef __GPU_TEXTURE_H__
 #define __GPU_TEXTURE_H__
 
+#include "BLI_utildefines.h"
 #include "GPU_state.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct GPUVertBuf;
 struct ImBuf;
@@ -40,6 +37,15 @@ struct PreviewImage;
 
 struct GPUFrameBuffer;
 typedef struct GPUTexture GPUTexture;
+
+/* Used to get the correct gpu texture from an Image datablock. */
+typedef enum eGPUTextureTarget {
+  TEXTARGET_2D = 0,
+  TEXTARGET_CUBE_MAP,
+  TEXTARGET_2D_ARRAY,
+  TEXTARGET_TILE_MAPPING,
+  TEXTARGET_COUNT,
+} eGPUTextureTarget;
 
 /* GPU Samplers state
  * - Specify the sampler state to bind a texture with.
@@ -59,6 +65,10 @@ typedef enum eGPUSamplerState {
   /* Don't use that. */
   GPU_SAMPLER_MAX = (1 << 8),
 } eGPUSamplerState;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define GPU_SAMPLER_DEFAULT GPU_SAMPLER_FILTER
 #define GPU_SAMPLER_REPEAT (GPU_SAMPLER_REPEAT_S | GPU_SAMPLER_REPEAT_T | GPU_SAMPLER_REPEAT_R)
@@ -222,16 +232,16 @@ GPUTexture *GPU_texture_create_cube_array(
 GPUTexture *GPU_texture_create_from_vertbuf(struct GPUVertBuf *vert);
 GPUTexture *GPU_texture_create_buffer(eGPUTextureFormat data_type, const uint buffer);
 
-GPUTexture *GPU_texture_from_bindcode(int textarget, int bindcode);
+GPUTexture *GPU_texture_from_bindcode(eGPUTextureTarget target, int bindcode);
 GPUTexture *GPU_texture_from_blender(struct Image *ima,
                                      struct ImageUser *iuser,
                                      struct ImBuf *ibuf,
-                                     int textarget);
+                                     eGPUTextureTarget target);
 
 /* movie clip drawing */
 GPUTexture *GPU_texture_from_movieclip(struct MovieClip *clip,
                                        struct MovieClipUser *cuser,
-                                       int textarget);
+                                       eGPUTextureTarget target);
 void GPU_free_texture_movieclip(struct MovieClip *clip);
 
 void GPU_texture_add_mipmap(GPUTexture *tex,

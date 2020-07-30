@@ -2364,7 +2364,7 @@ static void ui_but_paste_numeric_value(bContext *C,
 {
   double value;
 
-  if (ui_but_string_set_eval_num(C, but, buf_paste, &value)) {
+  if (ui_but_string_eval_number(C, but, buf_paste, &value)) {
     button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
     data->value = value;
     ui_but_string_set(C, but, buf_paste);
@@ -4387,7 +4387,7 @@ static int ui_do_but_TEX(
       if (ELEM(event->type, EVT_PADENTER, EVT_RETKEY) && (!UI_but_is_utf8(but))) {
         /* pass - allow filesel, enter to execute */
       }
-      else if (but->dt == UI_EMBOSS_NONE && !event->ctrl) {
+      else if (but->emboss == UI_EMBOSS_NONE && !event->ctrl) {
         /* pass */
       }
       else {
