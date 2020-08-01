@@ -3091,34 +3091,73 @@ static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: snap curve points */
-  }
-  else {
-    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-      /* only editable and visible layers are considered */
-      if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
-        bGPDframe *gpf = gpl->actframe;
-        float diff_mat[4][4];
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* only editable and visible layers are considered */
+    if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
+      bGPDframe *gpf = gpl->actframe;
+      float diff_mat[4][4];
 
-        /* calculate difference matrix object */
-        BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
+      /* calculate difference matrix object */
+      BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
 
-        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-          bGPDspoint *pt;
-          int i;
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        /* skip strokes that are invalid for current view */
+        if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          continue;
+        }
+        /* check if the color is editable */
+        if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
+          continue;
+        }
 
-          /* skip strokes that are invalid for current view */
-          if (ED_gpencil_stroke_can_use(C, gps) == false) {
+        if (is_curve_edit) {
+          if (gps->editcurve == NULL) {
             continue;
           }
-          /* check if the color is editable */
-          if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
-            continue;
+          float inv_diff_mat[4][4];
+          invert_m4_m4_safe(inv_diff_mat, diff_mat);
+
+          bGPDcurve *gpc = gps->editcurve;
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+            BezTriple *bezt = &gpc_pt->bezt;
+            if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+              float tmp0[3], tmp1[3], tmp2[3], offset[3];
+              mul_v3_m4v3(tmp0, diff_mat, bezt->vec[0]);
+              mul_v3_m4v3(tmp1, diff_mat, bezt->vec[1]);
+              mul_v3_m4v3(tmp2, diff_mat, bezt->vec[2]);
+
+              /* calculate the offset vector */
+              offset[0] = gridf * floorf(0.5f + tmp1[0] / gridf) - tmp1[0];
+              offset[1] = gridf * floorf(0.5f + tmp1[1] / gridf) - tmp1[1];
+              offset[2] = gridf * floorf(0.5f + tmp1[2] / gridf) - tmp1[2];
+
+              /* shift bezTriple */
+              add_v3_v3(bezt->vec[0], offset);
+              add_v3_v3(bezt->vec[1], offset);
+              add_v3_v3(bezt->vec[2], offset);
+
+              mul_v3_m4v3(tmp0, inv_diff_mat, bezt->vec[0]);
+              mul_v3_m4v3(tmp1, inv_diff_mat, bezt->vec[1]);
+              mul_v3_m4v3(tmp2, inv_diff_mat, bezt->vec[2]);
+              copy_v3_v3(bezt->vec[0], tmp0);
+              copy_v3_v3(bezt->vec[1], tmp1);
+              copy_v3_v3(bezt->vec[2], tmp2);
+
+              changed = true;
+            }
           }
 
+          if (changed) {
+            BKE_gpencil_editcurve_recalculate_handles(gps);
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+        else {
           // TODO: if entire stroke is selected, offset entire stroke by same amount?
-          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+          for (int i = 0; i < gps->totpoints; i++) {
+            bGPDspoint *pt = &gps->points[i];
             /* only if point is selected */
             if (pt->flag & GP_SPOINT_SELECT) {
               /* apply parent transformations */
