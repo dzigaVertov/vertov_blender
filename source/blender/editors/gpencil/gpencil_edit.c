@@ -1167,6 +1167,54 @@ static void gpencil_add_move_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gp
   }
 }
 
+static void gpencil_curve_extrude_points(bGPdata *gpd,
+                                         bGPDframe *gpf,
+                                         bGPDstroke *gps,
+                                         bGPDcurve *gpc)
+{
+  const int old_num_points = gpc->tot_curve_points;
+  const bool first_select = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
+  const bool last_select = gpc->curve_points[old_num_points - 1].flag & GP_CURVE_POINT_SELECT;
+
+  if (first_select || last_select) {
+    int new_num_points = old_num_points;
+
+    if (first_select) {
+      new_num_points++;
+    }
+    if (last_select) {
+      new_num_points++;
+    }
+
+    /* Grow the array */
+    gpc->tot_curve_points = new_num_points;
+    gpc->curve_points = MEM_recallocN(gpc->curve_points, sizeof(bGPDcurve_point) * new_num_points);
+
+    if (first_select) {
+      /* shift points by one */
+      memmove(
+          &gpc->curve_points[1], &gpc->curve_points[0], sizeof(bGPDcurve_point) * old_num_points);
+
+      bGPDcurve_point *old_first = &gpc->curve_points[1];
+
+      old_first->flag &= GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&old_first->bezt);
+    }
+
+    if (last_select) {
+      bGPDcurve_point *old_last = &gpc->curve_points[gpc->tot_curve_points - 2];
+      bGPDcurve_point *new_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+      memcpy(new_last, old_last, sizeof(bGPDcurve_point));
+
+      old_last->flag &= GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&old_last->bezt);
+    }
+
+    gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
+  }
+}
+
 static int gpencil_extrude_exec(bContext *C, wmOperator *op)
 {
   Object *obact = CTX_data_active_object(C);
@@ -1181,40 +1229,46 @@ static int gpencil_extrude_exec(bContext *C, wmOperator *op)
   }
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: do curve extude */
-  }
-  else {
-    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+    bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
-      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
-        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
-          if (gpf == NULL) {
+    for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
+      if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+        if (gpf == NULL) {
+          continue;
+        }
+
+        for (gps = gpf->strokes.first; gps; gps = gps->next) {
+          /* skip strokes that are invalid for current view */
+          if (ED_gpencil_stroke_can_use(C, gps) == false) {
             continue;
           }
 
-          for (gps = gpf->strokes.first; gps; gps = gps->next) {
-            /* skip strokes that are invalid for current view */
-            if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          if (is_curve_edit) {
+            if (gps->editcurve == NULL) {
               continue;
             }
-
-            if (gps->flag & GP_STROKE_SELECT) {
-              gpencil_add_move_points(gpd, gpf, gps);
-
-              changed = true;
+            bGPDcurve *gpc = gps->editcurve;
+            if (gpc->flag & GP_CURVE_SELECT) {
+              gpencil_curve_extrude_points(gpd, gpf, gps, gpc);
             }
           }
-          /* if not multiedit, exit loop*/
-          if (!is_multiedit) {
-            break;
+          else {
+            if (gps->flag & GP_STROKE_SELECT) {
+              gpencil_add_move_points(gpd, gpf, gps);
+            }
           }
+
+          changed = true;
+        }
+        /* if not multiedit, exit loop*/
+        if (!is_multiedit) {
+          break;
         }
       }
     }
-    CTX_DATA_END;
   }
+  CTX_DATA_END;
 
   if (changed) {
     /* updates */
