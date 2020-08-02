@@ -472,7 +472,7 @@ static void editmesh_mirror_data_calc(BMEditMesh *em,
   BMIter iter;
   int i, flag, totvert = bm->totvert;
 
-  vert_map = MEM_mallocN(totvert * sizeof(*vert_map), __func__);
+  vert_map = MEM_callocN(totvert * sizeof(*vert_map), __func__);
 
   float select_sum[3] = {0};
   BM_ITER_MESH_INDEX (eve, &iter, bm, BM_VERTS_OF_MESH, i) {
@@ -498,7 +498,8 @@ static void editmesh_mirror_data_calc(BMEditMesh *em,
 
   uint mirror_elem_len = 0;
   int *index[3] = {NULL, NULL, NULL};
-  bool test_selected_only = use_select && (mirror_axis[0] + mirror_axis[1] + mirror_axis[2]) == 1;
+  bool is_single_mirror_axis = (mirror_axis[0] + mirror_axis[1] + mirror_axis[2]) == 1;
+  bool test_selected_only = use_select && is_single_mirror_axis;
   for (int a = 0; a < 3; a++) {
     if (!mirror_axis[a]) {
       continue;
@@ -523,13 +524,23 @@ static void editmesh_mirror_data_calc(BMEditMesh *em,
       if (!is_in_quadrant_v3(eve->co, quadrant, TRANSFORM_MAXDIST_MIRROR)) {
         continue;
       }
+      if (vert_map[i_mirr].flag != 0) {
+        /* One mirror per element.
+         * It can happen when vertices occupy the same position. */
+        continue;
+      }
 
       vert_map[i_mirr] = (struct MirrorDataVert){i, flag};
       mirror_elem_len++;
     }
   }
 
-  if (mirror_elem_len) {
+  if (!mirror_elem_len) {
+    MEM_freeN(vert_map);
+    vert_map = NULL;
+  }
+  else if (!is_single_mirror_axis) {
+    /* Adjustment for elements that are mirrors of mirrored elements. */
     for (int a = 0; a < 3; a++) {
       if (!mirror_axis[a]) {
         continue;
@@ -550,10 +561,6 @@ static void editmesh_mirror_data_calc(BMEditMesh *em,
         }
       }
     }
-  }
-  else {
-    MEM_freeN(vert_map);
-    vert_map = NULL;
   }
 
   MEM_SAFE_FREE(index[0]);
@@ -1026,8 +1033,10 @@ static void mesh_customdatacorrect_free_cb(struct TransInfo *UNUSED(t),
 
 #  define FACE_SUBSTITUTE_INDEX INT_MIN
 
-/* Search for a neighboring face with area and preferably without selected vertex.
- * Used to replace arealess faces in customdata correction. */
+/**
+ * Search for a neighboring face with area and preferably without selected vertex.
+ * Used to replace area-less faces in custom-data correction.
+ */
 static BMFace *mesh_customdatacorrect_find_best_face_substitute(BMFace *f)
 {
   BMFace *best_face = NULL;
@@ -1094,10 +1103,11 @@ static BMFace *mesh_customdatacorrect_face_substitute_get(BMFace *f_copy)
 #endif /* USE_FACE_SUBSTITUTE */
 
 static void mesh_customdatacorrect_init_vert(struct TransCustomDataLayer *tcld,
-                                             BMVert *v,
+                                             struct TransDataBasic *td,
                                              const int index)
 {
   BMesh *bm = tcld->bm;
+  BMVert *v = td->extra;
   BMIter liter;
   int j, l_num;
   float *loop_weights;
@@ -1149,7 +1159,7 @@ static void mesh_customdatacorrect_init_vert(struct TransCustomDataLayer *tcld,
       merge_data->cd_loop_groups = NULL;
     }
 
-    BLI_ghash_insert(tcld->merge_group.origverts, v, merge_data);
+    BLI_ghash_insert(tcld->merge_group.origverts, v, td);
   }
 }
 
@@ -1243,14 +1253,12 @@ static void mesh_customdatacorrect_init_container(TransDataContainer *tc,
 
     TransData *tob = tc->data;
     for (int j = tc->data_len; j--; tob++, i++) {
-      BMVert *v = tob->extra;
-      mesh_customdatacorrect_init_vert(tcld, v, i);
+      mesh_customdatacorrect_init_vert(tcld, (TransDataBasic *)tob, i);
     }
 
     TransDataMirror *td_mirror = tc->data_mirror;
     for (int j = tc->data_mirror_len; j--; td_mirror++, i++) {
-      BMVert *v = td_mirror->extra;
-      mesh_customdatacorrect_init_vert(tcld, v, i);
+      mesh_customdatacorrect_init_vert(tcld, (TransDataBasic *)td_mirror, i);
     }
   }
 

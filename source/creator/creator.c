@@ -295,7 +295,7 @@ int main(int argc,
         break;
       }
     }
-    MEM_initialize_memleak_detection();
+    MEM_init_memleak_detection();
   }
 
 #ifdef BUILD_DATE
@@ -488,7 +488,7 @@ int main(int argc,
 
 #ifdef WITH_FREESTYLE
   /* Initialize Freestyle. */
-  FRS_initialize();
+  FRS_init();
   FRS_set_context(C);
 #endif
 
