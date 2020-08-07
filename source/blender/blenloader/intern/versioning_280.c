@@ -190,7 +190,7 @@ static void do_version_workspaces_create_from_screens(Main *bmain)
 static void do_version_area_change_space_to_space_action(ScrArea *area, const Scene *scene)
 {
   SpaceType *stype = BKE_spacetype_from_id(SPACE_ACTION);
-  SpaceAction *saction = (SpaceAction *)stype->new (area, scene);
+  SpaceAction *saction = (SpaceAction *)stype->create(area, scene);
   ARegion *region_channels;
 
   /* Properly free current regions */
@@ -1201,7 +1201,7 @@ static void do_version_fcurve_hide_viewport_fix(struct ID *UNUSED(id),
                                                 struct FCurve *fcu,
                                                 void *UNUSED(user_data))
 {
-  if (strcmp(fcu->rna_path, "hide")) {
+  if (strcmp(fcu->rna_path, "hide") != 0) {
     return;
   }
 
@@ -1792,6 +1792,7 @@ static void do_versions_seq_set_cache_defaults(Editing *ed)
   ed->recycle_max_cost = 10.0f;
 }
 
+/* NOLINTNEXTLINE: readability-function-size */
 void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 {
   bool use_collection_compat_28 = true;
@@ -1958,7 +1959,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
           GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
           if ((gset) && (gset->cur_falloff == NULL)) {
             gset->cur_falloff = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-            BKE_curvemapping_initialize(gset->cur_falloff);
+            BKE_curvemapping_init(gset->cur_falloff);
             BKE_curvemap_reset(gset->cur_falloff->cm,
                                &gset->cur_falloff->clipr,
                                CURVE_PRESET_GAUSS,
@@ -3371,7 +3372,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
         GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
         if ((gset) && (gset->cur_primitive == NULL)) {
           gset->cur_primitive = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
-          BKE_curvemapping_initialize(gset->cur_primitive);
+          BKE_curvemapping_init(gset->cur_primitive);
           BKE_curvemap_reset(gset->cur_primitive->cm,
                              &gset->cur_primitive->clipr,
                              CURVE_PRESET_BELL,
@@ -4767,7 +4768,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (mmd->curve_intensity == NULL) {
                 mmd->curve_intensity = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
                 if (mmd->curve_intensity) {
-                  BKE_curvemapping_initialize(mmd->curve_intensity);
+                  BKE_curvemapping_init(mmd->curve_intensity);
                 }
               }
               break;
@@ -4778,7 +4779,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (mmd->curve_intensity == NULL) {
                 mmd->curve_intensity = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
                 if (mmd->curve_intensity) {
-                  BKE_curvemapping_initialize(mmd->curve_intensity);
+                  BKE_curvemapping_init(mmd->curve_intensity);
                 }
               }
               break;
@@ -4788,7 +4789,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (mmd->curve_intensity == NULL) {
                 mmd->curve_intensity = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
                 if (mmd->curve_intensity) {
-                  BKE_curvemapping_initialize(mmd->curve_intensity);
+                  BKE_curvemapping_init(mmd->curve_intensity);
                 }
               }
               break;
@@ -4798,7 +4799,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (mmd->curve_intensity == NULL) {
                 mmd->curve_intensity = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
                 if (mmd->curve_intensity) {
-                  BKE_curvemapping_initialize(mmd->curve_intensity);
+                  BKE_curvemapping_init(mmd->curve_intensity);
                 }
               }
               break;
@@ -4808,7 +4809,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (mmd->curve_intensity == NULL) {
                 mmd->curve_intensity = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
                 if (mmd->curve_intensity) {
-                  BKE_curvemapping_initialize(mmd->curve_intensity);
+                  BKE_curvemapping_init(mmd->curve_intensity);
                 }
               }
               break;

@@ -20,15 +20,16 @@
  * \ingroup draw
  */
 
-#ifndef __DRAW_COMMON_H__
-#define __DRAW_COMMON_H__
+#pragma once
 
 struct DRWPass;
 struct DRWShadingGroup;
 struct GPUMaterial;
 struct ModifierData;
+struct FluidModifierData;
 struct Object;
 struct ParticleSystem;
+struct RegionView3D;
 struct ViewLayer;
 
 #define UBO_FIRST_COLOR colorWire
@@ -159,14 +160,14 @@ void DRW_globals_update(void);
 void DRW_globals_free(void);
 
 struct DRWView *DRW_view_create_with_zoffset(const struct DRWView *parent_view,
-                                             const RegionView3D *rv3d,
+                                             const struct RegionView3D *rv3d,
                                              float offset);
 
 int DRW_object_wire_theme_get(struct Object *ob, struct ViewLayer *view_layer, float **r_color);
 float *DRW_color_background_blend_get(int theme_id);
 
-bool DRW_object_is_flat(Object *ob, int *r_axis);
-bool DRW_object_axis_orthogonal_to_view(Object *ob, int axis);
+bool DRW_object_is_flat(struct Object *ob, int *r_axis);
+bool DRW_object_axis_orthogonal_to_view(struct Object *ob, int axis);
 
 /* draw_hair.c */
 
@@ -188,6 +189,16 @@ void DRW_hair_init(void);
 void DRW_hair_update(void);
 void DRW_hair_free(void);
 
+/* draw_fluid.c */
+
+/* Fluid simulation.  */
+void DRW_smoke_ensure(struct FluidModifierData *fmd, int highres);
+void DRW_smoke_ensure_coba_field(struct FluidModifierData *fmd);
+void DRW_smoke_ensure_velocity(struct FluidModifierData *fmd);
+
+void DRW_smoke_free(struct FluidModifierData *fmd);
+void DRW_smoke_free_velocity(struct FluidModifierData *fmd);
+
 /* draw_common.c */
 struct DRW_Global {
   /** If needed, contains all global/Theme colors
@@ -203,5 +214,3 @@ struct DRW_Global {
   struct GPUUniformBuffer *view_ubo;
 };
 extern struct DRW_Global G_draw;
-
-#endif /* __DRAW_COMMON_H__ */

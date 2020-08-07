@@ -658,6 +658,7 @@ static void do_versions_nodetree_customnodes(bNodeTree *ntree, int UNUSED(is_gro
   }
 }
 
+/* NOLINTNEXTLINE: readability-function-size */
 void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *bmain)
 {
   if (bmain->versionfile < 260) {
@@ -1205,7 +1206,7 @@ void blo_do_versions_260(FileData *fd, Library *UNUSED(lib), Main *bmain)
               if (region->regiontype == RGN_TYPE_PREVIEW) {
                 if (region->alignment != RGN_ALIGN_NONE) {
                   region->flag |= RGN_FLAG_HIDDEN;
-                  region->v2d.flag &= ~V2D_IS_INITIALISED;
+                  region->v2d.flag &= ~V2D_IS_INIT;
                   region->alignment = RGN_ALIGN_NONE;
 
                   hide = true;

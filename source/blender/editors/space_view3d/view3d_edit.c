@@ -2500,7 +2500,10 @@ static bool viewdolly_offset_lock_check(bContext *C, wmOperator *op)
   return false;
 }
 
-static void view_dolly_to_vector_3d(ARegion *region, float orig_ofs[3], float dvec[3], float dfac)
+static void view_dolly_to_vector_3d(ARegion *region,
+                                    const float orig_ofs[3],
+                                    const float dvec[3],
+                                    float dfac)
 {
   RegionView3D *rv3d = region->regiondata;
   madd_v3_v3v3fl(rv3d->ofs, orig_ofs, dvec, -(1.0f - dfac));
@@ -4868,7 +4871,9 @@ void VIEW3D_OT_background_image_remove(wmOperatorType *ot)
  * Draw border or toggle off.
  * \{ */
 
-static void calc_local_clipping(float clip_local[6][4], BoundBox *clipbb, float mat[4][4])
+static void calc_local_clipping(float clip_local[6][4],
+                                const BoundBox *clipbb,
+                                const float mat[4][4])
 {
   BoundBox clipbb_local;
   float imat[4][4];
@@ -4883,7 +4888,7 @@ static void calc_local_clipping(float clip_local[6][4], BoundBox *clipbb, float 
   ED_view3d_clipping_calc_from_boundbox(clip_local, &clipbb_local, is_negative_m4(mat));
 }
 
-void ED_view3d_clipping_local(RegionView3D *rv3d, float mat[4][4])
+void ED_view3d_clipping_local(RegionView3D *rv3d, const float mat[4][4])
 {
   if (rv3d->rflag & RV3D_CLIPPING) {
     calc_local_clipping(rv3d->clip_local, rv3d->clipbb, mat);

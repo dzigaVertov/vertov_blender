@@ -803,9 +803,8 @@ GPUBatch *DRW_mesh_batch_cache_get_loose_edges(Mesh *me)
   if (cache->no_loose_wire) {
     return NULL;
   }
-  else {
-    return DRW_batch_request(&cache->batch.loose_edges);
-  }
+
+  return DRW_batch_request(&cache->batch.loose_edges);
 }
 
 GPUBatch *DRW_mesh_batch_cache_get_surface_weights(Mesh *me)
@@ -1274,9 +1273,11 @@ void DRW_mesh_batch_cache_create_requested(struct TaskGraph *task_graph,
       FOREACH_MESH_BUFFER_CACHE (cache, mbuffercache) {
         GPU_VERTBUF_DISCARD_SAFE(mbuffercache->vbo.edituv_data);
         GPU_VERTBUF_DISCARD_SAFE(mbuffercache->vbo.fdots_uv);
+        GPU_VERTBUF_DISCARD_SAFE(mbuffercache->vbo.fdots_edituv_data);
         GPU_INDEXBUF_DISCARD_SAFE(mbuffercache->ibo.edituv_tris);
         GPU_INDEXBUF_DISCARD_SAFE(mbuffercache->ibo.edituv_lines);
         GPU_INDEXBUF_DISCARD_SAFE(mbuffercache->ibo.edituv_points);
+        GPU_INDEXBUF_DISCARD_SAFE(mbuffercache->ibo.edituv_fdots);
       }
       /* We only clear the batches as they may already have been
        * referenced. */

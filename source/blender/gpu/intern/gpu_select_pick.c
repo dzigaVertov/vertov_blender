@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "GPU_draw.h"
 #include "GPU_glew.h"
 #include "GPU_immediate.h"
 #include "GPU_select.h"
@@ -205,12 +204,11 @@ static int depth_id_cmp(const void *v1, const void *v2)
   if (d1->id < d2->id) {
     return -1;
   }
-  else if (d1->id > d2->id) {
+  if (d1->id > d2->id) {
     return 1;
   }
-  else {
-    return 0;
-  }
+
+  return 0;
 }
 
 static int depth_cmp(const void *v1, const void *v2)
@@ -219,12 +217,11 @@ static int depth_cmp(const void *v1, const void *v2)
   if (d1->depth < d2->depth) {
     return -1;
   }
-  else if (d1->depth > d2->depth) {
+  if (d1->depth > d2->depth) {
     return 1;
   }
-  else {
-    return 0;
-  }
+
+  return 0;
 }
 
 /* depth sorting */

@@ -74,7 +74,6 @@
 #include "RNA_access.h"
 #include "RNA_define.h"
 
-#include "GPU_draw.h"
 #include "GPU_immediate.h"
 #include "GPU_state.h"
 
@@ -182,7 +181,7 @@ void imapaint_image_update(
     int h = imapaintpartial.y2 - imapaintpartial.y1;
     if (w && h) {
       /* Testing with partial update in uv editor too */
-      GPU_paint_update_image(image, iuser, imapaintpartial.x1, imapaintpartial.y1, w, h);
+      BKE_image_update_gputexture(image, iuser, imapaintpartial.x1, imapaintpartial.y1, w, h);
     }
   }
 }
@@ -1164,9 +1163,9 @@ void ED_object_texture_paint_mode_enter_ex(Main *bmain, Scene *scene, Object *ob
   BKE_paint_toolslots_brush_validate(bmain, &imapaint->paint);
 
   if (U.glreslimit != 0) {
-    GPU_free_images(bmain);
+    BKE_image_free_all_gputextures(bmain);
   }
-  GPU_paint_set_mipmap(bmain, 0);
+  BKE_image_paint_set_mipmap(bmain, 0);
 
   toggle_paint_cursor(scene, true);
 
@@ -1189,9 +1188,9 @@ void ED_object_texture_paint_mode_exit_ex(Main *bmain, Scene *scene, Object *ob)
   ob->mode &= ~OB_MODE_TEXTURE_PAINT;
 
   if (U.glreslimit != 0) {
-    GPU_free_images(bmain);
+    BKE_image_free_all_gputextures(bmain);
   }
-  GPU_paint_set_mipmap(bmain, 1);
+  BKE_image_paint_set_mipmap(bmain, 1);
   toggle_paint_cursor(scene, false);
 
   Mesh *me = BKE_mesh_from_object(ob);
@@ -1334,7 +1333,7 @@ void ED_imapaint_bucket_fill(struct bContext *C,
 
     ED_image_undo_push_begin(op->type->name, PAINT_MODE_TEXTURE_2D);
 
-    float mouse_init[2] = {mouse[0], mouse[1]};
+    const float mouse_init[2] = {mouse[0], mouse[1]};
     paint_2d_bucket_fill(C, color, NULL, mouse_init, NULL, NULL);
 
     ED_image_undo_push_end();

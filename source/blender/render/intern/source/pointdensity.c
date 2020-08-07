@@ -557,7 +557,7 @@ static float density_falloff(PointDensityRangeData *pdr, int index, float square
   }
 
   if (pdr->density_curve && dist != 0.0f) {
-    BKE_curvemapping_initialize(pdr->density_curve);
+    BKE_curvemapping_init(pdr->density_curve);
     density = BKE_curvemapping_evaluateF(pdr->density_curve, 0, density / dist) * dist;
   }
 
@@ -868,7 +868,7 @@ void RE_point_density_minmax(struct Depsgraph *depsgraph,
     particle_system_minmax(depsgraph, scene, object, psys, pd->radius, r_min, r_max);
   }
   else {
-    float radius[3] = {pd->radius, pd->radius, pd->radius};
+    const float radius[3] = {pd->radius, pd->radius, pd->radius};
     BoundBox *bb = BKE_object_boundbox_get(object);
 
     if (bb != NULL) {

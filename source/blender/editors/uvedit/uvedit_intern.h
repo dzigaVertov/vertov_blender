@@ -21,8 +21,7 @@
  * \ingroup eduv
  */
 
-#ifndef __UVEDIT_INTERN_H__
-#define __UVEDIT_INTERN_H__
+#pragma once
 
 struct BMFace;
 struct BMLoop;
@@ -88,6 +87,15 @@ bool uv_find_nearest_face_multi(struct Scene *scene,
                                 const float co[2],
                                 struct UvNearestHit *hit_final);
 
+BMLoop *uv_find_nearest_loop_from_vert(struct Scene *scene,
+                                       struct Object *obedit,
+                                       struct BMVert *v,
+                                       const float co[2]);
+BMLoop *uv_find_nearest_loop_from_edge(struct Scene *scene,
+                                       struct Object *obedit,
+                                       struct BMEdge *e,
+                                       const float co[2]);
+
 /* utility tool functions */
 
 void uvedit_live_unwrap_update(struct SpaceImage *sima,
@@ -138,5 +146,3 @@ void UV_OT_select_circle(struct wmOperatorType *ot);
 void UV_OT_select_more(struct wmOperatorType *ot);
 void UV_OT_select_less(struct wmOperatorType *ot);
 void UV_OT_select_overlap(struct wmOperatorType *ot);
-
-#endif /* __UVEDIT_INTERN_H__ */

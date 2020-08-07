@@ -21,8 +21,7 @@
  * \ingroup gpu
  */
 
-#ifndef __GPU_SHADER_H__
-#define __GPU_SHADER_H__
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,8 +85,6 @@ bool GPU_shader_transform_feedback_enable(GPUShader *shader, unsigned int vbo_id
 void GPU_shader_transform_feedback_disable(GPUShader *shader);
 
 int GPU_shader_get_program(GPUShader *shader);
-
-void *GPU_shader_get_interface(GPUShader *shader);
 
 void GPU_shader_set_srgb_uniform(const struct GPUShaderInterface *interface);
 
@@ -372,5 +369,3 @@ void GPU_shader_free_builtin_shaders(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __GPU_SHADER_H__ */

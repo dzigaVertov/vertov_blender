@@ -221,7 +221,7 @@ ViewLayer *BKE_view_layer_add(Scene *scene,
       view_layer_new = view_layer_add(name);
       BLI_addtail(&scene->view_layers, view_layer_new);
 
-      /* Initialise layercollections */
+      /* Initialize layer-collections. */
       BKE_layer_collection_sync(scene, view_layer_new);
       layer_collection_exclude_all(view_layer_new->layer_collections.first);
 
@@ -555,19 +555,17 @@ static bool layer_collection_hidden(ViewLayer *view_layer, LayerCollection *lc)
   if (lc->flag & LAYER_COLLECTION_HIDE || lc->collection->flag & COLLECTION_RESTRICT_VIEWPORT) {
     return true;
   }
-  else {
-    /* Restriction flags stay set, so we need to check parents */
-    CollectionParent *parent = lc->collection->parents.first;
 
-    if (parent) {
-      lc = BKE_layer_collection_first_from_scene_collection(view_layer, parent->collection);
+  /* Restriction flags stay set, so we need to check parents */
+  CollectionParent *parent = lc->collection->parents.first;
 
-      return lc && layer_collection_hidden(view_layer, lc);
-    }
-    else {
-      return false;
-    }
+  if (parent) {
+    lc = BKE_layer_collection_first_from_scene_collection(view_layer, parent->collection);
+
+    return lc && layer_collection_hidden(view_layer, lc);
   }
+
+  return false;
 
   return false;
 }
@@ -1610,10 +1608,9 @@ void BKE_view_layer_selected_editable_objects_iterator_begin(BLI_Iterator *iter,
       // First object is valid (selectable and not libdata) -> all good.
       return;
     }
-    else {
-      // Object is selectable but not editable -> search for another one.
-      BKE_view_layer_selected_editable_objects_iterator_next(iter);
-    }
+
+    // Object is selectable but not editable -> search for another one.
+    BKE_view_layer_selected_editable_objects_iterator_next(iter);
   }
 }
 

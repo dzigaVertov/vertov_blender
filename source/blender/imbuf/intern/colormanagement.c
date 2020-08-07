@@ -1399,9 +1399,8 @@ const char *IMB_colormanagement_get_float_colorspace(ImBuf *ibuf)
   if (ibuf->float_colorspace) {
     return ibuf->float_colorspace->name;
   }
-  else {
-    return IMB_colormanagement_role_colorspace_name_get(COLOR_ROLE_SCENE_LINEAR);
-  }
+
+  return IMB_colormanagement_role_colorspace_name_get(COLOR_ROLE_SCENE_LINEAR);
 }
 
 const char *IMB_colormanagement_get_rect_colorspace(ImBuf *ibuf)
@@ -1409,9 +1408,8 @@ const char *IMB_colormanagement_get_rect_colorspace(ImBuf *ibuf)
   if (ibuf->rect_colorspace) {
     return ibuf->rect_colorspace->name;
   }
-  else {
-    return IMB_colormanagement_role_colorspace_name_get(COLOR_ROLE_DEFAULT_BYTE);
-  }
+
+  return IMB_colormanagement_role_colorspace_name_get(COLOR_ROLE_DEFAULT_BYTE);
 }
 
 bool IMB_colormanagement_space_is_data(ColorSpace *colorspace)
@@ -3958,7 +3956,7 @@ static void curve_mapping_to_ocio_settings(CurveMapping *curve_mapping,
 {
   int i;
 
-  BKE_curvemapping_initialize(curve_mapping);
+  BKE_curvemapping_init(curve_mapping);
   BKE_curvemapping_premultiply(curve_mapping, false);
   BKE_curvemapping_table_RGBA(
       curve_mapping, &curve_mapping_settings->lut, &curve_mapping_settings->lut_size);

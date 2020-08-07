@@ -17,8 +17,7 @@
  * All rights reserved.
  */
 
-#ifndef __BKE_PAINT_H__
-#define __BKE_PAINT_H__
+#pragma once
 
 /** \file
  * \ingroup bke
@@ -42,6 +41,7 @@ struct EdgeSet;
 struct GHash;
 struct GridPaintMask;
 struct ImagePool;
+struct ListBase;
 struct MLoop;
 struct MLoopTri;
 struct MVert;
@@ -260,10 +260,20 @@ typedef struct SculptPoseIKChain {
 /* Cloth Brush */
 
 typedef struct SculptClothLengthConstraint {
-  int v1;
-  int v2;
+  /* Elements that are affected by the constraint. */
+  /* Element a should always be a mesh vertex with the index stored in elem_index_a as it is always
+   * deformed. Element b could be another vertex of the same mesh or any other position (arbitrary
+   * point, position for a previous state). In that case, elem_index_a and elem_index_b should be
+   * the same to avoid affecting two different vertices when solving the constraints.
+   * *elem_position points to the position which is owned by the element. */
+  int elem_index_a;
+  float *elem_position_a;
+
+  int elem_index_b;
+  float *elem_position_b;
 
   float length;
+  float strength;
 } SculptClothLengthConstraint;
 
 typedef struct SculptClothSimulation {
@@ -273,6 +283,11 @@ typedef struct SculptClothSimulation {
   int capacity_length_constraints;
   float *length_constraint_tweak;
 
+  /* Position anchors for deformation brushes. These positions are modified by the brush and the
+   * final positions of the simulated vertices are updated with constraints that use these points
+   * as targets. */
+  float (*deformation_pos)[3];
+
   float mass;
   float damping;
 
@@ -280,7 +295,9 @@ typedef struct SculptClothSimulation {
   float (*pos)[3];
   float (*init_pos)[3];
   float (*prev_pos)[3];
+  float (*last_iteration_pos)[3];
 
+  struct ListBase *collider_list;
 } SculptClothSimulation;
 
 typedef struct SculptPersistentBase {
@@ -317,6 +334,9 @@ typedef struct SculptSession {
     struct MultiresModifierData *modifier;
     int level;
   } multires;
+
+  /* Depsgraph for the Cloth Brush solver to get the colliders. */
+  struct Depsgraph *depsgraph;
 
   /* These are always assigned to base mesh data when using PBVH_FACES and PBVH_GRIDS. */
   struct MVert *mvert;
@@ -471,6 +491,10 @@ struct PBVH *BKE_sculpt_object_pbvh_ensure(struct Depsgraph *depsgraph, struct O
 
 void BKE_sculpt_bvh_update_from_ccg(struct PBVH *pbvh, struct SubdivCCG *subdiv_ccg);
 
+/* This ensure that all elements in the mesh (both vertices and grids) have their visibility
+ * updated according to the face sets. */
+void BKE_sculpt_sync_face_set_visibility(struct Mesh *mesh, struct SubdivCCG *subdiv_ccg);
+
 bool BKE_sculptsession_use_pbvh_draw(const struct Object *ob, const struct View3D *v3d);
 
 enum {
@@ -480,6 +504,4 @@ enum {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -123,9 +123,8 @@ static bool dependsOnTime(ModifierData *md)
   if (wmd->texture) {
     return BKE_texture_dependsOnTime(wmd->texture);
   }
-  else {
-    return false;
-  }
+
+  return false;
 }
 
 static void freeData(ModifierData *md)
@@ -236,7 +235,7 @@ static void warpModifier_do(WarpModifierData *wmd,
   }
 
   if (wmd->curfalloff) {
-    BKE_curvemapping_initialize(wmd->curfalloff);
+    BKE_curvemapping_init(wmd->curfalloff);
   }
 
   invert_m4_m4(obinv, ob->obmat);

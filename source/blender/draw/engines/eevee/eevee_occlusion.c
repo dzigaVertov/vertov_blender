@@ -53,17 +53,14 @@ extern char datatoc_effect_gtao_frag_glsl[];
 
 static void eevee_create_shader_occlusion(void)
 {
-  char *frag_str = BLI_string_joinN(datatoc_common_view_lib_glsl,
-                                    datatoc_common_uniforms_lib_glsl,
-                                    datatoc_bsdf_common_lib_glsl,
-                                    datatoc_ambient_occlusion_lib_glsl,
-                                    datatoc_effect_gtao_frag_glsl);
+  DRWShaderLibrary *lib = EEVEE_shader_lib_get();
 
-  e_data.gtao_sh = DRW_shader_create_fullscreen(frag_str, NULL);
-  e_data.gtao_layer_sh = DRW_shader_create_fullscreen(frag_str, "#define LAYERED_DEPTH\n");
-  e_data.gtao_debug_sh = DRW_shader_create_fullscreen(frag_str, "#define DEBUG_AO\n");
-
-  MEM_freeN(frag_str);
+  e_data.gtao_sh = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_gtao_frag_glsl, lib, NULL);
+  e_data.gtao_layer_sh = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_gtao_frag_glsl, lib, "#define LAYERED_DEPTH\n");
+  e_data.gtao_debug_sh = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_gtao_frag_glsl, lib, "#define DEBUG_AO\n");
 }
 
 int EEVEE_occlusion_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
@@ -77,7 +74,7 @@ int EEVEE_occlusion_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
   const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
   if (!e_data.dummy_horizon_tx) {
-    float pixel[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float pixel[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     e_data.dummy_horizon_tx = DRW_texture_create_2d(1, 1, GPU_RGBA8, DRW_TEX_WRAP, pixel);
   }
 
@@ -146,7 +143,7 @@ void EEVEE_occlusion_output_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata
     const eGPUTextureFormat texture_format = (tot_samples > 128) ? GPU_R32F : GPU_R16F;
 
     DefaultTextureList *dtxl = DRW_viewport_texture_list_get();
-    float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
     /* Should be enough precision for many samples. */
     DRW_texture_ensure_fullscreen_2d(&txl->ao_accum, texture_format, 0);

@@ -53,8 +53,7 @@
  *     posix-compliant.
  */
 
-#ifndef __IMB_IMBUF_H__
-#define __IMB_IMBUF_H__
+#pragma once
 
 /* for bool */
 #include "../blenlib/BLI_sys_types.h"
@@ -87,6 +86,12 @@ struct GSet;
  */
 struct ImageFormatData;
 struct Stereo3dFormat;
+
+/**
+ *
+ * \attention defined in GPU_texture.h
+ */
+struct GPUTexture;
 
 /**
  *
@@ -729,6 +734,25 @@ const char *IMB_ffmpeg_last_error(void);
 
 /**
  *
+ * \attention defined in util_gpu.c
+ */
+struct GPUTexture *IMB_create_gpu_texture(struct ImBuf *ibuf,
+                                          bool use_high_bitdepth,
+                                          bool use_premult);
+struct GPUTexture *IMB_touch_gpu_texture(
+    struct ImBuf *ibuf, int w, int h, int layers, bool use_high_bitdepth);
+void IMB_update_gpu_texture_sub(struct GPUTexture *tex,
+                                struct ImBuf *ibuf,
+                                int x,
+                                int y,
+                                int z,
+                                int w,
+                                int h,
+                                bool use_high_bitdepth,
+                                bool use_premult);
+
+/**
+ *
  * \attention defined in stereoimbuf.c
  */
 void IMB_stereo3d_write_dimensions(const char mode,
@@ -765,6 +789,4 @@ void IMB_ImBufFromStereo3d(struct Stereo3dFormat *s3d,
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

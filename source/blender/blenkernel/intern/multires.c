@@ -241,7 +241,7 @@ static void multires_mdisps_subdivide_hidden(MDisps *md, int new_level)
   md->hidden = subd;
 }
 
-static MDisps *multires_mdisps_initialize_hidden(Mesh *me, int level)
+static MDisps *multires_mdisps_init_hidden(Mesh *me, int level)
 {
   MDisps *mdisps = CustomData_add_layer(&me->ldata, CD_MDISPS, CD_CALLOC, NULL, me->totloop);
   int gridsize = BKE_ccg_gridsize(level);
@@ -407,15 +407,14 @@ int multires_get_level(const Scene *scene,
     return (scene != NULL) ? get_render_subsurf_level(&scene->r, mmd->renderlvl, true) :
                              mmd->renderlvl;
   }
-  else if (ob->mode == OB_MODE_SCULPT) {
+  if (ob->mode == OB_MODE_SCULPT) {
     return mmd->sculptlvl;
   }
-  else if (ignore_simplify) {
+  if (ignore_simplify) {
     return mmd->lvl;
   }
-  else {
-    return (scene != NULL) ? get_render_subsurf_level(&scene->r, mmd->lvl, false) : mmd->lvl;
-  }
+
+  return (scene != NULL) ? get_render_subsurf_level(&scene->r, mmd->lvl, false) : mmd->lvl;
 }
 
 void multires_set_tot_level(Object *ob, MultiresModifierData *mmd, int lvl)
@@ -553,7 +552,7 @@ static int get_levels_from_disps(Object *ob)
         if (md->totdisp == lvl_totdisp) {
           break;
         }
-        else if (md->totdisp < lvl_totdisp) {
+        if (md->totdisp < lvl_totdisp) {
           totlvl--;
         }
         else {
@@ -868,7 +867,7 @@ static void multires_subdivide_legacy(
 
   mdisps = CustomData_get_layer(&me->ldata, CD_MDISPS);
   if (!mdisps) {
-    mdisps = multires_mdisps_initialize_hidden(me, totlvl);
+    mdisps = multires_mdisps_init_hidden(me, totlvl);
   }
 
   if (mdisps->disps && !updateblock && lvl != 0) {

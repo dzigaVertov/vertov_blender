@@ -767,11 +767,12 @@ static void ui_apply_but_func(bContext *C, uiBut *but)
     after->rnapoin = but->rnapoin;
     after->rnaprop = but->rnaprop;
 
-    if (but->search != NULL) {
-      after->search_arg_free_fn = but->search->arg_free_fn;
-      after->search_arg = but->search->arg;
-      but->search->arg_free_fn = NULL;
-      but->search->arg = NULL;
+    if (but->type == UI_BTYPE_SEARCH_MENU) {
+      uiButSearch *search_but = (uiButSearch *)but;
+      after->search_arg_free_fn = search_but->arg_free_fn;
+      after->search_arg = search_but->arg;
+      search_but->arg_free_fn = NULL;
+      search_but->arg = NULL;
     }
 
     if (but->context) {
@@ -1047,7 +1048,18 @@ static void ui_apply_but_TEX(bContext *C, uiBut *but, uiHandleButtonData *data)
     but->rename_orig = data->origstr;
     data->origstr = NULL;
   }
+
+  void *orig_arg2 = but->func_arg2;
+
+  /* If arg2 isn't in use already, pass the active search item through it. */
+  if ((but->func_arg2 == NULL) && (but->type == UI_BTYPE_SEARCH_MENU)) {
+    uiButSearch *search_but = (uiButSearch *)but;
+    but->func_arg2 = search_but->item_active;
+  }
+
   ui_apply_but_func(C, but);
+
+  but->func_arg2 = orig_arg2;
 
   data->retval = but->retval;
   data->applied = true;
@@ -1382,6 +1394,9 @@ static void ui_multibut_states_apply(bContext *C, uiHandleButtonData *data, uiBl
 
 static bool ui_drag_toggle_but_is_supported(const uiBut *but)
 {
+  if (but->flag & UI_BUT_DISABLED) {
+    return false;
+  }
   if (ui_but_is_bool(but)) {
     return true;
   }
@@ -2084,6 +2099,7 @@ static void ui_apply_but(
   /* handle different types */
   switch (but->type) {
     case UI_BTYPE_BUT:
+    case UI_BTYPE_DECORATOR:
       ui_apply_but_BUT(C, but, data);
       break;
     case UI_BTYPE_TEXT:
@@ -3020,7 +3036,7 @@ static bool ui_textedit_insert_buf(uiBut *but,
 
 static bool ui_textedit_insert_ascii(uiBut *but, uiHandleButtonData *data, char ascii)
 {
-  char buf[2] = {ascii, '\0'};
+  const char buf[2] = {ascii, '\0'};
 
   if (UI_but_is_utf8(but) && (BLI_str_utf8_size(buf) == -1)) {
     printf(
@@ -3318,7 +3334,9 @@ static void ui_textedit_begin(bContext *C, uiBut *but, uiHandleButtonData *data)
 
   /* optional searchbox */
   if (but->type == UI_BTYPE_SEARCH_MENU) {
-    data->searchbox = but->search->create_fn(C, data->region, but);
+    uiButSearch *search_but = (uiButSearch *)but;
+
+    data->searchbox = search_but->popup_create_fn(C, data->region, search_but);
     ui_searchbox_update(C, data->searchbox, but, true); /* true = reset */
   }
 
@@ -5695,21 +5713,24 @@ static bool ui_numedit_but_UNITVEC(
   return changed;
 }
 
-static void ui_palette_set_active(uiBut *but)
+static void ui_palette_set_active(uiButColor *color_but)
 {
-  if ((int)(but->a1) == UI_PALETTE_COLOR) {
-    Palette *palette = (Palette *)but->rnapoin.owner_id;
-    PaletteColor *color = but->rnapoin.data;
+  if (color_but->is_pallete_color) {
+    Palette *palette = (Palette *)color_but->but.rnapoin.owner_id;
+    PaletteColor *color = color_but->but.rnapoin.data;
     palette->active_color = BLI_findindex(&palette->colors, color);
   }
 }
 
 static int ui_do_but_COLOR(bContext *C, uiBut *but, uiHandleButtonData *data, const wmEvent *event)
 {
+  BLI_assert(but->type == UI_BTYPE_COLOR);
+  uiButColor *color_but = (uiButColor *)but;
+
   if (data->state == BUTTON_STATE_HIGHLIGHT) {
     /* first handle click on icondrag type button */
     if (event->type == LEFTMOUSE && but->dragpoin && event->val == KM_PRESS) {
-      ui_palette_set_active(but);
+      ui_palette_set_active(color_but);
       if (ui_but_contains_point_px_icon(but, data->region, event)) {
         button_activate_state(C, but, BUTTON_STATE_WAIT_DRAG);
         data->dragstartx = event->x;
@@ -5719,7 +5740,7 @@ static int ui_do_but_COLOR(bContext *C, uiBut *but, uiHandleButtonData *data, co
     }
 #ifdef USE_DRAG_TOGGLE
     if (event->type == LEFTMOUSE && event->val == KM_PRESS) {
-      ui_palette_set_active(but);
+      ui_palette_set_active(color_but);
       button_activate_state(C, but, BUTTON_STATE_WAIT_DRAG);
       data->dragstartx = event->x;
       data->dragstarty = event->y;
@@ -5728,7 +5749,7 @@ static int ui_do_but_COLOR(bContext *C, uiBut *but, uiHandleButtonData *data, co
 #endif
     /* regular open menu */
     if (ELEM(event->type, LEFTMOUSE, EVT_PADENTER, EVT_RETKEY) && event->val == KM_PRESS) {
-      ui_palette_set_active(but);
+      ui_palette_set_active(color_but);
       button_activate_state(C, but, BUTTON_STATE_MENU_OPEN);
       return WM_UI_HANDLER_BREAK;
     }
@@ -5759,8 +5780,7 @@ static int ui_do_but_COLOR(bContext *C, uiBut *but, uiHandleButtonData *data, co
       ui_apply_but(C, but->block, but, data, true);
       return WM_UI_HANDLER_BREAK;
     }
-    if ((int)(but->a1) == UI_PALETTE_COLOR && event->type == EVT_DELKEY &&
-        event->val == KM_PRESS) {
+    if (color_but->is_pallete_color && (event->type == EVT_DELKEY) && (event->val == KM_PRESS)) {
       Palette *palette = (Palette *)but->rnapoin.owner_id;
       PaletteColor *color = but->rnapoin.data;
 
@@ -5791,7 +5811,7 @@ static int ui_do_but_COLOR(bContext *C, uiBut *but, uiHandleButtonData *data, co
     }
 
     if (event->type == LEFTMOUSE && event->val == KM_RELEASE) {
-      if ((int)(but->a1) == UI_PALETTE_COLOR) {
+      if (color_but->is_pallete_color) {
         if (!event->ctrl) {
           float color[3];
           Paint *paint = BKE_paint_get_active_from_context(C);
@@ -6952,7 +6972,7 @@ static bool ui_numedit_but_CURVEPROFILE(uiBlock *block,
     fy *= mval_factor;
 
     /* Move all selected points. */
-    float delta[2] = {fx, fy};
+    const float delta[2] = {fx, fy};
     for (a = 0; a < profile->path_len; a++) {
       /* Don't move the last and first control points. */
       if ((pts[a].flag & PROF_SELECT) && (a != 0) && (a != profile->path_len)) {
@@ -7126,7 +7146,7 @@ static int ui_do_but_CURVEPROFILE(
         dist_min_sq = square_f(U.dpi_fac * 8.0f); /* 8 pixel radius from each table point. */
 
         /* Loop through the path's high resolution table and find what's near the click. */
-        for (int i = 1; i <= PROF_N_TABLE(profile->path_len); i++) {
+        for (int i = 1; i <= PROF_TABLE_LEN(profile->path_len); i++) {
           copy_v2_v2(f_xy_prev, f_xy);
           BLI_rctf_transform_pt_v(&but->rect, &profile->view_rect, f_xy, &table[i].x);
 
@@ -7519,6 +7539,7 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 
   switch (but->type) {
     case UI_BTYPE_BUT:
+    case UI_BTYPE_DECORATOR:
       retval = ui_do_but_BUT(C, but, data, event);
       break;
     case UI_BTYPE_KEY_EVENT:
@@ -7594,13 +7615,7 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
       retval = ui_do_but_BUT(C, but, data, event);
       break;
     case UI_BTYPE_COLOR:
-      if (but->a1 == -1) {
-        /* signal to prevent calling up color picker */
-        retval = ui_do_but_EXIT(C, but, data, event);
-      }
-      else {
-        retval = ui_do_but_COLOR(C, but, data, event);
-      }
+      retval = ui_do_but_COLOR(C, but, data, event);
       break;
     case UI_BTYPE_UNITVEC:
       retval = ui_do_but_UNITVEC(C, block, but, data, event);
@@ -7997,6 +8012,9 @@ static void button_activate_init(bContext *C,
                                  uiButtonActivateType type)
 {
   uiHandleButtonData *data;
+
+  /* Only ever one active button! */
+  BLI_assert(ui_region_find_active_but(region) == NULL);
 
   /* setup struct */
   data = MEM_callocN(sizeof(uiHandleButtonData), "uiHandleButtonData");
@@ -8424,7 +8442,7 @@ void UI_context_update_anim_flag(const bContext *C)
         ui_but_anim_flag(but, &anim_eval_context);
         ui_but_override_flag(CTX_data_main(C), but);
         if (UI_but_is_decorator(but)) {
-          ui_but_anim_decorate_update_from_flag(but);
+          ui_but_anim_decorate_update_from_flag((uiButDecorator *)but);
         }
 
         ED_region_tag_redraw(region);
@@ -8900,6 +8918,11 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 
     /* for jumping to the next button with tab while text editing */
     if (post_but) {
+      /* The post_but still has previous ranges (without the changes in active button considered),
+       * needs refreshing the ranges. */
+      ui_but_range_set_soft(post_but);
+      ui_but_range_set_hard(post_but);
+
       button_activate_init(C, region, post_but, post_type);
     }
     else if (!((event->type == EVT_BUT_CANCEL) && (event->val == 1))) {

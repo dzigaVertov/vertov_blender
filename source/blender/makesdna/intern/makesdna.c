@@ -54,6 +54,7 @@
 #include "BLI_ghash.h"
 #include "BLI_memarena.h"
 #include "BLI_sys_types.h" /* for intptr_t support */
+#include "BLI_system.h"    /* for 'BLI_system_backtrace' stub. */
 #include "BLI_utildefines.h"
 
 #include "dna_utils.h"
@@ -98,6 +99,7 @@ static const char *includefiles[] = {
     "DNA_sdna_types.h",
     "DNA_fileglobal_types.h",
     "DNA_sequence_types.h",
+    "DNA_session_uuid_types.h",
     "DNA_effect_types.h",
     "DNA_outliner_types.h",
     "DNA_sound_types.h",
@@ -358,7 +360,7 @@ static int add_type(const char *str, int size)
   if (str[0] == 0) {
     return -1;
   }
-  else if (strchr(str, '*')) {
+  if (strchr(str, '*')) {
     /* note: this is valid C syntax but we can't parse, complain!
      * `struct SomeStruct* some_var;` <-- correct but we cant handle right now. */
     return -1;
@@ -1601,6 +1603,7 @@ int main(int argc, char **argv)
 #include "DNA_screen_types.h"
 #include "DNA_sdna_types.h"
 #include "DNA_sequence_types.h"
+#include "DNA_session_uuid_types.h"
 #include "DNA_shader_fx_types.h"
 #include "DNA_simulation_types.h"
 #include "DNA_sound_types.h"

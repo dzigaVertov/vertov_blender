@@ -28,7 +28,6 @@
 #include "BLI_utildefines.h"
 
 #include "GPU_batch.h"
-#include "GPU_draw.h"
 #include "GPU_extensions.h"
 #include "GPU_framebuffer.h"
 #include "GPU_shader.h"
@@ -128,9 +127,8 @@ static GPUTexture *framebuffer_get_depth_tex(GPUFrameBuffer *fb)
   if (fb->attachments[GPU_FB_DEPTH_ATTACHMENT].tex) {
     return fb->attachments[GPU_FB_DEPTH_ATTACHMENT].tex;
   }
-  else {
-    return fb->attachments[GPU_FB_DEPTH_STENCIL_ATTACHMENT].tex;
-  }
+
+  return fb->attachments[GPU_FB_DEPTH_STENCIL_ATTACHMENT].tex;
 }
 
 static GPUTexture *framebuffer_get_color_tex(GPUFrameBuffer *fb, int slot)
@@ -191,9 +189,8 @@ GPUFrameBuffer *GPU_framebuffer_active_get(void)
   if (ctx) {
     return gpu_context_active_framebuffer_get(ctx);
   }
-  else {
-    return 0;
-  }
+
+  return 0;
 }
 
 static void gpu_framebuffer_current_set(GPUFrameBuffer *fb)
@@ -262,7 +259,7 @@ static void gpu_framebuffer_texture_attach_ex(
   if ((attachment->tex == tex) && (attachment->mip == mip) && (attachment->layer == layer)) {
     return; /* Exact same texture already bound here. */
   }
-  else if (attachment->tex != NULL) {
+  if (attachment->tex != NULL) {
     GPU_framebuffer_texture_detach(fb, attachment->tex);
   }
 
@@ -415,7 +412,7 @@ static void gpu_framebuffer_update_attachments(GPUFrameBuffer *fb)
     if (GPU_FB_ATTACHEMENT_IS_DIRTY(fb->dirty_flag, type) == false) {
       continue;
     }
-    else if (fb->attachments[type].tex != NULL) {
+    if (fb->attachments[type].tex != NULL) {
       gpu_framebuffer_attachment_attach(&fb->attachments[type], type);
 
       fb->multisample = (GPU_texture_samples(fb->attachments[type].tex) > 0);
@@ -451,7 +448,7 @@ static void gpu_framebuffer_update_attachments_and_fill_empty_slots(GPUFrameBuff
   BLI_assert(GPU_framebuffer_active_get() == fb);
 
   /* Update attachments */
-  for (int i_type = GPU_FB_MAX_ATTACHEMENT; i_type >= 0; --i_type) {
+  for (int i_type = GPU_FB_MAX_ATTACHEMENT - 1; i_type >= 0; --i_type) {
     GPUAttachmentType type = static_cast<GPUAttachmentType>(i_type);
     GPUTexture *tex = fb->attachments[type].tex;
 

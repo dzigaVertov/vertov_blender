@@ -85,7 +85,7 @@ struct GPUMaterial {
   bool has_surface_output;
 
   /* Only used by Eevee to know which bsdf are used. */
-  int flag;
+  eGPUMatFlag flag;
 
   /* Used by 2.8 pipeline */
   GPUUniformBuffer *ubo; /* UBOs for shader uniforms. */
@@ -311,12 +311,11 @@ static float eval_profile(float r, short falloff_type, float sharpness, float pa
   if (falloff_type == SHD_SUBSURFACE_BURLEY || falloff_type == SHD_SUBSURFACE_RANDOM_WALK) {
     return burley_profile(r, param) / BURLEY_TRUNCATE_CDF;
   }
-  else if (falloff_type == SHD_SUBSURFACE_CUBIC) {
+  if (falloff_type == SHD_SUBSURFACE_CUBIC) {
     return cubic_profile(r, param, sharpness);
   }
-  else {
-    return gaussian_profile(r, param);
-  }
+
+  return gaussian_profile(r, param);
 }
 
 /* Resolution for each sample of the precomputed kernel profile */
@@ -659,7 +658,8 @@ GPUMaterial *GPU_material_from_nodetree(Scene *scene,
                                         const char *geom_code,
                                         const char *frag_lib,
                                         const char *defines,
-                                        const char *name)
+                                        const char *name,
+                                        GPUMaterialEvalCallbackFn callback)
 {
   LinkData *link;
   bool has_volume_output, has_surface_output;
@@ -696,6 +696,9 @@ GPUMaterial *GPU_material_from_nodetree(Scene *scene,
   mat->has_volume_output = has_volume_output;
 
   if (mat->graph.outlink) {
+    if (callback) {
+      callback(mat, options, &vert_code, &geom_code, &frag_lib, &defines);
+    }
     /* HACK: this is only for eevee. We add the define here after the nodetree evaluation. */
     if (GPU_material_flag_get(mat, GPU_MATFLAG_SSS)) {
       defines = BLI_string_joinN(defines,

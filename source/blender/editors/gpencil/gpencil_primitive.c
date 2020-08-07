@@ -378,7 +378,10 @@ static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
 }
 
 /* Helper: set control point */
-static void gpencil_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4], int size)
+static void gpencil_primitive_set_cp(tGPDprimitive *tgpi,
+                                     const float p[2],
+                                     float color[4],
+                                     int size)
 {
   if (tgpi->flag == IN_PROGRESS) {
     return;
@@ -412,7 +415,8 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
   }
   else if (tgpi->type == GP_STROKE_POLYLINE) {
     BLI_strncpy(msg_str,
-                TIP_("Line: ESC to cancel, LMB to set, Enter/MMB to confirm, Shift to align"),
+                TIP_("Polyline: ESC to cancel, LMB to set, Enter/MMB to confirm, WHEEL/+- to "
+                     "adjust subdivision number, Shift to align"),
                 UI_MAX_DRAW_STR);
   }
   else if (tgpi->type == GP_STROKE_BOX) {
@@ -740,13 +744,13 @@ static void gpencil_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
   gpencil_session_validatebuffer(tgpi);
   gpencil_init_colors(tgpi);
   if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
-    BKE_curvemapping_initialize(ts->gp_sculpt.cur_primitive);
+    BKE_curvemapping_init(ts->gp_sculpt.cur_primitive);
   }
   if (brush_settings->flag & GP_BRUSH_USE_JITTER_PRESSURE) {
-    BKE_curvemapping_initialize(brush_settings->curve_jitter);
+    BKE_curvemapping_init(brush_settings->curve_jitter);
   }
-  if (brush_settings->flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
-    BKE_curvemapping_initialize(brush_settings->curve_strength);
+  if (brush_settings->flag & GP_BRUSH_USE_STRENGTH_PRESSURE) {
+    BKE_curvemapping_init(brush_settings->curve_strength);
   }
 
   /* get an array of depths, far depths are blended */
@@ -911,7 +915,7 @@ static void gpencil_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
     }
 
     /* color strength */
-    if (brush_settings->flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
+    if (brush_settings->flag & GP_BRUSH_USE_STRENGTH_PRESSURE) {
       float curvef = BKE_curvemapping_evaluateF(brush_settings->curve_strength, 0, curve_pressure);
       strength *= curvef;
       strength *= brush_settings->draw_strength;
@@ -1085,7 +1089,7 @@ static void gpencil_primitive_update(bContext *C, wmOperator *op, tGPDprimitive 
   gpencil_primitive_update_strokes(C, tgpi);
 }
 
-/* Initialise mouse points */
+/* Initialize mouse points. */
 static void gpencil_primitive_interaction_begin(tGPDprimitive *tgpi, const wmEvent *event)
 {
   copy_v2fl_v2i(tgpi->mval, event->mval);

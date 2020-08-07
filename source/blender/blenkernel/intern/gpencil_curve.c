@@ -50,7 +50,7 @@
 #include "DEG_depsgraph_query.h"
 
 /* Helper: Check materials with same color. */
-static int gpencil_check_same_material_color(Object *ob_gp, float color[4], Material **r_mat)
+static int gpencil_check_same_material_color(Object *ob_gp, const float color[4], Material **r_mat)
 {
   Material *ma = NULL;
   float color_cu[4];
@@ -363,7 +363,7 @@ static void gpencil_convert_spline(Main *bmain,
         BKE_nurb_makeCurve(nu, coord_array, NULL, NULL, NULL, resolu, sizeof(float[3]));
 
         /* Allocate memory for storage points. */
-        gps->totpoints = nurb_points - 1;
+        gps->totpoints = nurb_points;
         gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
 
         /* Add points. */

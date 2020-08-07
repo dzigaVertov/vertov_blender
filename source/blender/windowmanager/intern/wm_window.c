@@ -355,10 +355,8 @@ wmWindow *wm_window_copy_test(bContext *C,
     WM_event_add_notifier_ex(wm, CTX_wm_window(C), NC_WINDOW | NA_ADDED, NULL);
     return win_dst;
   }
-  else {
-    wm_window_close(C, wm, win_dst);
-    return NULL;
-  }
+  wm_window_close(C, wm, win_dst);
+  return NULL;
 }
 
 /** \} */
@@ -813,9 +811,7 @@ static bool wm_window_update_size_position(wmWindow *win)
     win->posy = posy;
     return true;
   }
-  else {
-    return false;
-  }
+  return false;
 }
 
 /**
@@ -840,11 +836,10 @@ wmWindow *WM_window_open(bContext *C, const rcti *rect)
   if (win->ghostwin) {
     return win;
   }
-  else {
-    wm_window_close(C, wm, win);
-    CTX_wm_window_set(C, win_prev);
-    return NULL;
-  }
+
+  wm_window_close(C, wm, win);
+  CTX_wm_window_set(C, win_prev);
+  return NULL;
 }
 
 /**
@@ -969,13 +964,12 @@ wmWindow *WM_window_open_temp(bContext *C,
     GHOST_SetTitle(win->ghostwin, title);
     return win;
   }
-  else {
-    /* very unlikely! but opening a new window can fail */
-    wm_window_close(C, wm, win);
-    CTX_wm_window_set(C, win_prev);
 
-    return NULL;
-  }
+  /* very unlikely! but opening a new window can fail */
+  wm_window_close(C, wm, win);
+  CTX_wm_window_set(C, win_prev);
+
+  return NULL;
 }
 
 /* ****************** Operators ****************** */
@@ -1206,7 +1200,7 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
     /* Ghost now can call this function for life resizes,
      * but it should return if WM didn't initialize yet.
      * Can happen on file read (especially full size window). */
-    if ((wm->initialized & WM_WINDOW_IS_INITIALIZED) == 0) {
+    if ((wm->initialized & WM_WINDOW_IS_INIT) == 0) {
       return 1;
     }
     if (!ghostwin) {
@@ -1215,15 +1209,13 @@ static int ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_ptr
       puts("<!> event has no window");
       return 1;
     }
-    else if (!GHOST_ValidWindow(g_system, ghostwin)) {
+    if (!GHOST_ValidWindow(g_system, ghostwin)) {
       /* XXX - should be checked, why are we getting an event here, and */
       /* what is it? */
       puts("<!> event has invalid window");
       return 1;
     }
-    else {
-      win = GHOST_GetWindowUserData(ghostwin);
-    }
+    win = GHOST_GetWindowUserData(ghostwin);
 
     switch (type) {
       case GHOST_kEventWindowDeactivate:

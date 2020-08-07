@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __NOD_DERIVED_NODE_TREE_HH__
-#define __NOD_DERIVED_NODE_TREE_HH__
+#pragma once
 
 /** \file
  * \ingroup nodes
@@ -172,7 +171,6 @@ using NodeTreeRefMap = Map<bNodeTree *, std::unique_ptr<const NodeTreeRef>>;
 class DerivedNodeTree : NonCopyable, NonMovable {
  private:
   LinearAllocator<> allocator_;
-  bNodeTree *btree_;
   Vector<DNode *> nodes_by_id_;
   Vector<DGroupInput *> group_inputs_;
   Vector<DParentNode *> parent_nodes_;
@@ -507,5 +505,3 @@ inline Span<const DGroupInput *> DerivedNodeTree::group_inputs() const
 }
 
 }  // namespace blender::nodes
-
-#endif /* __NOD_DERIVED_NODE_TREE_HH__ */

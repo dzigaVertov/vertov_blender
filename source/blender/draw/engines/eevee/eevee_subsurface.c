@@ -38,41 +38,19 @@ static struct {
   struct GPUShader *sss_sh[3];
 } e_data = {{NULL}}; /* Engine data */
 
-extern char datatoc_common_view_lib_glsl[];
-extern char datatoc_common_uniforms_lib_glsl[];
-extern char datatoc_lights_lib_glsl[];
-extern char datatoc_raytrace_lib_glsl[];
-extern char datatoc_octahedron_lib_glsl[];
-extern char datatoc_cubemap_lib_glsl[];
-extern char datatoc_bsdf_sampling_lib_glsl[];
-extern char datatoc_bsdf_common_lib_glsl[];
 extern char datatoc_effect_subsurface_frag_glsl[];
 extern char datatoc_effect_translucency_frag_glsl[];
 
 static void eevee_create_shader_subsurface(void)
 {
-  char *frag_str = BLI_string_joinN(datatoc_common_view_lib_glsl,
-                                    datatoc_common_uniforms_lib_glsl,
-                                    datatoc_effect_subsurface_frag_glsl);
+  DRWShaderLibrary *lib = EEVEE_shader_lib_get();
 
-  /* TODO(fclem) remove some of these dependencies. */
-  char *frag_translucent_str = BLI_string_joinN(datatoc_common_view_lib_glsl,
-                                                datatoc_common_uniforms_lib_glsl,
-                                                datatoc_bsdf_common_lib_glsl,
-                                                datatoc_bsdf_sampling_lib_glsl,
-                                                datatoc_raytrace_lib_glsl,
-                                                datatoc_octahedron_lib_glsl,
-                                                datatoc_cubemap_lib_glsl,
-                                                datatoc_lights_lib_glsl,
-                                                datatoc_effect_translucency_frag_glsl);
-
-  e_data.sss_sh[0] = DRW_shader_create_fullscreen(frag_str, "#define FIRST_PASS\n");
-  e_data.sss_sh[1] = DRW_shader_create_fullscreen(frag_str, "#define SECOND_PASS\n");
-  e_data.sss_sh[2] = DRW_shader_create_fullscreen(frag_translucent_str,
-                                                  "#define EEVEE_TRANSLUCENCY\n" SHADER_DEFINES);
-
-  MEM_freeN(frag_translucent_str);
-  MEM_freeN(frag_str);
+  e_data.sss_sh[0] = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_subsurface_frag_glsl, lib, "#define FIRST_PASS\n");
+  e_data.sss_sh[1] = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_subsurface_frag_glsl, lib, "#define SECOND_PASS\n");
+  e_data.sss_sh[2] = DRW_shader_create_fullscreen_with_shaderlib(
+      datatoc_effect_translucency_frag_glsl, lib, "#define EEVEE_TRANSLUCENCY\n" SHADER_DEFINES);
 }
 
 void EEVEE_subsurface_init(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *UNUSED(vedata))
@@ -188,7 +166,7 @@ void EEVEE_subsurface_output_init(EEVEE_ViewLayerData *UNUSED(sldata),
    * pass in look dev mode active. `texture_created` will make sure that newly created textures
    * are cleared. */
   if (effects->taa_current_sample == 1 || texture_created) {
-    float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     GPU_framebuffer_bind(fbl->sss_accum_fb);
     GPU_framebuffer_clear_color(fbl->sss_accum_fb, clear);
   }
@@ -304,7 +282,7 @@ void EEVEE_subsurface_data_render(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Dat
   EEVEE_EffectsInfo *effects = stl->effects;
 
   if ((effects->enabled_effects & EFFECT_SSS) != 0) {
-    float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     /* Clear sss_data texture only... can this be done in a more clever way? */
     GPU_framebuffer_bind(fbl->sss_clear_fb);
     GPU_framebuffer_clear_color(fbl->sss_clear_fb, clear);
@@ -342,7 +320,7 @@ void EEVEE_subsurface_compute(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
   EEVEE_EffectsInfo *effects = stl->effects;
 
   if ((effects->enabled_effects & EFFECT_SSS) != 0) {
-    float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
     DRW_stats_group_start("SSS");
 
