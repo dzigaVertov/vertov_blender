@@ -21,8 +21,7 @@
  * \ingroup edgpencil
  */
 
-#ifndef __GPENCIL_INTERN_H__
-#define __GPENCIL_INTERN_H__
+#pragma once
 
 #include "DNA_vec_types.h"
 
@@ -787,5 +786,3 @@ struct GP_EditableStrokes_Iter {
   (void)0
 
 /* ****************************************************** */
-
-#endif /* __GPENCIL_INTERN_H__ */

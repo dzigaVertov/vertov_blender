@@ -489,7 +489,7 @@ static void generate_geometry(
     /* Early exit */
     return;
   }
-  else if (ctime >= end_frame) {
+  if (ctime >= end_frame) {
     /* Past End - Animation finished. Display final result. */
     if (reverse) {
       /* 1) Reverse = Start with all, end with nothing.

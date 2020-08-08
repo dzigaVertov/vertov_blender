@@ -4034,7 +4034,7 @@ static int edbm_knife_cut_exec(bContext *C, wmOperator *op)
 
   /* the floating point coordinates of verts in screen space will be
    * stored in a hash table according to the vertices pointer */
-  screen_vert_coords = sco = MEM_mallocN(bm->totvert * sizeof(float) * 2, __func__);
+  screen_vert_coords = sco = MEM_mallocN(sizeof(float[2]) * bm->totvert, __func__);
 
   BM_ITER_MESH_INDEX (bv, &iter, bm, BM_VERTS_OF_MESH, i) {
     if (ED_view3d_project_float_object(region, bv->co, *sco, V3D_PROJ_TEST_CLIP_NEAR) !=
@@ -7219,7 +7219,7 @@ void MESH_OT_wireframe(wmOperatorType *ot)
   PropertyRNA *prop;
 
   /* identifiers */
-  ot->name = "Wire Frame";
+  ot->name = "Wireframe";
   ot->idname = "MESH_OT_wireframe";
   ot->description = "Create a solid wire-frame from faces";
 
