@@ -46,27 +46,6 @@
  *
  * \{ */
 
-static void createTransGPencil_curve_center_get(bGPDcurve *gpc, float r_center[3])
-{
-  zero_v3(r_center);
-  int tot_sel = 0;
-  for (int i = 0; i < gpc->tot_curve_points; i++) {
-    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-      BezTriple *bezt = &gpc_pt->bezt;
-      /* only allow rotation around control point for now... */
-      if (bezt->f2 & SELECT) {
-        add_v3_v3(r_center, bezt->vec[1]);
-        tot_sel++;
-      }
-    }
-  }
-
-  if (tot_sel > 0) {
-    mul_v3_fl(r_center, 1.0f / tot_sel);
-  }
-}
-
 static void createTransGPencil_center_get(bGPDstroke *gps, float r_center[3])
 {
   bGPDspoint *pt;
@@ -86,54 +65,69 @@ static void createTransGPencil_center_get(bGPDstroke *gps, float r_center[3])
   }
 }
 
-void createTransGPencil(bContext *C, TransInfo *t)
+static short get_bezt_sel_triple_flag(BezTriple *bezt, const bool handles_visible)
 {
-  if (t->data_container_len == 0) {
-    return;
+#define SEL_F1 (1 << 0)
+#define SEL_F2 (1 << 1)
+#define SEL_F3 (1 << 2)
+#define SEL_ALL ((1 << 0) | (1 << 1) | (1 << 2))
+
+  short flag = 0;
+
+  if (handles_visible) {
+    flag = ((bezt->f1 & SELECT) ? SEL_F1 : 0) | ((bezt->f2 & SELECT) ? SEL_F2 : 0) |
+           ((bezt->f3 & SELECT) ? SEL_F3 : 0);
+  }
+  else {
+    if (bezt->f2 & SELECT) {
+      flag = SEL_ALL;
+    }
   }
 
-  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-  const Scene *scene = CTX_data_scene(C);
-  ToolSettings *ts = scene->toolsettings;
-  Object *obact = CTX_data_active_object(C);
-  bGPdata *gpd = obact->data;
-  BLI_assert(gpd != NULL);
+  /* Special case for auto & aligned handles */
+  if (flag != SEL_ALL && flag & SEL_F2) {
+    if (ELEM(bezt->h1, HD_AUTO, HD_ALIGN) && ELEM(bezt->h2, HD_AUTO, HD_ALIGN)) {
+      flag = SEL_ALL;
+    }
+  }
 
-  TransData *td = NULL;
-  float mtx[3][3], smtx[3][3];
+#undef SEL_F1
+#undef SEL_F2
+#undef SEL_F3
+  return flag;
+}
 
-  const int cfra_scene = CFRA;
+static void createTransGPencil_curves(bContext *C,
+                                      TransInfo *t,
+                                      Depsgraph *depsgraph,
+                                      ToolSettings *ts,
+                                      Object *obact,
+                                      bGPdata *gpd,
+                                      const int cfra_scene,
+                                      const bool is_multiedit,
+                                      const bool use_multiframe_falloff,
+                                      const bool is_prop_edit,
+                                      const bool is_prop_edit_connected,
+                                      const bool is_scale_thickness)
+{
+#define SEL_F1 (1 << 0)
+#define SEL_F2 (1 << 1)
+#define SEL_F3 (1 << 2)
 
-  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-  const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
-                                      0;
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
-
-  const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
-  const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
-  const bool is_scale_thickness = ((t->mode == TFM_GPENCIL_SHRINKFATTEN) ||
-                                   (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_SCALE_THICKNESS));
+  View3D *v3d = t->view;
+  const bool handle_only_selected_visible = (v3d->overlay.handle_display == CURVE_HANDLE_SELECTED);
+  const bool handle_all_visible = (v3d->overlay.handle_display == CURVE_HANDLE_ALL);
 
   TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
-
-  /* .Grease Pencil Strokes to Transform Data.  */
   tc->data_len = 0;
 
-  /* initialize falloff curve */
-  if (is_multiedit) {
-    BKE_curvemapping_init(ts->gp_sculpt.cur_falloff);
-  }
-
-  /* First Pass: Count the number of data-points required for the strokes,
-   * (and additional info about the configuration - e.g. 2D/3D?).
-   */
+  /* Number of selected curve points */
+  int tot_curve_points = 0, tot_sel_curve_points = 0, tot_points = 0, tot_sel_points = 0;
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     /* Only editable and visible layers are considered. */
     if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
-      bGPDframe *gpf;
       bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
-
-      for (gpf = init_gpf; gpf; gpf = gpf->next) {
+      for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {
         if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
           LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
             /* skip strokes that are invalid for current view */
@@ -144,63 +138,305 @@ void createTransGPencil(bContext *C, TransInfo *t)
             if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
               continue;
             }
+            /* Check if stroke has an editcurve */
+            if (gps->editcurve == NULL) {
+              continue;
+            }
 
-            if (is_curve_edit && gps->editcurve != NULL) {
-              bGPDcurve *gpc = gps->editcurve;
-              if (is_prop_edit) {
-                if (is_prop_edit_connected) {
-                  if (gpc->flag & GP_CURVE_SELECT) {
-                    tc->data_len += gpc->tot_curve_points * 3;
-                  }
-                }
-                else {
-                  tc->data_len += gpc->tot_curve_points * 3;
-                }
+            bGPDcurve *gpc = gps->editcurve;
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+              BezTriple *bezt = &gpc_pt->bezt;
+              if (bezt->hide) {
+                continue;
               }
-              else {
-                for (int i = 0; i < gpc->tot_curve_points; i++) {
-                  bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-                  if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
-                    BezTriple *bezt = &gpc_pt->bezt;
-                    /* if control point is selected, treat handles as selected */
+
+              const bool handles_visible = (handle_all_visible ||
+                                            (handle_only_selected_visible &&
+                                             (gpc_pt->flag & GP_CURVE_POINT_SELECT)));
+
+              const short sel_flag = get_bezt_sel_triple_flag(bezt, handles_visible);
+              if (sel_flag & (SEL_F1 | SEL_F2 | SEL_F3)) {
+                if (sel_flag & SEL_F1) {
+                  tot_sel_points++;
+                }
+                if (sel_flag & SEL_F2) {
+                  tot_sel_points++;
+                }
+                if (sel_flag & SEL_F3) {
+                  tot_sel_points++;
+                }
+                tot_sel_curve_points++;
+              }
+
+              if (is_prop_edit) {
+                tot_points += 3;
+                tot_curve_points++;
+              }
+            }
+          }
+        }
+
+        /* If not multiedit out of loop. */
+        if (!is_multiedit) {
+          break;
+        }
+      }
+    }
+  }
+
+  int data_len_pt = 0;
+
+  if (is_prop_edit) {
+    tc->data_len = tot_points;
+    data_len_pt = tot_curve_points;
+  }
+  else {
+    tc->data_len = tot_sel_points;
+    data_len_pt = tot_sel_curve_points;
+  }
+
+  if (tc->data_len == 0) {
+    return;
+  }
+
+  transform_around_single_fallback_ex(t, data_len_pt);
+
+  tc->data = MEM_callocN(tc->data_len * sizeof(TransData), __func__);
+  TransData *td = tc->data;
+
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* Only editable and visible layers are considered. */
+    if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
+      const int cfra = (gpl->flag & GP_LAYER_FRAMELOCK) ? gpl->actframe->framenum : cfra_scene;
+      bGPDframe *gpf = gpl->actframe;
+      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+      float diff_mat[4][4], mtx[3][3];
+      float smtx[3][3];
+
+      /* Init multiframe falloff options. */
+      int f_init = 0;
+      int f_end = 0;
+
+      if (use_multiframe_falloff) {
+        BKE_gpencil_frame_range_selected(gpl, &f_init, &f_end);
+      }
+
+      if ((gpf->framenum != cfra) && (!is_multiedit)) {
+        gpf = BKE_gpencil_frame_addcopy(gpl, cfra);
+        /* in some weird situations (framelock enabled) return NULL */
+        if (gpf == NULL) {
+          continue;
+        }
+        if (!is_multiedit) {
+          init_gpf = gpf;
+        }
+      }
+
+      /* Calculate difference matrix. */
+      BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
+      copy_m3_m4(mtx, diff_mat);
+      pseudoinverse_m3_m3(smtx, mtx, PSEUDOINVERSE_EPSILON);
+
+      for (gpf = init_gpf; gpf; gpf = gpf->next) {
+        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+          /* If multi-frame and falloff, recalculate and save value. */
+          float falloff = 1.0f; /* by default no falloff */
+          if ((is_multiedit) && (use_multiframe_falloff)) {
+            /* Falloff depends on distance to active frame
+             * (relative to the overall frame range). */
+            falloff = BKE_gpencil_multiframe_falloff_calc(
+                gpf, gpl->actframe->framenum, f_init, f_end, ts->gp_sculpt.cur_falloff);
+          }
+
+          LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+            /* skip strokes that are invalid for current view */
+            if (ED_gpencil_stroke_can_use(C, gps) == false) {
+              continue;
+            }
+            /* Check if the color is editable. */
+            if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
+              continue;
+            }
+            /* Check if stroke has an editcurve */
+            if (gps->editcurve == NULL) {
+              continue;
+            }
+            TransData *head, *tail;
+            head = tail = td;
+
+            gps->runtime.multi_frame_falloff = falloff;
+
+            bGPDcurve *gpc = gps->editcurve;
+            const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+              BezTriple *bezt = &gpc_pt->bezt;
+              if (bezt->hide) {
+                continue;
+              }
+
+              TransDataCurveHandleFlags *hdata = NULL;
+              const bool handles_visible = (handle_all_visible ||
+                                            (handle_only_selected_visible &&
+                                             (gpc_pt->flag & GP_CURVE_POINT_SELECT)));
+              const short sel_flag = get_bezt_sel_triple_flag(bezt, handles_visible);
+              /* Iterate over bezier triple */
+              for (int j = 0; j < 3; j++) {
+                bool is_ctrl_point = j == 1;
+                if (is_prop_edit || sel_flag & (1 << j)) {
+                  copy_v3_v3(td->iloc, bezt->vec[j]);
+                  td->loc = bezt->vec[j];
+                  bool rotate_around_ctrl = !handles_visible ||
+                                            (t->around == V3D_AROUND_LOCAL_ORIGINS) ||
+                                            (bezt->f2 & SELECT);
+                  copy_v3_v3(td->center, bezt->vec[rotate_around_ctrl ? 1 : j]);
+
+                  if (!handles_visible || is_ctrl_point) {
                     if (bezt->f2 & SELECT) {
-                      tc->data_len += 3;
-                      continue;
+                      td->flag = TD_SELECTED;
                     }
-                    if (bezt->f1 & SELECT) {
-                      tc->data_len++;
-                    }
-                    if (bezt->f3 & SELECT) {
-                      tc->data_len++;
+                    else {
+                      td->flag = 0;
                     }
                   }
+                  else if (handles_visible) {
+                    if (BEZT_ISSEL_IDX(bezt, j)) {
+                      td->flag = TD_SELECTED;
+                    }
+                    else {
+                      td->flag = 0;
+                    }
+                  }
+
+                  td->ext = NULL;
+                  if (is_ctrl_point) {
+                    if (t->mode != TFM_MIRROR) {
+                      if (t->mode != TFM_GPENCIL_OPACITY) {
+                        if (is_scale_thickness) {
+                          td->val = &(gpc_pt->pressure);
+                          td->ival = gpc_pt->pressure;
+                        }
+                      }
+                      else {
+                        td->val = &(gpc_pt->strength);
+                        td->ival = gpc_pt->strength;
+                      }
+                    }
+                  }
+                  else {
+                    td->val = NULL;
+                  }
+
+                  if (hdata == NULL) {
+                    if (is_ctrl_point && ((sel_flag & SEL_F1 & SEL_F3) == 0)) {
+                      hdata = initTransDataCurveHandles(td, bezt);
+                    }
+                    else if (!is_ctrl_point) {
+                      hdata = initTransDataCurveHandles(td, bezt);
+                    }
+                  }
+
+                  td->extra = gps;
+                  td->ob = obact;
+
+                  copy_m3_m3(td->smtx, smtx);
+                  copy_m3_m3(td->mtx, mtx);
+                  copy_m3_m3(td->axismtx, mtx);
+
+                  td++;
+                  tail++;
                 }
               }
             }
-            else {
-              if (is_prop_edit) {
-                /* Proportional Editing... */
-                if (is_prop_edit_connected) {
-                  /* Connected only - so only if selected. */
-                  if (gps->flag & GP_STROKE_SELECT) {
-                    tc->data_len += gps->totpoints;
-                  }
-                }
-                else {
-                  /* Everything goes - connection status doesn't matter. */
+
+            if (is_prop_edit && (head != tail)) {
+              calc_distanceCurveVerts(head, tail - 1, is_cyclic);
+            }
+          }
+        }
+
+        /* If not multiedit out of loop. */
+        if (!is_multiedit) {
+          break;
+        }
+      }
+    }
+  }
+#undef SEL_F1
+#undef SEL_F2
+#undef SEL_F3
+}
+
+static void createTransGPencil_strokes(bContext *C,
+                                       TransInfo *t,
+                                       Depsgraph *depsgraph,
+                                       ToolSettings *ts,
+                                       Object *obact,
+                                       bGPdata *gpd,
+                                       const int cfra_scene,
+                                       const bool is_multiedit,
+                                       const bool use_multiframe_falloff,
+                                       const bool is_prop_edit,
+                                       const bool is_prop_edit_connected,
+                                       const bool is_scale_thickness)
+{
+  TransData *td = NULL;
+  float mtx[3][3], smtx[3][3];
+
+  TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_SINGLE(t);
+  /* == Grease Pencil Strokes to Transform Data ==
+   * Grease Pencil stroke points can be a mixture of 2D (screen-space),
+   * or 3D coordinates. However, they're always saved as 3D points.
+   * For now, we just do these without creating TransData2D for the 2D
+   * strokes. This may cause issues in future though.
+   */
+  tc->data_len = 0;
+
+  /* First Pass: Count the number of data-points required for the strokes,
+   * (and additional info about the configuration - e.g. 2D/3D?).
+   */
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* Only editable and visible layers are considered. */
+    if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
+      bGPDframe *gpf;
+      bGPDstroke *gps;
+      bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
+
+      for (gpf = init_gpf; gpf; gpf = gpf->next) {
+        if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {
+          for (gps = gpf->strokes.first; gps; gps = gps->next) {
+            /* skip strokes that are invalid for current view */
+            if (ED_gpencil_stroke_can_use(C, gps) == false) {
+              continue;
+            }
+            /* Check if the color is editable. */
+            if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
+              continue;
+            }
+
+            if (is_prop_edit) {
+              /* Proportional Editing... */
+              if (is_prop_edit_connected) {
+                /* Connected only - so only if selected. */
+                if (gps->flag & GP_STROKE_SELECT) {
                   tc->data_len += gps->totpoints;
                 }
               }
               else {
-                /* Only selected stroke points are considered. */
-                if (gps->flag & GP_STROKE_SELECT) {
-                  bGPDspoint *pt;
-                  int i;
+                /* Everything goes - connection status doesn't matter. */
+                tc->data_len += gps->totpoints;
+              }
+            }
+            else {
+              /* Only selected stroke points are considered. */
+              if (gps->flag & GP_STROKE_SELECT) {
+                bGPDspoint *pt;
+                int i;
 
-                  for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-                    if (pt->flag & GP_SPOINT_SELECT) {
-                      tc->data_len++;
-                    }
+                for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+                  if (pt->flag & GP_SPOINT_SELECT) {
+                    tc->data_len++;
                   }
                 }
               }
@@ -283,9 +519,7 @@ void createTransGPencil(bContext *C, TransInfo *t)
           LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
             TransData *head = td;
             TransData *tail = td;
-            bGPDcurve *gpc = gps->editcurve;
             bool stroke_ok;
-            int tot_points;
 
             /* skip strokes that are invalid for current view */
             if (ED_gpencil_stroke_can_use(C, gps) == false) {
@@ -295,210 +529,193 @@ void createTransGPencil(bContext *C, TransInfo *t)
             if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
               continue;
             }
-
-            if (is_curve_edit && gpc != NULL) {
-              if (is_prop_edit) {
-                if (is_prop_edit_connected) {
-                  stroke_ok = (gpc->flag & GP_CURVE_SELECT) != 0;
-                }
-                else {
-                  stroke_ok = true;
-                }
-              }
-              else {
-                stroke_ok = (gpc->flag & GP_CURVE_SELECT) != 0;
-              }
-              tot_points = gpc->tot_curve_points;
-            }
-            else {
-              /* What we need to include depends on proportional editing settings... */
-              if (is_prop_edit) {
-                if (is_prop_edit_connected) {
-                  /* A) "Connected" - Only those in selected strokes */
-                  stroke_ok = (gps->flag & GP_STROKE_SELECT) != 0;
-                }
-                else {
-                  /* B) All points, always */
-                  stroke_ok = true;
-                }
-              }
-              else {
-                /* C) Only selected points in selected strokes */
+            /* What we need to include depends on proportional editing settings... */
+            if (is_prop_edit) {
+              if (is_prop_edit_connected) {
+                /* A) "Connected" - Only those in selected strokes */
                 stroke_ok = (gps->flag & GP_STROKE_SELECT) != 0;
               }
-              tot_points = gps->totpoints;
+              else {
+                /* B) All points, always */
+                stroke_ok = true;
+              }
+            }
+            else {
+              /* C) Only selected points in selected strokes */
+              stroke_ok = (gps->flag & GP_STROKE_SELECT) != 0;
             }
 
             /* Do stroke... */
-            if (stroke_ok && tot_points > 0) {
-              float center[3];
-              bool point_ok;
+            if (stroke_ok && gps->totpoints) {
+              bGPDspoint *pt;
+              int i;
 
               /* save falloff factor */
               gps->runtime.multi_frame_falloff = falloff;
 
-              if (is_curve_edit) {
-                createTransGPencil_curve_center_get(gpc, center);
+              /* calculate stroke center */
+              float center[3];
+              createTransGPencil_center_get(gps, center);
 
-                for (int i = 0; i < tot_points; i++) {
-                  bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
-                  if (is_prop_edit) {
-                    point_ok = true;
-                  }
-                  else {
-                    point_ok = (gpc_pt->flag & GP_CURVE_POINT_SELECT) != 0;
-                  }
+              /* add all necessary points... */
+              for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+                bool point_ok;
 
-                  if (point_ok) {
-                    BezTriple *bezt = &gpc_pt->bezt;
-                    for (int j = 0; j < 3; j++) {
-                      td->flag = 0;
-                      /* always do transform if control point is selected or if proportional
-                       * editing is enabled. Otherwise only look at selected handles */
-                      if (bezt->f2 & SELECT || BEZT_ISSEL_IDX(bezt, j) || is_prop_edit) {
-                        copy_v3_v3(td->iloc, bezt->vec[j]);
-                        if ((gpc->flag & GP_CURVE_SELECT) &&
-                            (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
-                          copy_v3_v3(td->center, center);
-                        }
-                        else {
-                          copy_v3_v3(td->center, bezt->vec[j]);
-                        }
-
-                        td->loc = bezt->vec[j];
-                        td->flag |= TD_SELECTED;
-
-                        /* can only change thickness and strength if control point is selected */
-                        if (j == 1) {
-                          if (t->mode != TFM_MIRROR) {
-                            if (t->mode != TFM_GPENCIL_OPACITY) {
-                              if (is_scale_thickness) {
-                                td->val = &gpc_pt->pressure;
-                                td->ival = gpc_pt->pressure;
-                              }
-                            }
-                            else {
-                              td->val = &gpc_pt->strength;
-                              td->ival = gpc_pt->strength;
-                            }
-                          }
-                        }
-
-                        /* apply parent transformations */
-                        copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                        copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                        copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
-
-                        /* Save the stroke for recalc geometry function. */
-                        td->extra = gps;
-
-                        /* Save pointer to object. */
-                        td->ob = obact;
-
-                        td++;
-                        tail++;
-                      }
-                    }
-                  }
+                /* include point? */
+                if (is_prop_edit) {
+                  /* Always all points in strokes that get included. */
+                  point_ok = true;
                 }
-              }
-              else {
-                /* calculate stroke center */
-                createTransGPencil_center_get(gps, center);
+                else {
+                  /* Only selected points in selected strokes. */
+                  point_ok = (pt->flag & GP_SPOINT_SELECT) != 0;
+                }
 
-                for (int i = 0; i < tot_points; i++) {
-                  bGPDspoint *pt = &gps->points[i];
-
-                  /* include point? */
-                  if (is_prop_edit) {
-                    /* Always all points in strokes that get included. */
-                    point_ok = true;
+                /* do point... */
+                if (point_ok) {
+                  copy_v3_v3(td->iloc, &pt->x);
+                  /* Only copy center in local origins.
+                   * This allows get interesting effects also when move
+                   * using proportional editing. */
+                  if ((gps->flag & GP_STROKE_SELECT) &&
+                      (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
+                    copy_v3_v3(td->center, center);
                   }
                   else {
-                    /* Only selected points in selected strokes. */
-                    point_ok = (pt->flag & GP_SPOINT_SELECT) != 0;
+                    copy_v3_v3(td->center, &pt->x);
                   }
 
-                  /* do point... */
-                  if (point_ok) {
-                    copy_v3_v3(td->iloc, &pt->x);
-                    /* Only copy center in local origins.
-                     * This allows get interesting effects also when move
-                     * using proportional editing. */
-                    if ((gps->flag & GP_STROKE_SELECT) &&
-                        (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS)) {
-                      copy_v3_v3(td->center, center);
+                  td->loc = &pt->x;
+
+                  td->flag = 0;
+
+                  if (pt->flag & GP_SPOINT_SELECT) {
+                    td->flag |= TD_SELECTED;
+                  }
+
+                  /* For other transform modes (e.g. shrink-fatten), need to additional data
+                   * but never for mirror.
+                   */
+                  if (t->mode != TFM_MIRROR) {
+                    if (t->mode != TFM_GPENCIL_OPACITY) {
+                      if (is_scale_thickness) {
+                        td->val = &pt->pressure;
+                        td->ival = pt->pressure;
+                      }
                     }
                     else {
-                      copy_v3_v3(td->center, &pt->x);
+                      td->val = &pt->strength;
+                      td->ival = pt->strength;
                     }
+                  }
 
-                    td->loc = &pt->x;
-
-                    td->flag = 0;
-
-                    if (pt->flag & GP_SPOINT_SELECT) {
-                      td->flag |= TD_SELECTED;
-                    }
-
-                    /* For other transform modes (e.g. shrink-fatten), need to additional data
-                     * but never for mirror.
-                     */
-                    if (t->mode != TFM_MIRROR) {
-                      if (t->mode != TFM_GPENCIL_OPACITY) {
-                        if (is_scale_thickness) {
-                          td->val = &pt->pressure;
-                          td->ival = pt->pressure;
-                        }
-                      }
-                      else {
-                        td->val = &pt->strength;
-                        td->ival = pt->strength;
-                      }
-                    }
-#if 0
-                    /* screenspace needs special matrices... */
-                    if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
-                        0) {
-                      /* screenspace */
+                  /* screenspace needs special matrices... */
+                  if ((gps->flag & (GP_STROKE_3DSPACE | GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) ==
+                      0) {
+                    /* screenspace */
+                    td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
+                  }
+                  else {
+                    /* configure 2D dataspace points so that they don't play up... */
+                    if (gps->flag & (GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) {
                       td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
                     }
-                    else {
-                      /* configure 2D dataspace points so that they don't play up... */
-                      if (gps->flag & (GP_STROKE_2DSPACE | GP_STROKE_2DIMAGE)) {
-                        td->protectflag = OB_LOCK_LOCZ | OB_LOCK_ROTZ | OB_LOCK_SCALEZ;
-                      }
-                    }
-#endif
-                    /* apply parent transformations */
-                    copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
-                    copy_m3_m4(td->mtx, diff_mat);          /* display position */
-                    copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
-
-                    /* Save the stroke for recalc geometry function. */
-                    td->extra = gps;
-
-                    /* Save pointer to object. */
-                    td->ob = obact;
-
-                    td++;
-                    tail++;
                   }
+                  /* apply parent transformations */
+                  copy_m3_m4(td->smtx, inverse_diff_mat); /* final position */
+                  copy_m3_m4(td->mtx, diff_mat);          /* display position */
+                  copy_m3_m4(td->axismtx, diff_mat);      /* axis orientation */
+
+                  /* Triangulation must be calculated again,
+                   * so save the stroke for recalc function */
+                  td->extra = gps;
+
+                  /* save pointer to object */
+                  td->ob = obact;
+
+                  td++;
+                  tail++;
                 }
               }
-              /* March over these points, and calculate the proportional editing distances. */
+
+              /* March over these points, and calculate the proportional editing distances */
               if (is_prop_edit && (head != tail)) {
                 calc_distanceCurveVerts(head, tail - 1, false);
               }
             }
           }
         }
-        /* If not multiedit out of loop. */
+        /* if not multiedit out of loop */
         if (!is_multiedit) {
           break;
         }
       }
     }
+  }
+}
+
+void createTransGPencil(bContext *C, TransInfo *t)
+{
+  if (t->data_container_len == 0) {
+    return;
+  }
+
+  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+  const Scene *scene = CTX_data_scene(C);
+  ToolSettings *ts = scene->toolsettings;
+  Object *obact = CTX_data_active_object(C);
+  bGPdata *gpd = obact->data;
+  BLI_assert(gpd != NULL);
+
+  const int cfra_scene = CFRA;
+
+  const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+  const bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) !=
+                                      0;
+
+  const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
+  const bool is_prop_edit_connected = (t->flag & T_PROP_CONNECTED) != 0;
+  const bool is_scale_thickness = ((t->mode == TFM_GPENCIL_SHRINKFATTEN) ||
+                                   (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_SCALE_THICKNESS));
+
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+
+  /* initialize falloff curve */
+  if (is_multiedit) {
+    BKE_curvemapping_init(ts->gp_sculpt.cur_falloff);
+  }
+
+  if (gpd == NULL) {
+    return;
+  }
+
+  if (is_curve_edit) {
+    createTransGPencil_curves(C,
+                              t,
+                              depsgraph,
+                              ts,
+                              obact,
+                              gpd,
+                              cfra_scene,
+                              is_multiedit,
+                              use_multiframe_falloff,
+                              is_prop_edit,
+                              is_prop_edit_connected,
+                              is_scale_thickness);
+  }
+  else {
+    createTransGPencil_strokes(C,
+                               t,
+                               depsgraph,
+                               ts,
+                               obact,
+                               gpd,
+                               cfra_scene,
+                               is_multiedit,
+                               use_multiframe_falloff,
+                               is_prop_edit,
+                               is_prop_edit_connected,
+                               is_scale_thickness);
   }
 }
 
@@ -510,11 +727,12 @@ void recalcData_gpencil_strokes(TransInfo *t)
 
   TransData *td = tc->data;
   bGPdata *gpd = td->ob->data;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   for (int i = 0; i < tc->data_len; i++, td++) {
     bGPDstroke *gps = td->extra;
 
     if ((gps != NULL) && (!BLI_ghash_haskey(strokes, gps))) {
-      if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd) && gps->editcurve != NULL) {
+      if (is_curve_edit && gps->editcurve != NULL) {
         BKE_gpencil_editcurve_recalculate_handles(gps);
         gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       }
