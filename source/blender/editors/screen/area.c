@@ -2130,7 +2130,7 @@ void ED_area_newspace(bContext *C, ScrArea *area, int type, const bool skip_regi
     area->spacetype = type;
     area->type = st;
 
-    /* If st->new may be called, don't use context until then. The
+    /* If st->create may be called, don't use context until then. The
      * area->type->context() callback has changed but data may be invalid
      * (e.g. with properties editor) until space-data is properly created */
 
@@ -2170,7 +2170,7 @@ void ED_area_newspace(bContext *C, ScrArea *area, int type, const bool skip_regi
       if (st) {
         /* Don't get scene from context here which may depend on space-data. */
         Scene *scene = WM_window_get_active_scene(win);
-        sl = st->new (area, scene);
+        sl = st->create(area, scene);
         BLI_addhead(&area->spacedata, sl);
 
         /* swap regions */
