@@ -910,7 +910,7 @@ static void annotation_stroke_newfrombuffer(tGPsdata *p)
         int totarrowpoints = runtime.arrow_end_style;
 
         /* Setting up arrow stroke. */
-        bGPDstroke *e_arrow_gps = BKE_gpencil_stroke_duplicate(gps, false);
+        bGPDstroke *e_arrow_gps = BKE_gpencil_stroke_duplicate(gps, false, false);
         annotation_stroke_arrow_allocate(e_arrow_gps, totarrowpoints);
 
         /* Set pointer to first non-initialized point. */
@@ -931,7 +931,7 @@ static void annotation_stroke_newfrombuffer(tGPsdata *p)
         int totarrowpoints = runtime.arrow_start_style;
 
         /* Setting up arrow stroke. */
-        bGPDstroke *s_arrow_gps = BKE_gpencil_stroke_duplicate(gps, false);
+        bGPDstroke *s_arrow_gps = BKE_gpencil_stroke_duplicate(gps, false, false);
         annotation_stroke_arrow_allocate(s_arrow_gps, totarrowpoints);
 
         /* Set pointer to first non-initialized point. */

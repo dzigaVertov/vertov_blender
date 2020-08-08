@@ -536,7 +536,6 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
   gpd->flag |= GP_DATA_VIEWALIGN;
   /* always enable object onion skin switch */
   gpd->flag |= GP_DATA_SHOW_ONIONSKINS;
-
   /* GP object specific settings */
   ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 
@@ -731,9 +730,10 @@ bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
  * Make a copy of a given grease-pencil stroke.
  * \param gps_src: Source grease pencil strokes.
  * \param dup_points: Duplicate points data.
+ * \param dup_curve: Duplicate curve data.
  * \return Pointer to new stroke.
  */
-bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points)
+bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points, const bool dup_curve)
 {
   bGPDstroke *gps_dst = NULL;
 
@@ -753,7 +753,7 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_poi
     }
   }
 
-  if (gps_src->editcurve != NULL) {
+  if (dup_curve && gps_src->editcurve != NULL) {
     gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
   }
 
@@ -784,7 +784,7 @@ bGPDframe *BKE_gpencil_frame_duplicate(const bGPDframe *gpf_src)
   BLI_listbase_clear(&gpf_dst->strokes);
   LISTBASE_FOREACH (bGPDstroke *, gps_src, &gpf_src->strokes) {
     /* make copy of source stroke */
-    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
     BLI_addtail(&gpf_dst->strokes, gps_dst);
   }
 
@@ -809,7 +809,7 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
   BLI_listbase_clear(&gpf_dst->strokes);
   LISTBASE_FOREACH (bGPDstroke *, gps_src, &gpf_src->strokes) {
     /* make copy of source stroke */
-    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
     BLI_addtail(&gpf_dst->strokes, gps_dst);
   }
 }
