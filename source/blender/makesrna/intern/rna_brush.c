@@ -1983,6 +1983,16 @@ static void rna_def_brush(BlenderRNA *brna)
       {0, NULL, 0, NULL, NULL},
   };
 
+  static const EnumPropertyItem brush_cloth_simulation_area_type_items[] = {
+      {BRUSH_CLOTH_SIMULATION_AREA_LOCAL,
+       "LOCAL",
+       0,
+       "Local",
+       "Simulates only a specific area arround the brush limited by a fixed radius"},
+      {BRUSH_CLOTH_SIMULATION_AREA_GLOBAL, "GLOBAL", 0, "Global", "Simulates the entire mesh"},
+      {0, NULL, 0, NULL, NULL},
+  };
+
   static const EnumPropertyItem brush_smooth_deform_type_items[] = {
       {BRUSH_SMOOTH_DEFORM_LAPLACIAN,
        "LAPLACIAN",
@@ -2000,7 +2010,7 @@ static void rna_def_brush(BlenderRNA *brna)
   static const EnumPropertyItem brush_pose_deform_type_items[] = {
       {BRUSH_POSE_DEFORM_ROTATE_TWIST, "ROTATE_TWIST", 0, "Rotate/Twist", ""},
       {BRUSH_POSE_DEFORM_SCALE_TRASLATE, "SCALE_TRANSLATE", 0, "Scale/Translate", ""},
-      {BRUSH_POSE_DEFORM_SQUASH_STRETCH, "SQUASH_STRETCH", 0, "Squash/Stretch", ""},
+      {BRUSH_POSE_DEFORM_SQUASH_STRETCH, "SQUASH_STRETCH", 0, "Squash & Stretch", ""},
       {0, NULL, 0, NULL, NULL},
   };
 
@@ -2151,6 +2161,14 @@ static void rna_def_brush(BlenderRNA *brna)
   RNA_def_property_enum_items(prop, brush_cloth_force_falloff_type_items);
   RNA_def_property_ui_text(
       prop, "Force Falloff", "Shape used in the brush to apply force to the cloth");
+  RNA_def_property_update(prop, 0, "rna_Brush_update");
+
+  prop = RNA_def_property(srna, "cloth_simulation_area_type", PROP_ENUM, PROP_NONE);
+  RNA_def_property_enum_items(prop, brush_cloth_simulation_area_type_items);
+  RNA_def_property_ui_text(
+      prop,
+      "Simulation Area",
+      "Part of the mesh that is going to be simulated when the stroke is active");
   RNA_def_property_update(prop, 0, "rna_Brush_update");
 
   prop = RNA_def_property(srna, "smooth_deform_type", PROP_ENUM, PROP_NONE);
@@ -2803,6 +2821,13 @@ static void rna_def_brush(BlenderRNA *brna)
       prop, "Keep Anchor Point", "Keep the position of the last segment in the IK chain fixed");
   RNA_def_property_update(prop, 0, "rna_Brush_update");
 
+  prop = RNA_def_property(srna, "use_pose_lock_rotation", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag2", BRUSH_POSE_USE_LOCK_ROTATION);
+  RNA_def_property_ui_text(prop,
+                           "Lock Rotation When Scaling",
+                           "Do not rotate the segment when using the scale deform mode");
+  RNA_def_property_update(prop, 0, "rna_Brush_update");
+
   prop = RNA_def_property(srna, "use_connected_only", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag2", BRUSH_USE_CONNECTED_ONLY);
   RNA_def_property_ui_text(prop, "Connected Only", "Affect only topologically connected elements");
@@ -2815,6 +2840,11 @@ static void rna_def_brush(BlenderRNA *brna)
       "Pin Simulation Boundary",
       "Lock the position of the vertices in the simulation falloff area to avoid artifacts and "
       "create a softer transitionwith with unnafected areas");
+  RNA_def_property_update(prop, 0, "rna_Brush_update");
+
+  prop = RNA_def_property(srna, "use_cloth_collision", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag2", BRUSH_CLOTH_USE_COLLISION);
+  RNA_def_property_ui_text(prop, "Enable Collision", "Collide with objects during the simulation");
   RNA_def_property_update(prop, 0, "rna_Brush_update");
 
   prop = RNA_def_property(srna, "invert_to_scrape_fill", PROP_BOOLEAN, PROP_NONE);
