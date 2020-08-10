@@ -205,6 +205,9 @@ static void createTransGPencil_curves(bContext *C,
   tc->data = MEM_callocN(tc->data_len * sizeof(TransData), __func__);
   TransData *td = tc->data;
 
+  const bool use_around_origins_for_handles_test = ((t->around == V3D_AROUND_LOCAL_ORIGINS) &&
+                                                    transform_mode_use_local_origins(t));
+
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     /* Only editable and visible layers are considered. */
     if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
@@ -266,6 +269,7 @@ static void createTransGPencil_curves(bContext *C,
             head = tail = td;
 
             gps->runtime.multi_frame_falloff = falloff;
+            bool need_handle_recalc = false;
 
             bGPDcurve *gpc = gps->editcurve;
             const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
@@ -277,6 +281,7 @@ static void createTransGPencil_curves(bContext *C,
               }
 
               TransDataCurveHandleFlags *hdata = NULL;
+              bool bezt_use = false;
               const bool handles_visible = (handle_all_visible ||
                                             (handle_only_selected_visible &&
                                              (gpc_pt->flag & GP_CURVE_POINT_SELECT)));
@@ -284,7 +289,8 @@ static void createTransGPencil_curves(bContext *C,
               /* Iterate over bezier triple */
               for (int j = 0; j < 3; j++) {
                 bool is_ctrl_point = j == 1;
-                if (is_prop_edit || sel_flag & (1 << j)) {
+                bezt_use |= sel_flag & (1 << j);
+                if (is_prop_edit || bezt_use) {
                   copy_v3_v3(td->iloc, bezt->vec[j]);
                   td->loc = bezt->vec[j];
                   bool rotate_around_ctrl = !handles_visible ||
@@ -348,10 +354,20 @@ static void createTransGPencil_curves(bContext *C,
                   tail++;
                 }
               }
+
+              /* Update the handle types so transformation is possible */
+              if (bezt_use && !ELEM(t->mode, TFM_GPENCIL_OPACITY, TFM_GPENCIL_SHRINKFATTEN)) {
+                BKE_nurb_bezt_handle_test(bezt, SELECT, handles_visible, use_around_origins_for_handles_test);
+                need_handle_recalc = true;
+              }
             }
 
             if (is_prop_edit && (head != tail)) {
               calc_distanceCurveVerts(head, tail - 1, is_cyclic);
+            }
+
+            if (need_handle_recalc) {
+              BKE_gpencil_editcurve_recalculate_handles(gps);
             }
           }
         }
