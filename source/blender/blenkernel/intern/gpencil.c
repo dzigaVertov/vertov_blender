@@ -733,7 +733,9 @@ bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
  * \param dup_curve: Duplicate curve data.
  * \return Pointer to new stroke.
  */
-bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points, const bool dup_curve)
+bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src,
+                                         const bool dup_points,
+                                         const bool dup_curve)
 {
   bGPDstroke *gps_dst = NULL;
 
