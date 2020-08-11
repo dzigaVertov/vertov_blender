@@ -204,8 +204,19 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
     ob->mode = mode;
   }
 
+  /* Recalculate editcurves for strokes where the geometry/vertex colors have changed */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    BKE_gpencil_strokes_selected_update_editcurve(gpd);
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc) {
+      if (gpc->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
+        BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+        /* Update the selection from the stroke to the curve. */
+        BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+      }
+    }
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
 
   /* setup other modes */
