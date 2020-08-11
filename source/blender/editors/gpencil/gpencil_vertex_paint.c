@@ -846,7 +846,7 @@ static bool gpencil_vertexpaint_select_stroke(tGP_BrushVertexpaintData *gso,
 
   /* Check if the stroke collide with brush. */
   if (!ED_gpencil_stroke_check_collision(gsc, gps, gso->mval, radius, diff_mat)) {
-    return saved;
+    return false;
   }
 
   if (gps->totpoints == 1) {
