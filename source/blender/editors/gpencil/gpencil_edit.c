@@ -206,7 +206,8 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 
   /* Recalculate editcurves for strokes where the geometry/vertex colors have changed */
   if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
-    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc) {
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
       if (gpc->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
         BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
         /* Update the selection from the stroke to the curve. */
@@ -1193,6 +1194,41 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
   const int old_num_points = gpc->tot_curve_points;
   const bool first_select = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
   const bool last_select = gpc->curve_points[old_num_points - 1].flag & GP_CURVE_POINT_SELECT;
+
+  /* iterate over middle points */
+  for (int i = 1; i < gpc->tot_curve_points - 1; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+
+    /* Create new stroke if selected point */
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false, false);
+      gps_new->points = NULL;
+      gps_new->flag &= ~GP_STROKE_CYCLIC;
+      gps_new->prev = gps_new->next = NULL;
+
+      gps_new->editcurve = BKE_gpencil_stroke_editcurve_new(2);
+      bGPDcurve *new_gpc = gps_new->editcurve;
+      for (int j = 0; j < new_gpc->tot_curve_points; j++) {
+        bGPDcurve_point *gpc_pt_new = &new_gpc->curve_points[j];
+        memcpy(gpc_pt_new, gpc_pt, sizeof(bGPDcurve_point));
+        gpc_pt_new->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(&gpc_pt_new->bezt);
+      }
+
+      /* select last point */
+      bGPDcurve_point *gpc_pt_last = &new_gpc->curve_points[1];
+      gpc_pt_last->flag |= GP_CURVE_POINT_SELECT;
+      BEZT_SEL_ALL(&gpc_pt_last->bezt);
+
+      BLI_insertlinkafter(&gpf->strokes, gps, gps_new);
+
+      gps_new->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, gps_new);
+
+      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&gpc_pt->bezt);
+    }
+  }
 
   if (first_select || last_select) {
     int new_num_points = old_num_points;
