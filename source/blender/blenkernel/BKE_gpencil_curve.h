@@ -40,7 +40,8 @@ void BKE_gpencil_convert_curve(struct Main *bmain,
                                struct Object *ob_cu,
                                const bool gpencil_lines,
                                const bool use_collections,
-                               const bool only_stroke);
+                               const float scale_thickness,
+                               const float sample);
 
 struct bGPDcurve *BKE_gpencil_stroke_editcurve_generate(struct bGPDstroke *gps,
                                                         float error_threshold);
