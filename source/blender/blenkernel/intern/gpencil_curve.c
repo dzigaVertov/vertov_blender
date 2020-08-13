@@ -300,7 +300,6 @@ static int gpencil_get_stroke_material_fromcurve(
 static void gpencil_convert_spline(Main *bmain,
                                    Object *ob_gp,
                                    Object *ob_cu,
-                                   const bool gpencil_lines,
                                    const float scale_thickness,
                                    const float sample,
                                    bGPDframe *gpf,
@@ -481,7 +480,6 @@ static void gpencil_editstroke_deselect_all(bGPDcurve *gpc)
  * \param scene: Original scene.
  * \param ob_gp: Grease pencil object to add strokes.
  * \param ob_cu: Curve to convert.
- * \param gpencil_lines: Use lines for strokes.
  * \param use_collections: Create layers using collection names.
  * \param scale_thickness: Scale thickness factor.
  * \param sample: Sample distance, zero to disable.
@@ -490,7 +488,6 @@ void BKE_gpencil_convert_curve(Main *bmain,
                                Scene *scene,
                                Object *ob_gp,
                                Object *ob_cu,
-                               const bool gpencil_lines,
                                const bool use_collections,
                                const float scale_thickness,
                                const float sample)
@@ -531,7 +528,7 @@ void BKE_gpencil_convert_curve(Main *bmain,
 
   /* Read all splines of the curve and create a stroke for each. */
   LISTBASE_FOREACH (Nurb *, nu, &cu->nurb) {
-    gpencil_convert_spline(bmain, ob_gp, ob_cu, gpencil_lines, scale_thickness, sample, gpf, nu);
+    gpencil_convert_spline(bmain, ob_gp, ob_cu, scale_thickness, sample, gpf, nu);
   }
 
   /* Merge any similar material. */

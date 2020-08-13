@@ -38,7 +38,6 @@ void BKE_gpencil_convert_curve(struct Main *bmain,
                                struct Scene *scene,
                                struct Object *ob_gp,
                                struct Object *ob_cu,
-                               const bool gpencil_lines,
                                const bool use_collections,
                                const float scale_thickness,
                                const float sample);
