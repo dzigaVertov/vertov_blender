@@ -819,7 +819,7 @@ static void gpencil_save_selected_point(tGP_BrushVertexpaintData *gso,
   gso->pbuffer_used++;
 }
 
-/* Select points in this stroke and add to an array to be used later. 
+/* Select points in this stroke and add to an array to be used later.
  * Returns true if any point was hit and got saved */
 static bool gpencil_vertexpaint_select_stroke(tGP_BrushVertexpaintData *gso,
                                               bGPDstroke *gps,
