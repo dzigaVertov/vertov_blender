@@ -13,39 +13,32 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Copyright 2020, Blender Foundation.
+ * The Original Code is Copyright (C) 2020 Blender Foundation.
  * All rights reserved.
  */
 
 /** \file
  * \ingroup gpu
- *
- * GPUBackend derived class contain allocators that do not need a context bound.
- * The backend is init at startup and is accessible using GPU_backend_get() */
+ */
 
 #pragma once
 
-#include "gpu_context_private.hh"
-#include "gpu_drawlist_private.hh"
-#include "gpu_batch_private.hh"
+#include "glew-mx.h"
+
+#include "GPU_batch.h"
+#include "GPU_shader_interface.h"
 
 namespace blender {
 namespace gpu {
 
-class GPUBackend {
- public:
-  virtual ~GPUBackend(){};
+namespace GLVertArray {
 
-  static GPUBackend *get(void);
+void update_bindings(const GLuint vao,
+                     const GPUBatch *batch,
+                     const GPUShaderInterface *interface,
+                     const int base_instance);
 
-  virtual GPUContext *context_alloc(void *ghost_window) = 0;
-
-  virtual Batch *batch_alloc(void) = 0;
-  virtual DrawList *drawlist_alloc(int list_length) = 0;
-  // virtual FrameBuffer *framebuffer_alloc(void) = 0;
-  // virtual Shader *shader_alloc(void) = 0;
-  // virtual Texture *texture_alloc(void) = 0;
-};
+}  // namespace GLVertArray
 
 }  // namespace gpu
 }  // namespace blender
