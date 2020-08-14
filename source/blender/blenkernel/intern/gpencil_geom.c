@@ -33,6 +33,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_ghash.h"
+#include "BLI_hash.h"
 #include "BLI_math_vector.h"
 #include "BLI_polyfill_2d.h"
 
@@ -236,7 +237,7 @@ static int stroke_march_next_point(const bGPDstroke *gps,
     copy_v3_v3(result, &pt->x);
     *pressure = gps->points[next_point_index].pressure;
     *strength = gps->points[next_point_index].strength;
-    memcpy(vert_color, gps->points[next_point_index].vert_color, sizeof(float) * 4);
+    memcpy(vert_color, gps->points[next_point_index].vert_color, sizeof(float[4]));
 
     *index_from = next_point_index - 1;
     *index_to = next_point_index;
@@ -244,24 +245,23 @@ static int stroke_march_next_point(const bGPDstroke *gps,
 
     return 0;
   }
-  else {
-    float ratio = remaining_march / remaining_till_next;
-    interp_v3_v3v3(result, step_start, point, ratio);
-    *pressure = interpf(
-        gps->points[next_point_index].pressure, gps->points[next_point_index - 1].pressure, ratio);
-    *strength = interpf(
-        gps->points[next_point_index].strength, gps->points[next_point_index - 1].strength, ratio);
-    interp_v4_v4v4(vert_color,
-                   gps->points[next_point_index - 1].vert_color,
-                   gps->points[next_point_index].vert_color,
-                   ratio);
 
-    *index_from = next_point_index - 1;
-    *index_to = next_point_index;
-    *ratio_result = ratio;
+  float ratio = remaining_march / remaining_till_next;
+  interp_v3_v3v3(result, step_start, point, ratio);
+  *pressure = interpf(
+      gps->points[next_point_index].pressure, gps->points[next_point_index - 1].pressure, ratio);
+  *strength = interpf(
+      gps->points[next_point_index].strength, gps->points[next_point_index - 1].strength, ratio);
+  interp_v4_v4v4(vert_color,
+                 gps->points[next_point_index - 1].vert_color,
+                 gps->points[next_point_index].vert_color,
+                 ratio);
 
-    return next_point_index;
-  }
+  *index_from = next_point_index - 1;
+  *index_to = next_point_index;
+  *ratio_result = ratio;
+
+  return next_point_index;
 }
 
 static int stroke_march_next_point_no_interp(const bGPDstroke *gps,
@@ -305,11 +305,10 @@ static int stroke_march_next_point_no_interp(const bGPDstroke *gps,
     copy_v3_v3(result, &pt->x);
     return 0;
   }
-  else {
-    float ratio = remaining_march / remaining_till_next;
-    interp_v3_v3v3(result, step_start, point, ratio);
-    return next_point_index;
-  }
+
+  float ratio = remaining_march / remaining_till_next;
+  interp_v3_v3v3(result, step_start, point, ratio);
+  return next_point_index;
 }
 
 static int stroke_march_count(const bGPDstroke *gps, const float dist)
@@ -446,7 +445,7 @@ bool BKE_gpencil_stroke_sample(bGPDstroke *gps, const float dist, const bool sel
   copy_v3_v3(&pt2->x, last_coord);
   new_pt[i].pressure = pt[0].pressure;
   new_pt[i].strength = pt[0].strength;
-  memcpy(new_pt[i].vert_color, pt[0].vert_color, sizeof(float) * 4);
+  memcpy(new_pt[i].vert_color, pt[0].vert_color, sizeof(float[4]));
   if (select) {
     new_pt[i].flag |= GP_SPOINT_SELECT;
   }
@@ -472,7 +471,7 @@ bool BKE_gpencil_stroke_sample(bGPDstroke *gps, const float dist, const bool sel
     copy_v3_v3(&pt2->x, last_coord);
     new_pt[i].pressure = pressure;
     new_pt[i].strength = strength;
-    memcpy(new_pt[i].vert_color, vert_color, sizeof(float) * 4);
+    memcpy(new_pt[i].vert_color, vert_color, sizeof(float[4]));
     if (select) {
       new_pt[i].flag |= GP_SPOINT_SELECT;
     }
@@ -1351,10 +1350,9 @@ bool BKE_gpencil_stroke_trim(bGPDstroke *gps)
           if ((lambda <= 0.0f) || (lambda >= 1.0f)) {
             continue;
           }
-          else {
-            intersect = true;
-            break;
-          }
+
+          intersect = true;
+          break;
         }
       }
     }
@@ -2426,7 +2424,7 @@ void BKE_gpencil_convert_mesh(Main *bmain,
  * \param gpd: Grease pencil data-block
  * \param mat: Transformation matrix
  */
-void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
+void BKE_gpencil_transform(bGPdata *gpd, const float mat[4][4])
 {
   if (gpd == NULL) {
     return;
@@ -2456,6 +2454,154 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
         BKE_gpencil_stroke_geometry_update(gps);
       }
     }
+  }
+}
+
+/* Used for "move only origins" in object_data_transform.c */
+int BKE_gpencil_stroke_point_count(bGPdata *gpd)
+{
+  int total_points = 0;
+
+  if (gpd == NULL) {
+    return 0;
+  }
+
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* FIXME: For now, we just skip parented layers.
+     * Otherwise, we have to update each frame to find
+     * the current parent position/effects.
+     */
+    if (gpl->parent) {
+      continue;
+    }
+
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        total_points += gps->totpoints;
+      }
+    }
+  }
+  return total_points;
+}
+
+/* Used for "move only origins" in object_data_transform.c */
+void BKE_gpencil_point_coords_get(bGPdata *gpd, GPencilPointCoordinates *elem_data)
+{
+  if (gpd == NULL) {
+    return;
+  }
+
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* FIXME: For now, we just skip parented layers.
+     * Otherwise, we have to update each frame to find
+     * the current parent position/effects.
+     */
+    if (gpl->parent) {
+      continue;
+    }
+
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        bGPDspoint *pt;
+        int i;
+
+        for (pt = gps->points, i = 0; i < gps->totpoints; pt++, i++) {
+          copy_v3_v3(elem_data->co, &pt->x);
+          elem_data->pressure = pt->pressure;
+          elem_data++;
+        }
+      }
+    }
+  }
+}
+
+/* Used for "move only origins" in object_data_transform.c */
+void BKE_gpencil_point_coords_apply(bGPdata *gpd, const GPencilPointCoordinates *elem_data)
+{
+  if (gpd == NULL) {
+    return;
+  }
+
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* FIXME: For now, we just skip parented layers.
+     * Otherwise, we have to update each frame to find
+     * the current parent position/effects.
+     */
+    if (gpl->parent) {
+      continue;
+    }
+
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        bGPDspoint *pt;
+        int i;
+
+        for (pt = gps->points, i = 0; i < gps->totpoints; pt++, i++) {
+          copy_v3_v3(&pt->x, elem_data->co);
+          pt->pressure = elem_data->pressure;
+          elem_data++;
+        }
+
+        /* Distortion may mean we need to re-triangulate. */
+        BKE_gpencil_stroke_geometry_update(gps);
+      }
+    }
+  }
+}
+
+/* Used for "move only origins" in object_data_transform.c */
+void BKE_gpencil_point_coords_apply_with_mat4(bGPdata *gpd,
+                                              const GPencilPointCoordinates *elem_data,
+                                              const float mat[4][4])
+{
+  if (gpd == NULL) {
+    return;
+  }
+
+  const float scalef = mat4_to_scale(mat);
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    /* FIXME: For now, we just skip parented layers.
+     * Otherwise, we have to update each frame to find
+     * the current parent position/effects.
+     */
+    if (gpl->parent) {
+      continue;
+    }
+
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        bGPDspoint *pt;
+        int i;
+
+        for (pt = gps->points, i = 0; i < gps->totpoints; pt++, i++) {
+          mul_v3_m4v3(&pt->x, mat, elem_data->co);
+          pt->pressure = elem_data->pressure * scalef;
+          elem_data++;
+        }
+
+        /* Distortion may mean we need to re-triangulate. */
+        BKE_gpencil_stroke_geometry_update(gps);
+      }
+    }
+  }
+}
+
+/**
+ * Set a random color to stroke using vertex color.
+ * \param gps: Stroke
+ */
+void BKE_gpencil_stroke_set_random_color(bGPDstroke *gps)
+{
+  BLI_assert(gps->totpoints > 0);
+
+  float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  bGPDspoint *pt = &gps->points[0];
+  color[0] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints / 5, pt->x + pt->z));
+  color[1] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints + pt->x, pt->y * pt->z + pt->x));
+  color[2] *= BLI_hash_int_01(BLI_hash_int_2d(gps->totpoints - pt->x, pt->z * pt->x + pt->y));
+  for (int i = 0; i < gps->totpoints; i++) {
+    pt = &gps->points[i];
+    copy_v4_v4(pt->vert_color, color);
   }
 }
 /** \} */

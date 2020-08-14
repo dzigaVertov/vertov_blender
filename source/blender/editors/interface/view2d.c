@@ -242,7 +242,7 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
   bool tot_changed = false, do_init;
   const uiStyle *style = UI_style_get();
 
-  do_init = (v2d->flag & V2D_IS_INITIALISED) == 0;
+  do_init = (v2d->flag & V2D_IS_INIT) == 0;
 
   /* see eView2D_CommonViewTypes in UI_view2d.h for available view presets */
   switch (type) {
@@ -374,8 +374,8 @@ void UI_view2d_region_reinit(View2D *v2d, short type, int winx, int winy)
       break;
   }
 
-  /* set initialized flag so that View2D doesn't get reinitialised next time again */
-  v2d->flag |= V2D_IS_INITIALISED;
+  /* set initialized flag so that View2D doesn't get reinitialized next time again */
+  v2d->flag |= V2D_IS_INIT;
 
   /* store view size */
   v2d->winx = winx;
@@ -851,6 +851,17 @@ static void ui_view2d_curRect_validate_resize(View2D *v2d, bool resize)
 void UI_view2d_curRect_validate(View2D *v2d)
 {
   ui_view2d_curRect_validate_resize(v2d, false);
+}
+
+void UI_view2d_curRect_changed(const bContext *C, View2D *v2d)
+{
+  UI_view2d_curRect_validate(v2d);
+
+  ARegion *region = CTX_wm_region(C);
+
+  if (region->type->on_view2d_changed != NULL) {
+    region->type->on_view2d_changed(C, region);
+  }
 }
 
 /* ------------------ */

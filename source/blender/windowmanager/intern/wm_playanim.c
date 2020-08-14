@@ -335,9 +335,8 @@ static void playanim_toscreen(
                    offs_y + (ps->draw_flip[1] ? span_y : 0.0f),
                    ibuf->x,
                    ibuf->y,
-                   GL_RGBA,
-                   GL_UNSIGNED_BYTE,
-                   GL_NEAREST,
+                   GPU_RGBA8,
+                   false,
                    ibuf->rect,
                    ((ps->draw_flip[0] ? -1.0f : 1.0f)) * (ps->zoom / (float)ps->win_x),
                    ((ps->draw_flip[1] ? -1.0f : 1.0f)) * (ps->zoom / (float)ps->win_y),
@@ -1294,8 +1293,7 @@ static char *wm_main_playanim_intern(int argc, const char **argv)
   // GHOST_ActivateWindowDrawingContext(g_WS.ghost_window);
 
   /* initialize OpenGL immediate mode */
-  GLuint default_fb = GHOST_GetDefaultOpenGLFramebuffer(g_WS.ghost_window);
-  g_WS.gpu_context = GPU_context_create(default_fb);
+  g_WS.gpu_context = GPU_context_create(g_WS.ghost_window);
   GPU_init();
   immActivate();
 

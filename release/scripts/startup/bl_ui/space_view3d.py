@@ -385,19 +385,7 @@ class _draw_tool_settings_context_mode:
         if tool is None:
             return False
 
-        # is_paint = True
-        # FIXME: tools must use their own UI drawing!
-        if tool.idname in {
-                "builtin.line",
-                "builtin.box",
-                "builtin.circle",
-                "builtin.arc",
-                "builtin.curve",
-                "builtin.polyline",
-        }:
-            # is_paint = False
-            pass
-        elif tool.idname == "builtin.cutter":
+        if tool.idname == "builtin.cutter":
             row = layout.row(align=True)
             row.prop(context.tool_settings.gpencil_sculpt, "intersection_threshold")
             return False
@@ -411,47 +399,16 @@ class _draw_tool_settings_context_mode:
 
         gp_settings = brush.gpencil_settings
 
-        def draw_color_selector():
-            ma = gp_settings.material
-            row = layout.row(align=True)
-            if not gp_settings.use_material_pin:
-                ma = context.object.active_material
-            icon_id = 0
-            if ma:
-                icon_id = ma.id_data.preview.icon_id
-                txt_ma = ma.name
-                maxw = 25
-                if len(txt_ma) > maxw:
-                    txt_ma = txt_ma[:maxw - 5] + '..' + txt_ma[-3:]
-            else:
-                txt_ma = ""
-
-            sub = row.row()
-            sub.ui_units_x = 8
-            sub.popover(
-                panel="TOPBAR_PT_gpencil_materials",
-                text=txt_ma,
-                icon_value=icon_id,
-            )
-
-            row.prop(gp_settings, "use_material_pin", text="")
-
-            if brush.gpencil_tool in {'DRAW', 'FILL'}:
-                row.separator(factor=1.0)
-                subrow = row.row(align=True)
-                row.prop_enum(settings, "color_mode", 'MATERIAL', text="", icon='MATERIAL')
-                row.prop_enum(settings, "color_mode", 'VERTEXCOLOR', text="", icon='VPAINT_HLT')
-                sub_row = row.row(align=True)
-                sub_row.enabled = settings.color_mode == 'VERTEXCOLOR'
-                sub_row.prop_with_popover(brush, "color", text="", panel="TOPBAR_PT_gpencil_vertexcolor")
-
         row = layout.row(align=True)
         tool_settings = context.scene.tool_settings
         settings = tool_settings.gpencil_paint
         row.template_ID_preview(settings, "brush", rows=3, cols=8, hide_buttons=True)
 
         if context.object and brush.gpencil_tool in {'FILL', 'DRAW'}:
-            draw_color_selector()
+            from bl_ui.properties_paint_common import (
+                brush_basic__draw_color_selector,
+            )
+            brush_basic__draw_color_selector(context, layout, brush, gp_settings, None)
 
         if context.object and brush.gpencil_tool == 'TINT':
             row.separator(factor=0.4)
@@ -986,7 +943,7 @@ class VIEW3D_MT_transform_base(Menu):
 
         if context.mode != 'OBJECT':
             layout.operator("transform.vertex_warp", text="Warp")
-            layout.operator_context = 'EXEC_DEFAULT'
+            layout.operator_context = 'EXEC_REGION_WIN'
             layout.operator("transform.vertex_random", text="Randomize").offset = 0.1
             layout.operator_context = 'INVOKE_REGION_WIN'
 
@@ -1551,7 +1508,7 @@ class VIEW3D_MT_edit_mesh_select_by_trait(Menu):
 
         layout.separator()
 
-        layout.operator("mesh.select_ungrouped", text="Ungrouped Verts")
+        layout.operator("mesh.select_ungrouped", text="Ungrouped Vertices")
 
 
 class VIEW3D_MT_edit_mesh_select_more_less(Menu):
@@ -1813,7 +1770,7 @@ class VIEW3D_MT_select_edit_lattice(Menu):
 
         layout.separator()
 
-        layout.operator("lattice.select_ungrouped", text="Ungrouped Verts")
+        layout.operator("lattice.select_ungrouped", text="Ungrouped Vertices")
 
 
 class VIEW3D_MT_select_edit_armature(Menu):
@@ -1940,7 +1897,7 @@ class VIEW3D_MT_select_paint_mask_vertex(Menu):
 
         layout.separator()
 
-        layout.operator("paint.vert_select_ungrouped", text="Ungrouped Verts")
+        layout.operator("paint.vert_select_ungrouped", text="Ungrouped Vertices")
 
 
 class VIEW3D_MT_angle_control(Menu):
@@ -2058,7 +2015,7 @@ class VIEW3D_MT_edit_metaball_context_menu(Menu):
         layout.separator()
 
         # Remove
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("mball.delete_metaelems", text="Delete")
 
 
@@ -2333,7 +2290,7 @@ class VIEW3D_MT_object(Menu):
 
         layout.separator()
 
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("object.delete", text="Delete").use_global = False
         layout.operator("object.delete", text="Delete Global").use_global = True
 
@@ -2597,7 +2554,7 @@ class VIEW3D_MT_object_context_menu(Menu):
 
         layout.separator()
 
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("object.delete", text="Delete").use_global = False
 
 
@@ -2683,7 +2640,7 @@ class VIEW3D_MT_object_parent(Menu):
 
         layout.separator()
 
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("object.parent_no_inverse_set")
         layout.operator_context = operator_context_default
 
@@ -2751,6 +2708,8 @@ class VIEW3D_MT_object_quick_effects(Menu):
         layout.operator("object.quick_explode")
         layout.operator("object.quick_smoke")
         layout.operator("object.quick_liquid")
+        if _context.preferences.experimental.use_new_particle_system:
+            layout.operator("object.quick_particles")
 
 
 class VIEW3D_MT_object_showhide(Menu):
@@ -2772,7 +2731,7 @@ class VIEW3D_MT_make_single_user(Menu):
 
     def draw(self, _context):
         layout = self.layout
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
 
         props = layout.operator("object.make_single_user", text="Object")
         props.object = True
@@ -3686,7 +3645,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
         row = layout.row()
 
         if is_vert_mode:
-            col = row.column()
+            col = row.column(align=True)
 
             col.label(text="Vertex Context Menu", icon='VERTEXSEL')
             col.separator()
@@ -3697,7 +3656,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
             col.separator()
 
             col.operator("mesh.extrude_vertices_move", text="Extrude Vertices")
-            col.operator("mesh.bevel", text="Bevel Vertices").vertex_only = True
+            col.operator("mesh.bevel", text="Bevel Vertices").affect = 'VERTICES'
 
             if selected_verts_len > 1:
                 col.separator()
@@ -3712,7 +3671,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
             col.operator("transform.shrink_fatten", text="Shrink/Fatten")
             col.operator("transform.shear", text="Shear")
             col.operator("transform.vert_slide", text="Slide Vertices")
-            col.operator_context = 'EXEC_DEFAULT'
+            col.operator_context = 'EXEC_REGION_WIN'
             col.operator("transform.vertex_random", text="Randomize Vertices").offset = 0.1
             col.operator("mesh.vertices_smooth", text="Smooth Vertices").factor = 0.5
             col.operator_context = 'INVOKE_REGION_WIN'
@@ -3736,7 +3695,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
         if is_edge_mode:
             render = context.scene.render
 
-            col = row.column()
+            col = row.column(align=True)
             col.label(text="Edge Context Menu", icon='EDGESEL')
             col.separator()
 
@@ -3746,7 +3705,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
             col.separator()
 
             col.operator("mesh.extrude_edges_move", text="Extrude Edges")
-            col.operator("mesh.bevel", text="Bevel Edges").vertex_only = False
+            col.operator("mesh.bevel", text="Bevel Edges").affect = 'EDGES'
             if selected_edges_len >= 2:
                 col.operator("mesh.bridge_edge_loops")
             if selected_edges_len >= 1:
@@ -3804,7 +3763,7 @@ class VIEW3D_MT_edit_mesh_context_menu(Menu):
             col.operator("mesh.delete", text="Delete Edges").type = 'EDGE'
 
         if is_face_mode:
-            col = row.column()
+            col = row.column(align=True)
 
             col.label(text="Face Context Menu", icon='FACESEL')
             col.separator()
@@ -3920,7 +3879,7 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
         layout.operator_context = 'INVOKE_REGION_WIN'
 
         layout.operator("mesh.extrude_vertices_move", text="Extrude Vertices")
-        layout.operator("mesh.bevel", text="Bevel Vertices").vertex_only = True
+        layout.operator("mesh.bevel", text="Bevel Vertices").affect = 'VERTICES'
 
         layout.separator()
 
@@ -3939,7 +3898,7 @@ class VIEW3D_MT_edit_mesh_vertices(Menu):
         layout.separator()
 
         layout.operator("transform.vert_slide", text="Slide Vertices")
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("mesh.vertices_smooth", text="Smooth Vertices").factor = 0.5
         layout.operator("mesh.vertices_smooth_laplacian", text="Smooth Vertices (Laplacian)")
         layout.operator_context = 'INVOKE_REGION_WIN'
@@ -4005,7 +3964,7 @@ class VIEW3D_MT_edit_mesh_edges(Menu):
         layout.operator_context = 'INVOKE_REGION_WIN'
 
         layout.operator("mesh.extrude_edges_move", text="Extrude Edges")
-        layout.operator("mesh.bevel", text="Bevel Edges").vertex_only = False
+        layout.operator("mesh.bevel", text="Bevel Edges").affect = 'EDGES'
         layout.operator("mesh.bridge_edge_loops")
         layout.operator("mesh.screw")
 
@@ -4147,7 +4106,7 @@ class VIEW3D_MT_edit_mesh_normals_select_strength(Menu):
 
 
 class VIEW3D_MT_edit_mesh_normals_set_strength(Menu):
-    bl_label = "Select by Face Strength"
+    bl_label = "Set Face Strength"
 
     def draw(self, _context):
         layout = self.layout
@@ -4193,7 +4152,7 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
         layout.operator_context = 'INVOKE_REGION_WIN'
         layout.operator("transform.rotate_normal", text="Rotate...")
         layout.operator("mesh.point_normals", text="Point to Target...")
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
 
         layout.operator("mesh.merge_normals", text="Merge")
         layout.operator("mesh.split_normals", text="Split")
@@ -4209,8 +4168,8 @@ class VIEW3D_MT_edit_mesh_normals(Menu):
 
         layout.separator()
 
-        layout.menu("VIEW3D_MT_edit_mesh_normals_select_strength", text="Select by Face Strength")
-        layout.menu("VIEW3D_MT_edit_mesh_normals_set_strength", text="Set Face Strength")
+        layout.menu("VIEW3D_MT_edit_mesh_normals_select_strength")
+        layout.menu("VIEW3D_MT_edit_mesh_normals_set_strength")
 
 
 class VIEW3D_MT_edit_mesh_shading(Menu):
@@ -4660,7 +4619,7 @@ class VIEW3D_MT_edit_meta(Menu):
 
         layout.menu("VIEW3D_MT_edit_meta_showhide")
 
-        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator_context = 'EXEC_REGION_WIN'
         layout.operator("mball.delete_metaelems", text="Delete")
 
 
@@ -6153,7 +6112,7 @@ class VIEW3D_PT_overlay_motion_tracking(Panel):
 
     def draw_header(self, context):
         view = context.space_data
-        self.layout.prop(view, "show_reconstruction", text="")
+        self.layout.prop(view, "show_reconstruction", text=self.bl_label)
 
     def draw(self, context):
         layout = self.layout

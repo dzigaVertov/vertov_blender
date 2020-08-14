@@ -21,8 +21,7 @@
  * \ingroup editors
  */
 
-#ifndef __ED_MESH_H__
-#define __ED_MESH_H__
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -123,7 +122,6 @@ struct BMFace *EDBM_uv_active_face_get(struct BMEditMesh *em,
 void BM_uv_vert_map_free(struct UvVertMap *vmap);
 struct UvMapVert *BM_uv_vert_map_at_index(struct UvVertMap *vmap, unsigned int v);
 struct UvVertMap *BM_uv_vert_map_create(struct BMesh *bm,
-                                        const float limit[2],
                                         const bool use_select,
                                         const bool use_winding);
 
@@ -518,5 +516,3 @@ void EDBM_mesh_elem_index_ensure_multi(struct Object **objects,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __ED_MESH_H__ */

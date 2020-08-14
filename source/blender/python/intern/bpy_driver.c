@@ -83,9 +83,8 @@ int bpy_pydriver_create_dict(void)
   if (d == NULL) {
     return -1;
   }
-  else {
-    bpy_pydriver_Dict = d;
-  }
+
+  bpy_pydriver_Dict = d;
 
   /* import some modules: builtins, bpy, math, (Blender.noise)*/
   PyDict_SetItemString(d, "__builtins__", PyEval_GetBuiltins());
@@ -114,6 +113,19 @@ int bpy_pydriver_create_dict(void)
     Py_DECREF(mod);
   }
 
+  /* Add math utility functions. */
+  mod = PyImport_ImportModuleLevel("bl_math", NULL, NULL, NULL, 0);
+  if (mod) {
+    static const char *names[] = {"clamp", "lerp", "smoothstep", NULL};
+
+    for (const char **pname = names; *pname; ++pname) {
+      PyObject *func = PyDict_GetItemString(PyModule_GetDict(mod), *pname);
+      PyDict_SetItemString(bpy_pydriver_Dict, *pname, func);
+    }
+
+    Py_DECREF(mod);
+  }
+
 #ifdef USE_BYTECODE_WHITELIST
   /* setup the whitelist */
   {
@@ -133,6 +145,10 @@ int bpy_pydriver_create_dict(void)
         "bool",
         "float",
         "int",
+        /* bl_math */
+        "clamp",
+        "lerp",
+        "smoothstep",
 
         NULL,
     };
@@ -394,8 +410,10 @@ static PyObject *bpy_pydriver_depsgraph_as_pyobject(struct Depsgraph *depsgraph)
   return pyrna_struct_CreatePyObject(&depsgraph_ptr);
 }
 
-/* Adds a variable 'depsgraph' to the driver variables. This can then be used to obtain evaluated
- * datablocks, and the current view layer and scene. See T75553. */
+/**
+ * Adds a variable 'depsgraph' to the driver variables. This can then be used to obtain evaluated
+ * data-blocks, and the current view layer and scene. See T75553.
+ */
 static void bpy_pydriver_namespace_add_depsgraph(PyObject *driver_vars,
                                                  struct Depsgraph *depsgraph)
 {
@@ -411,17 +429,18 @@ static void bpy_pydriver_namespace_add_depsgraph(PyObject *driver_vars,
   }
 }
 
-/* This evals py driver expressions, 'expr' is a Python expression that
- * should evaluate to a float number, which is returned.
+/**
+ * This evaluates Python driver expressions, `driver_orig->expression`
+ * is a Python expression that should evaluate to a float number, which is returned.
  *
  * (old)note: PyGILState_Ensure() isn't always called because python can call
  * the bake operator which intern starts a thread which calls scene update
- * which does a driver update. to avoid a deadlock check PyC_IsInterpreterActive()
- * if PyGILState_Ensure() is needed - see [#27683]
+ * which does a driver update. to avoid a deadlock check #PyC_IsInterpreterActive()
+ * if #PyGILState_Ensure() is needed, see T27683.
  *
- * (new)note: checking if python is running is not threadsafe [#28114]
+ * (new)note: checking if python is running is not thread-safe T28114
  * now release the GIL on python operator execution instead, using
- * PyEval_SaveThread() / PyEval_RestoreThread() so we don't lock up blender.
+ * #PyEval_SaveThread() / #PyEval_RestoreThread() so we don't lock up blender.
  *
  * For copy-on-write we always cache expressions and write errors in the
  * original driver, otherwise these would get freed while editing. Due to
@@ -660,11 +679,8 @@ float BPY_driver_exec(struct PathResolvedRNA *anim_rna,
   if (isfinite(result)) {
     return (float)result;
   }
-  else {
-    fprintf(stderr,
-            "\tBPY_driver_eval() - driver '%s' evaluates to '%f'\n",
-            driver->expression,
-            result);
-    return 0.0f;
-  }
+
+  fprintf(
+      stderr, "\tBPY_driver_eval() - driver '%s' evaluates to '%f'\n", driver->expression, result);
+  return 0.0f;
 }

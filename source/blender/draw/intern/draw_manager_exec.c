@@ -54,8 +54,6 @@ typedef struct DRWCommandsState {
   int resource_id;
   int base_inst;
   int inst_count;
-  int v_first;
-  int v_count;
   bool neg_scale;
   /* Resource location. */
   int obmats_loc;
@@ -446,6 +444,7 @@ void DRW_state_reset(void)
   DRW_state_reset_ex(DRW_STATE_DEFAULT);
 
   GPU_texture_unbind_all();
+  GPU_uniformbuffer_unbind_all();
 
   /* Should stay constant during the whole rendering. */
   GPU_point_size(5);
@@ -517,7 +516,7 @@ static bool draw_culling_box_test(const float (*frustum_planes)[4], const BoundB
          * Go to next plane. */
         break;
       }
-      else if (v == 7) {
+      if (v == 7) {
         /* 8 points behind this plane. */
         return false;
       }
@@ -591,7 +590,7 @@ void DRW_culling_frustum_corners_get(const DRWView *view, BoundBox *corners)
 void DRW_culling_frustum_planes_get(const DRWView *view, float planes[6][4])
 {
   view = view ? view : DST.view_default;
-  memcpy(planes, view->frustum_planes, sizeof(float) * 6 * 4);
+  memcpy(planes, view->frustum_planes, sizeof(float[6][4]));
 }
 
 static void draw_compute_culling(DRWView *view)
@@ -662,19 +661,9 @@ BLI_INLINE void draw_legacy_matrix_update(DRWShadingGroup *shgroup,
 
 BLI_INLINE void draw_geometry_bind(DRWShadingGroup *shgroup, GPUBatch *geom)
 {
-  /* XXX hacking #GPUBatch. we don't want to call glUseProgram! (huge performance loss) */
-  if (DST.batch) {
-    DST.batch->program_in_use = false;
-  }
-
   DST.batch = geom;
 
-  GPU_batch_program_set_no_use(
-      geom, GPU_shader_get_program(shgroup->shader), GPU_shader_get_interface(shgroup->shader));
-
-  geom->program_in_use = true; /* XXX hacking #GPUBatch */
-
-  GPU_batch_bind(geom);
+  GPU_batch_set_shader(geom, shgroup->shader);
 }
 
 BLI_INLINE void draw_geometry_execute(DRWShadingGroup *shgroup,
@@ -714,18 +703,12 @@ BLI_INLINE void draw_indirect_call(DRWShadingGroup *shgroup, DRWCommandsState *s
       GPU_draw_list_submit(DST.draw_list);
       draw_geometry_bind(shgroup, state->batch);
     }
-    GPU_draw_list_command_add(
-        DST.draw_list, state->v_first, state->v_count, state->base_inst, state->inst_count);
+    GPU_draw_list_append(DST.draw_list, state->batch, state->base_inst, state->inst_count);
   }
   /* Fallback when unsupported */
   else {
-    draw_geometry_execute(shgroup,
-                          state->batch,
-                          state->v_first,
-                          state->v_count,
-                          state->base_inst,
-                          state->inst_count,
-                          state->baseinst_loc);
+    draw_geometry_execute(
+        shgroup, state->batch, 0, 0, state->base_inst, state->inst_count, state->baseinst_loc);
   }
 }
 
@@ -773,10 +756,11 @@ static bool ubo_bindings_validate(DRWShadingGroup *shgroup)
       DRWPass *parent_pass = DRW_memblock_elem_from_handle(DST.vmempool->passes,
                                                            &shgroup->pass_handle);
 
-      printf("Pass : %s, Shader : %s, Block : %s\n",
+      printf("Pass : %s, Shader : %s, Block : %s, Binding %d\n",
              parent_pass->name,
              shgroup->shader->name,
-             blockname);
+             blockname,
+             binding);
     }
   }
 #  endif
@@ -872,10 +856,10 @@ BLI_INLINE void draw_select_buffer(DRWShadingGroup *shgroup,
   /* Batching */
   if (!is_instancing) {
     /* FIXME: Meh a bit nasty. */
-    if (batch->gl_prim_type == convert_prim_type_to_gl(GPU_PRIM_TRIS)) {
+    if (batch->prim_type == GPU_PRIM_TRIS) {
       count = 3;
     }
-    else if (batch->gl_prim_type == convert_prim_type_to_gl(GPU_PRIM_LINES)) {
+    else if (batch->prim_type == GPU_PRIM_LINES) {
       count = 2;
     }
   }
@@ -994,9 +978,8 @@ static void draw_call_single_do(DRWShadingGroup *shgroup,
       draw_select_buffer(shgroup, state, batch, &handle);
       return;
     }
-    else {
-      GPU_select_load_id(state->select_id);
-    }
+
+    GPU_select_load_id(state->select_id);
   }
 
   draw_geometry_execute(shgroup,
@@ -1015,8 +998,6 @@ static void draw_call_batching_start(DRWCommandsState *state)
   state->resource_id = -1;
   state->base_inst = 0;
   state->inst_count = 0;
-  state->v_first = 0;
-  state->v_count = 0;
   state->batch = NULL;
 
   state->select_id = -1;
@@ -1039,15 +1020,10 @@ static void draw_call_batching_do(DRWShadingGroup *shgroup,
     draw_call_batching_flush(shgroup, state);
 
     state->batch = call->batch;
-    state->v_first = (call->batch->elem) ? call->batch->elem->index_start : 0;
-    state->v_count = (call->batch->elem) ? call->batch->elem->index_len :
-                                           call->batch->verts[0]->vertex_len;
     state->inst_count = 1;
     state->base_inst = id;
 
     draw_call_resource_bind(state, &call->handle);
-
-    GPU_draw_list_init(DST.draw_list, state->batch);
   }
   /* Is the id consecutive? */
   else if (id != state->base_inst + state->inst_count) {
@@ -1106,14 +1082,11 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
       /* Unbinding can be costly. Skip in normal condition. */
       if (G.debug & G_DEBUG_GPU) {
         GPU_texture_unbind_all();
+        GPU_uniformbuffer_unbind_all();
       }
     }
     GPU_shader_bind(shgroup->shader);
     DST.shader = shgroup->shader;
-    /* XXX hacking gawain */
-    if (DST.batch) {
-      DST.batch->program_in_use = false;
-    }
     DST.batch = NULL;
   }
 
@@ -1304,7 +1277,6 @@ static void drw_draw_pass_ex(DRWPass *pass,
   }
 
   if (DST.batch) {
-    DST.batch->program_in_use = false;
     DST.batch = NULL;
   }
 

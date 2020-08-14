@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __FN_MULTI_FUNCTION_HH__
-#define __FN_MULTI_FUNCTION_HH__
+#pragma once
 
 /** \file
  * \ingroup fn
@@ -98,6 +97,11 @@ class MultiFunction {
     return signature_.function_name;
   }
 
+  bool depends_on_context() const
+  {
+    return signature_.depends_on_context;
+  }
+
   const MFSignature &signature() const
   {
     return signature_;
@@ -119,5 +123,3 @@ inline MFParamsBuilder::MFParamsBuilder(const class MultiFunction &fn, int64_t m
 extern const MultiFunction &dummy_multi_function;
 
 }  // namespace blender::fn
-
-#endif /* __FN_MULTI_FUNCTION_HH__ */

@@ -17,8 +17,7 @@
  * All rights reserved.
  */
 
-#ifndef __BKE_PAINT_H__
-#define __BKE_PAINT_H__
+#pragma once
 
 /** \file
  * \ingroup bke
@@ -42,6 +41,7 @@ struct EdgeSet;
 struct GHash;
 struct GridPaintMask;
 struct ImagePool;
+struct ListBase;
 struct MLoop;
 struct MLoopTri;
 struct MVert;
@@ -260,10 +260,20 @@ typedef struct SculptPoseIKChain {
 /* Cloth Brush */
 
 typedef struct SculptClothLengthConstraint {
-  int v1;
-  int v2;
+  /* Elements that are affected by the constraint. */
+  /* Element a should always be a mesh vertex with the index stored in elem_index_a as it is always
+   * deformed. Element b could be another vertex of the same mesh or any other position (arbitrary
+   * point, position for a previous state). In that case, elem_index_a and elem_index_b should be
+   * the same to avoid affecting two different vertices when solving the constraints.
+   * *elem_position points to the position which is owned by the element. */
+  int elem_index_a;
+  float *elem_position_a;
+
+  int elem_index_b;
+  float *elem_position_b;
 
   float length;
+  float strength;
 } SculptClothLengthConstraint;
 
 typedef struct SculptClothSimulation {
@@ -273,6 +283,11 @@ typedef struct SculptClothSimulation {
   int capacity_length_constraints;
   float *length_constraint_tweak;
 
+  /* Position anchors for deformation brushes. These positions are modified by the brush and the
+   * final positions of the simulated vertices are updated with constraints that use these points
+   * as targets. */
+  float (*deformation_pos)[3];
+
   float mass;
   float damping;
 
@@ -280,7 +295,9 @@ typedef struct SculptClothSimulation {
   float (*pos)[3];
   float (*init_pos)[3];
   float (*prev_pos)[3];
+  float (*last_iteration_pos)[3];
 
+  struct ListBase *collider_list;
 } SculptClothSimulation;
 
 typedef struct SculptPersistentBase {
@@ -296,6 +313,81 @@ typedef struct SculptVertexInfo {
   /* Indexed by base mesh vertex index, stores if that vertex is a boundary. */
   BLI_bitmap *boundary;
 } SculptVertexInfo;
+
+typedef struct SculptBoundaryEditInfo {
+  /* Vertex index from where the topology propagation reached this vertex. */
+  int original_vertex;
+
+  /* How many steps were needed to reach this vertex from the boundary. */
+  int num_propagation_steps;
+
+  /* Stregth that is used to deform this vertex. */
+  float strength_factor;
+} SculptBoundaryEditInfo;
+
+/* Edge for drawing the boundary preview in the cursor. */
+typedef struct SculptBoundaryPreviewEdge {
+  int v1;
+  int v2;
+} SculptBoundaryPreviewEdge;
+
+typedef struct SculptBoundary {
+  /* Vertex indices of the active boundary. */
+  int *vertices;
+  int vertices_capacity;
+  int num_vertices;
+
+  /* Distance from a vertex in the boundary to initial vertex indexed by vertex index, taking into
+   * account the lengh of all edges between them. Any vertex that is not in the boundary will have
+   * a distance of 0. */
+  float *distance;
+
+  /* Data for drawing the preview. */
+  SculptBoundaryPreviewEdge *edges;
+  int edges_capacity;
+  int num_edges;
+
+  /* True if the boundary loops into itself. */
+  bool forms_loop;
+
+  /* Initial vertex in the boundary which is closest to the current sculpt active vertex. */
+  int initial_vertex;
+
+  /* Vertex that at max_propagation_steps from the boundary and closest to the original active
+   * vertex that was used to initialize the boundary. This is used as a reference to check how much
+   * the deformation will go into the mesh and to calculate the strength of the brushes. */
+  int pivot_vertex;
+
+  /* Stores the initial positions of the pivot and boundary initial vertex as they may be deformed
+   * during the brush action. This allows to use them as a reference positions and vectors for some
+   * brush effects. */
+  float initial_vertex_position[3];
+  float initial_pivot_position[3];
+
+  /* Maximum number of topology steps that were calculated from the boundary. */
+  int max_propagation_steps;
+
+  /* Indexed by vertex index, contains the topology information needed for boundary deformations.
+   */
+  struct SculptBoundaryEditInfo *edit_info;
+
+  /* Bend Deform type. */
+  struct {
+    float (*pivot_rotation_axis)[3];
+    float (*pivot_positions)[3];
+  } bend;
+
+  /* Slide Deform type. */
+  struct {
+    float (*directions)[3];
+  } slide;
+
+  /* Twist Deform type. */
+  struct {
+    float rotation_axis[3];
+    float pivot_position[3];
+  } twist;
+} SculptBoundary;
 
 typedef struct SculptFakeNeighbors {
   bool use_fake_neighbors;
@@ -317,6 +409,9 @@ typedef struct SculptSession {
     struct MultiresModifierData *modifier;
     int level;
   } multires;
+
+  /* Depsgraph for the Cloth Brush solver to get the colliders. */
+  struct Depsgraph *depsgraph;
 
   /* These are always assigned to base mesh data when using PBVH_FACES and PBVH_GRIDS. */
   struct MVert *mvert;
@@ -395,6 +490,9 @@ typedef struct SculptSession {
   float pose_origin[3];
   SculptPoseIKChain *pose_ik_chain_preview;
 
+  /* Boundary Brush Preview */
+  SculptBoundary *boundary_preview;
+
   /* Mesh State Persistence */
   /* This is freed with the PBVH, so it is always in sync with the mesh. */
   SculptPersistentBase *persistent_base;
@@ -451,6 +549,10 @@ void BKE_sculptsession_free_vwpaint_data(struct SculptSession *ss);
 void BKE_sculptsession_bm_to_me(struct Object *ob, bool reorder);
 void BKE_sculptsession_bm_to_me_for_render(struct Object *object);
 
+/* Create new color layer on object if it doesn't have one and if experimental feature set has
+ * sculpt vertex color enabled. Returns truth if new layer has been added, false otherwise. */
+void BKE_sculpt_color_layer_create_if_needed(struct Object *object);
+
 void BKE_sculpt_update_object_for_edit(struct Depsgraph *depsgraph,
                                        struct Object *ob_orig,
                                        bool need_pmap,
@@ -467,6 +569,10 @@ struct PBVH *BKE_sculpt_object_pbvh_ensure(struct Depsgraph *depsgraph, struct O
 
 void BKE_sculpt_bvh_update_from_ccg(struct PBVH *pbvh, struct SubdivCCG *subdiv_ccg);
 
+/* This ensure that all elements in the mesh (both vertices and grids) have their visibility
+ * updated according to the face sets. */
+void BKE_sculpt_sync_face_set_visibility(struct Mesh *mesh, struct SubdivCCG *subdiv_ccg);
+
 bool BKE_sculptsession_use_pbvh_draw(const struct Object *ob, const struct View3D *v3d);
 
 enum {
@@ -476,6 +582,4 @@ enum {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

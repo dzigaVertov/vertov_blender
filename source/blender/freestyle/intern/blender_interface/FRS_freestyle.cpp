@@ -34,8 +34,6 @@ using namespace Freestyle;
 
 #include "MEM_guardedalloc.h"
 
-extern "C" {
-
 #include "DNA_camera_types.h"
 #include "DNA_collection_types.h"
 #include "DNA_freestyle_types.h"
@@ -64,6 +62,8 @@ extern "C" {
 #include "renderpipeline.h"
 
 #include "FRS_freestyle.h"
+
+extern "C" {
 
 #define DEFAULT_SPHERE_RADIUS 1.0f
 #define DEFAULT_DKR_EPSILON 0.0f
@@ -100,7 +100,7 @@ static bCallbackFuncStore load_post_callback_funcstore = {
 //   Initialization
 //=======================================================
 
-void FRS_initialize()
+void FRS_init()
 {
   if (freestyle_is_initialized) {
     return;
@@ -376,7 +376,7 @@ static void prepare(Render *re, ViewLayer *view_layer, Depsgraph *depsgraph)
           {FREESTYLE_FE_EXTERNAL_CONTOUR, 0},
           {FREESTYLE_FE_EDGE_MARK, 0},
       };
-      int num_edge_types = sizeof(conditions) / sizeof(struct edge_type_condition);
+      int num_edge_types = ARRAY_SIZE(conditions);
       if (G.debug & G_DEBUG_FREESTYLE) {
         cout << "Linesets:" << endl;
       }

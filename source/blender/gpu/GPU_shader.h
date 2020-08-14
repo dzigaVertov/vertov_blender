@@ -21,8 +21,7 @@
  * \ingroup gpu
  */
 
-#ifndef __GPU_SHADER_H__
-#define __GPU_SHADER_H__
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,8 +86,6 @@ void GPU_shader_transform_feedback_disable(GPUShader *shader);
 
 int GPU_shader_get_program(GPUShader *shader);
 
-void *GPU_shader_get_interface(GPUShader *shader);
-
 void GPU_shader_set_srgb_uniform(const struct GPUShaderInterface *interface);
 
 int GPU_shader_get_uniform(GPUShader *shader, const char *name);
@@ -106,6 +103,19 @@ void GPU_shader_uniform_vector_int(
 
 void GPU_shader_uniform_float(GPUShader *shader, int location, float value);
 void GPU_shader_uniform_int(GPUShader *shader, int location, int value);
+
+void GPU_shader_uniform_1i(GPUShader *sh, const char *name, int value);
+void GPU_shader_uniform_1b(GPUShader *sh, const char *name, bool value);
+void GPU_shader_uniform_1f(GPUShader *sh, const char *name, float value);
+void GPU_shader_uniform_2f(GPUShader *sh, const char *name, float x, float y);
+void GPU_shader_uniform_3f(GPUShader *sh, const char *name, float x, float y, float z);
+void GPU_shader_uniform_4f(GPUShader *sh, const char *name, float x, float y, float z, float w);
+void GPU_shader_uniform_2fv(GPUShader *sh, const char *name, const float data[2]);
+void GPU_shader_uniform_3fv(GPUShader *sh, const char *name, const float data[3]);
+void GPU_shader_uniform_4fv(GPUShader *sh, const char *name, const float data[4]);
+void GPU_shader_uniform_mat4(GPUShader *sh, const char *name, const float data[4][4]);
+void GPU_shader_uniform_2fv_array(GPUShader *sh, const char *name, int len, const float (*val)[2]);
+void GPU_shader_uniform_4fv_array(GPUShader *sh, const char *name, int len, const float (*val)[4]);
 
 int GPU_shader_get_attribute(GPUShader *shader, const char *name);
 
@@ -372,5 +382,3 @@ void GPU_shader_free_builtin_shaders(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __GPU_SHADER_H__ */

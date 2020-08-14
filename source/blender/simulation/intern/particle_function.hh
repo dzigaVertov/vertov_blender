@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __SIM_PARTICLE_FUNCTION_HH__
-#define __SIM_PARTICLE_FUNCTION_HH__
+#pragma once
 
 #include "FN_attributes_ref.hh"
 #include "FN_multi_function.hh"
@@ -26,10 +25,15 @@
 
 namespace blender::sim {
 
+struct ParticleFunctionInputContext {
+  const SimulationSolveContext &solve_context;
+  const ParticleChunkContext &particles;
+};
+
 class ParticleFunctionInput {
  public:
   virtual ~ParticleFunctionInput() = default;
-  virtual void add_input(fn::AttributesRef attributes,
+  virtual void add_input(ParticleFunctionInputContext &context,
                          fn::MFParamsBuilder &params,
                          ResourceCollector &resources) const = 0;
 };
@@ -60,7 +64,8 @@ class ParticleFunctionEvaluator {
  private:
   ResourceCollector resources_;
   const ParticleFunction &particle_fn_;
-  const ParticleChunkContext &particle_chunk_context_;
+  const SimulationSolveContext &solve_context_;
+  const ParticleChunkContext &particles_;
   IndexMask mask_;
   fn::MFContextBuilder global_context_;
   fn::MFContextBuilder per_particle_context_;
@@ -69,13 +74,14 @@ class ParticleFunctionEvaluator {
 
  public:
   ParticleFunctionEvaluator(const ParticleFunction &particle_fn,
-                            const ParticleChunkContext &particle_chunk_context);
+                            const SimulationSolveContext &solve_context,
+                            const ParticleChunkContext &particles);
   ~ParticleFunctionEvaluator();
 
   void compute();
-  fn::GVSpan get(int output_index, StringRef expected_name) const;
+  fn::GVSpan get(int output_index, StringRef expected_name = "") const;
 
-  template<typename T> fn::VSpan<T> get(int output_index, StringRef expected_name) const
+  template<typename T> fn::VSpan<T> get(int output_index, StringRef expected_name = "") const
   {
     return this->get(output_index, expected_name).typed<T>();
   }
@@ -86,5 +92,3 @@ class ParticleFunctionEvaluator {
 };
 
 }  // namespace blender::sim
-
-#endif /* __SIM_PARTICLE_FUNCTION_HH__ */

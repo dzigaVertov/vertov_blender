@@ -718,10 +718,10 @@ static int rna_FluidModifier_grid_get_length(PointerRNA *ptr, int length[RNA_MAX
     /* high resolution smoke */
     int res[3];
 
-    manta_smoke_turbulence_get_res(fds->fluid, res);
+    manta_noise_get_res(fds->fluid, res);
     size = res[0] * res[1] * res[2];
 
-    density = manta_smoke_turbulence_get_density(fds->fluid);
+    density = manta_noise_get_density(fds->fluid);
   }
   else if (fds->fluid) {
     /* regular resolution */
@@ -790,7 +790,7 @@ static void rna_FluidModifier_density_grid_get(PointerRNA *ptr, float *values)
   BLI_rw_mutex_lock(fds->fluid_mutex, THREAD_LOCK_READ);
 
   if (fds->flags & FLUID_DOMAIN_USE_NOISE && fds->fluid) {
-    density = manta_smoke_turbulence_get_density(fds->fluid);
+    density = manta_noise_get_density(fds->fluid);
   }
   else {
     density = manta_smoke_get_density(fds->fluid);
@@ -837,11 +837,11 @@ static void rna_FluidModifier_color_grid_get(PointerRNA *ptr, float *values)
   }
   else {
     if (fds->flags & FLUID_DOMAIN_USE_NOISE) {
-      if (manta_smoke_turbulence_has_colors(fds->fluid)) {
-        manta_smoke_turbulence_get_rgba(fds->fluid, values, 0);
+      if (manta_noise_has_colors(fds->fluid)) {
+        manta_noise_get_rgba(fds->fluid, values, 0);
       }
       else {
-        manta_smoke_turbulence_get_rgba_fixed_color(fds->fluid, fds->active_color, values, 0);
+        manta_noise_get_rgba_fixed_color(fds->fluid, fds->active_color, values, 0);
       }
     }
     else {
@@ -867,7 +867,7 @@ static void rna_FluidModifier_flame_grid_get(PointerRNA *ptr, float *values)
   BLI_rw_mutex_lock(fds->fluid_mutex, THREAD_LOCK_READ);
 
   if (fds->flags & FLUID_DOMAIN_USE_NOISE && fds->fluid) {
-    flame = manta_smoke_turbulence_get_flame(fds->fluid);
+    flame = manta_noise_get_flame(fds->fluid);
   }
   else {
     flame = manta_smoke_get_flame(fds->fluid);
@@ -917,7 +917,7 @@ static void rna_FluidModifier_temperature_grid_get(PointerRNA *ptr, float *value
   BLI_rw_mutex_lock(fds->fluid_mutex, THREAD_LOCK_READ);
 
   if (fds->flags & FLUID_DOMAIN_USE_NOISE && fds->fluid) {
-    flame = manta_smoke_turbulence_get_flame(fds->fluid);
+    flame = manta_noise_get_flame(fds->fluid);
   }
   else {
     flame = manta_smoke_get_flame(fds->fluid);
@@ -1024,14 +1024,18 @@ static void rna_Fluid_flowtype_set(struct PointerRNA *ptr, int value)
   FluidFlowSettings *settings = (FluidFlowSettings *)ptr->data;
 
   if (value != settings->type) {
+    short prev_value = settings->type;
     settings->type = value;
 
-    /* Force flow source to mesh */
+    /* Force flow source to mesh for liquids.
+     * Also use different surface emission. Liquids should by default not emit around surface. */
     if (value == FLUID_FLOW_TYPE_LIQUID) {
       rna_Fluid_flowsource_set(ptr, FLUID_FLOW_SOURCE_MESH);
       settings->surface_distance = 0.0f;
     }
-    else {
+    /* Use some surface emission when switching to a gas emitter. Gases should by default emit a
+     * bit around surface. */
+    if (prev_value == FLUID_FLOW_TYPE_LIQUID) {
       settings->surface_distance = 1.5f;
     }
   }
@@ -1677,10 +1681,19 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
   RNA_def_property_range(prop, 0.001, 1.0);
   RNA_def_property_ui_range(prop, 0.01, 1.0, 0.05, -1);
   RNA_def_property_ui_text(prop,
-                           "Obstacle-Fluid Threshold ",
+                           "Obstacle-Fluid Threshold",
                            "Determines how much fluid is allowed in an obstacle cell "
                            "(higher values will tag a boundary cell as an obstacle easier "
                            "and reduce the boundary smoothening effect)");
+  RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_datacache_reset");
+
+  prop = RNA_def_property(srna, "sys_particle_maximum", PROP_INT, PROP_NONE);
+  RNA_def_property_int_sdna(prop, NULL, "sys_particle_maximum");
+  RNA_def_property_range(prop, 0, INT_MAX);
+  RNA_def_property_ui_text(
+      prop,
+      "System Maximum",
+      "Maximum number of fluid particles that are allowed in this simulation");
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_datacache_reset");
 
   /*  diffusion options */
@@ -2039,6 +2052,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop,
       "Start",
       "Frame on which the simulation starts. This is the first frame that will be baked");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
   prop = RNA_def_property(srna, "cache_frame_end", PROP_INT, PROP_TIME);
   RNA_def_property_int_sdna(prop, NULL, "cache_frame_end");
@@ -2048,6 +2062,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop,
       "End",
       "Frame on which the simulation stops. This is the last frame that will be baked");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
   prop = RNA_def_property(srna, "cache_frame_offset", PROP_INT, PROP_TIME);
   RNA_def_property_int_sdna(prop, NULL, "cache_frame_offset");
@@ -2057,6 +2072,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       "Offset",
       "Frame offset that is used when loading the simulation from the cache. It is not considered "
       "when baking the simulation, only when loading it");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
   prop = RNA_def_property(srna, "cache_frame_pause_data", PROP_INT, PROP_TIME);
   RNA_def_property_int_sdna(prop, NULL, "cache_frame_pause_data");
@@ -2080,6 +2096,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop, NULL, "rna_Fluid_cachetype_mesh_set", "rna_Fluid_cachetype_mesh_itemf");
   RNA_def_property_ui_text(
       prop, "File Format", "Select the file format to be used for caching surface data");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_meshcache_reset");
 
   prop = RNA_def_property(srna, "cache_data_format", PROP_ENUM, PROP_NONE);
@@ -2089,6 +2106,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop, NULL, "rna_Fluid_cachetype_data_set", "rna_Fluid_cachetype_volume_itemf");
   RNA_def_property_ui_text(
       prop, "File Format", "Select the file format to be used for caching volumetric data");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_datacache_reset");
 
   prop = RNA_def_property(srna, "cache_particle_format", PROP_ENUM, PROP_NONE);
@@ -2098,6 +2116,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop, NULL, "rna_Fluid_cachetype_particle_set", "rna_Fluid_cachetype_particle_itemf");
   RNA_def_property_ui_text(
       prop, "File Format", "Select the file format to be used for caching particle data");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_particlescache_reset");
 
   prop = RNA_def_property(srna, "cache_noise_format", PROP_ENUM, PROP_NONE);
@@ -2107,6 +2126,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       prop, NULL, "rna_Fluid_cachetype_noise_set", "rna_Fluid_cachetype_volume_itemf");
   RNA_def_property_ui_text(
       prop, "File Format", "Select the file format to be used for caching noise data");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_noisecache_reset");
 
   prop = RNA_def_property(srna, "cache_type", PROP_ENUM, PROP_NONE);
@@ -2114,6 +2134,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
   RNA_def_property_enum_items(prop, cache_types);
   RNA_def_property_enum_funcs(prop, NULL, "rna_Fluid_cachetype_set", NULL);
   RNA_def_property_ui_text(prop, "Type", "Change the cache type of the simulation");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Fluid_domain_data_reset");
 
   prop = RNA_def_property(srna, "cache_resumable", PROP_BOOLEAN, PROP_NONE);
@@ -2124,6 +2145,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
       "Additional data will be saved so that the bake jobs can be resumed after pausing. Because "
       "more data will be written to disk it is recommended to avoid enabling this option when "
       "baking at high resolutions");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
   RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Fluid_datacache_reset");
 
   prop = RNA_def_property(srna, "cache_directory", PROP_STRING, PROP_DIRPATH);
@@ -2376,7 +2398,7 @@ static void rna_def_fluid_domain_settings(BlenderRNA *brna)
   prop = RNA_def_property(srna, "openvdb_cache_compress_type", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_sdna(prop, NULL, "openvdb_compression");
   RNA_def_property_enum_items(prop, prop_compression_items);
-  RNA_def_property_ui_text(prop, "Compression", "facession method to be used");
+  RNA_def_property_ui_text(prop, "Compression", "Compression method to be used");
 
   prop = RNA_def_property(srna, "openvdb_data_depth", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_bitflag_sdna(prop, NULL, "openvdb_data_depth");

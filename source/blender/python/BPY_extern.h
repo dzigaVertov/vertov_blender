@@ -18,8 +18,7 @@
  * \ingroup python
  */
 
-#ifndef __BPY_EXTERN_H__
-#define __BPY_EXTERN_H__
+#pragma once
 
 struct AnimationEvalContext;
 struct ChannelDriver; /* DNA_anim_types.h */
@@ -55,6 +54,7 @@ void BPY_python_start(int argc, const char **argv);
 void BPY_python_end(void);
 void BPY_python_reset(struct bContext *C);
 void BPY_python_use_system_env(void);
+void BPY_python_backtrace(/* FILE */ void *file);
 
 /* global interpreter lock */
 
@@ -82,23 +82,23 @@ bool BPY_execute_text(struct bContext *C,
 bool BPY_execute_string_as_number(struct bContext *C,
                                   const char *imports[],
                                   const char *expr,
-                                  const bool verbose,
+                                  const char *report_prefix,
                                   double *r_value);
 bool BPY_execute_string_as_intptr(struct bContext *C,
                                   const char *imports[],
                                   const char *expr,
-                                  const bool verbose,
+                                  const char *report_prefix,
                                   intptr_t *r_value);
 bool BPY_execute_string_as_string_and_size(struct bContext *C,
                                            const char *imports[],
                                            const char *expr,
-                                           const bool verbose,
+                                           const char *report_prefix,
                                            char **r_value,
                                            size_t *r_value_size);
 bool BPY_execute_string_as_string(struct bContext *C,
                                   const char *imports[],
                                   const char *expr,
-                                  const bool verbose,
+                                  const char *report_prefix,
                                   char **r_value);
 
 bool BPY_execute_string_ex(struct bContext *C,
@@ -140,5 +140,3 @@ const char *BPY_app_translations_py_pgettext(const char *msgctxt, const char *ms
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
-
-#endif /* __BPY_EXTERN_H__ */

@@ -582,7 +582,7 @@ uint32_t DRW_object_resource_id_get(Object *UNUSED(ob))
     /* Handle not yet allocated. Return next handle. */
     handle = DST.resource_handle;
   }
-  return handle & ~(1 << 31);
+  return handle & ~(1u << 31);
 }
 
 static DRWResourceHandle drw_resource_handle(DRWShadingGroup *shgroup,
@@ -594,28 +594,26 @@ static DRWResourceHandle drw_resource_handle(DRWShadingGroup *shgroup,
       DRWResourceHandle handle = 0;
       return handle;
     }
-    else {
-      return drw_resource_handle_new(obmat, NULL);
+
+    return drw_resource_handle_new(obmat, NULL);
+  }
+
+  if (DST.ob_handle == 0) {
+    DST.ob_handle = drw_resource_handle_new(obmat, ob);
+    DST.ob_state_obinfo_init = false;
+  }
+
+  if (shgroup->objectinfo) {
+    if (!DST.ob_state_obinfo_init) {
+      DST.ob_state_obinfo_init = true;
+      DRWObjectInfos *ob_infos = DRW_memblock_elem_from_handle(DST.vmempool->obinfos,
+                                                               &DST.ob_handle);
+
+      drw_call_obinfos_init(ob_infos, ob);
     }
   }
-  else {
-    if (DST.ob_handle == 0) {
-      DST.ob_handle = drw_resource_handle_new(obmat, ob);
-      DST.ob_state_obinfo_init = false;
-    }
 
-    if (shgroup->objectinfo) {
-      if (!DST.ob_state_obinfo_init) {
-        DST.ob_state_obinfo_init = true;
-        DRWObjectInfos *ob_infos = DRW_memblock_elem_from_handle(DST.vmempool->obinfos,
-                                                                 &DST.ob_handle);
-
-        drw_call_obinfos_init(ob_infos, ob);
-      }
-    }
-
-    return DST.ob_handle;
-  }
+  return DST.ob_handle;
 }
 
 static void command_type_set(uint64_t *command_type_bits, int index, eDRWCommandType type)
@@ -1292,13 +1290,10 @@ static DRWShadingGroup *drw_shgroup_material_create_ex(GPUPass *gpupass, DRWPass
 }
 
 static void drw_shgroup_material_texture(DRWShadingGroup *grp,
-                                         GPUMaterialTexture *tex,
+                                         GPUTexture *gputex,
                                          const char *name,
-                                         eGPUSamplerState state,
-                                         int textarget)
+                                         eGPUSamplerState state)
 {
-  GPUTexture *gputex = GPU_texture_from_blender(tex->ima, tex->iuser, NULL, textarget);
-
   DRW_shgroup_uniform_texture_ex(grp, name, gputex, state);
 
   GPUTexture **gputex_ref = BLI_memblock_alloc(DST.vmempool->images);
@@ -1314,15 +1309,16 @@ void DRW_shgroup_add_material_resources(DRWShadingGroup *grp, struct GPUMaterial
   LISTBASE_FOREACH (GPUMaterialTexture *, tex, &textures) {
     if (tex->ima) {
       /* Image */
+      GPUTexture *gputex;
       if (tex->tiled_mapping_name[0]) {
-        drw_shgroup_material_texture(
-            grp, tex, tex->sampler_name, tex->sampler_state, GL_TEXTURE_2D_ARRAY);
-        drw_shgroup_material_texture(
-            grp, tex, tex->tiled_mapping_name, tex->sampler_state, GL_TEXTURE_1D_ARRAY);
+        gputex = BKE_image_get_gpu_tiles(tex->ima, tex->iuser, NULL);
+        drw_shgroup_material_texture(grp, gputex, tex->sampler_name, tex->sampler_state);
+        gputex = BKE_image_get_gpu_tilemap(tex->ima, tex->iuser, NULL);
+        drw_shgroup_material_texture(grp, gputex, tex->tiled_mapping_name, tex->sampler_state);
       }
       else {
-        drw_shgroup_material_texture(
-            grp, tex, tex->sampler_name, tex->sampler_state, GL_TEXTURE_2D);
+        gputex = BKE_image_get_gpu_texture(tex->ima, tex->iuser, NULL);
+        drw_shgroup_material_texture(grp, gputex, tex->sampler_name, tex->sampler_state);
       }
     }
     else if (tex->colorband) {
@@ -1870,7 +1866,7 @@ void DRW_view_clip_planes_set(DRWView *view, float (*planes)[4], int plane_len)
   BLI_assert(plane_len <= MAX_CLIP_PLANES);
   view->clip_planes_len = plane_len;
   if (plane_len > 0) {
-    memcpy(view->storage.clipplanes, planes, sizeof(float) * 4 * plane_len);
+    memcpy(view->storage.clipplanes, planes, sizeof(float[4]) * plane_len);
   }
 }
 
@@ -1906,9 +1902,8 @@ float DRW_view_near_distance_get(const DRWView *view)
   if (DRW_view_is_persp_get(view)) {
     return -projmat[3][2] / (projmat[2][2] - 1.0f);
   }
-  else {
-    return -(projmat[3][2] + 1.0f) / projmat[2][2];
-  }
+
+  return -(projmat[3][2] + 1.0f) / projmat[2][2];
 }
 
 float DRW_view_far_distance_get(const DRWView *view)
@@ -1919,9 +1914,8 @@ float DRW_view_far_distance_get(const DRWView *view)
   if (DRW_view_is_persp_get(view)) {
     return -projmat[3][2] / (projmat[2][2] + 1.0f);
   }
-  else {
-    return -(projmat[3][2] - 1.0f) / projmat[2][2];
-  }
+
+  return -(projmat[3][2] - 1.0f) / projmat[2][2];
 }
 
 void DRW_view_viewmat_get(const DRWView *view, float mat[4][4], bool inverse)
@@ -2028,18 +2022,16 @@ static int pass_shgroup_dist_sort(const void *a, const void *b)
   if (shgrp_a->z_sorting.distance < shgrp_b->z_sorting.distance) {
     return 1;
   }
-  else if (shgrp_a->z_sorting.distance > shgrp_b->z_sorting.distance) {
+  if (shgrp_a->z_sorting.distance > shgrp_b->z_sorting.distance) {
     return -1;
   }
-  else {
-    /* If distances are the same, keep original order. */
-    if (shgrp_a->z_sorting.original_index > shgrp_b->z_sorting.original_index) {
-      return -1;
-    }
-    else {
-      return 0;
-    }
+
+  /* If distances are the same, keep original order. */
+  if (shgrp_a->z_sorting.original_index > shgrp_b->z_sorting.original_index) {
+    return -1;
   }
+
+  return 0;
 }
 
 /* ------------------ Shading group sorting --------------------- */

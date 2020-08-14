@@ -43,9 +43,9 @@ static void node_shader_init_tex_sky(bNodeTree *UNUSED(ntree), bNode *node)
   tex->turbidity = 2.2f;
   tex->ground_albedo = 0.3f;
   tex->sun_disc = true;
-  tex->sun_size = DEG2RADF(0.545);
+  tex->sun_size = DEG2RADF(0.545f);
   tex->sun_intensity = 1.0f;
-  tex->sun_elevation = M_PI_2;
+  tex->sun_elevation = DEG2RADF(15.0f);
   tex->sun_rotation = 0.0f;
   tex->altitude = 0.0f;
   tex->air_density = 1.0f;
@@ -170,7 +170,7 @@ static int node_shader_gpu_tex_sky(GPUMaterial *mat,
                           GPU_uniform(xyz_to_rgb.g),
                           GPU_uniform(xyz_to_rgb.b));
   }
-  else if (tex->sky_model == 1) {
+  if (tex->sky_model == 1) {
     /* Hosek / Wilkie */
     sun_angles[0] = fmin(M_PI_2, sun_angles[0]); /* clamp to horizon */
     SKY_ArHosekSkyModelState *sky_state = SKY_arhosek_xyz_skymodelstate_alloc_init(
@@ -210,9 +210,8 @@ static int node_shader_gpu_tex_sky(GPUMaterial *mat,
                           GPU_uniform(xyz_to_rgb.g),
                           GPU_uniform(xyz_to_rgb.b));
   }
-  else {
-    return GPU_stack_link(mat, node, "node_tex_sky_nishita", in, out);
-  }
+
+  return GPU_stack_link(mat, node, "node_tex_sky_nishita", in, out);
 }
 
 static void node_shader_update_sky(bNodeTree *UNUSED(ntree), bNode *node)

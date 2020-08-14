@@ -28,6 +28,8 @@
 #include "workbench_engine.h"
 #include "workbench_private.h"
 
+extern char datatoc_common_math_lib_glsl[];
+extern char datatoc_common_math_geom_lib_glsl[];
 extern char datatoc_common_hair_lib_glsl[];
 extern char datatoc_common_pointcloud_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
@@ -119,6 +121,8 @@ void workbench_shader_library_ensure(void)
   if (e_data.lib == NULL) {
     e_data.lib = DRW_shader_library_create();
     /* NOTE: Theses needs to be ordered by dependencies. */
+    DRW_SHADER_LIB_ADD(e_data.lib, common_math_lib);
+    DRW_SHADER_LIB_ADD(e_data.lib, common_math_geom_lib);
     DRW_SHADER_LIB_ADD(e_data.lib, common_hair_lib);
     DRW_SHADER_LIB_ADD(e_data.lib, common_view_lib);
     DRW_SHADER_LIB_ADD(e_data.lib, common_pointcloud_lib);
@@ -504,11 +508,11 @@ void workbench_shader_free(void)
     struct GPUShader **sh_array = &e_data.transp_prepass_sh_cache[0][0][0][0];
     DRW_SHADER_FREE_SAFE(sh_array[j]);
   }
-  for (int j = 0; j < sizeof(e_data.opaque_composite_sh) / sizeof(void *); j++) {
+  for (int j = 0; j < ARRAY_SIZE(e_data.opaque_composite_sh); j++) {
     struct GPUShader **sh_array = &e_data.opaque_composite_sh[0];
     DRW_SHADER_FREE_SAFE(sh_array[j]);
   }
-  for (int j = 0; j < sizeof(e_data.shadow_depth_pass_sh) / sizeof(void *); j++) {
+  for (int j = 0; j < ARRAY_SIZE(e_data.shadow_depth_pass_sh); j++) {
     struct GPUShader **sh_array = &e_data.shadow_depth_pass_sh[0];
     DRW_SHADER_FREE_SAFE(sh_array[j]);
   }
@@ -520,7 +524,7 @@ void workbench_shader_free(void)
     struct GPUShader **sh_array = &e_data.cavity_sh[0][0];
     DRW_SHADER_FREE_SAFE(sh_array[j]);
   }
-  for (int j = 0; j < sizeof(e_data.smaa_sh) / sizeof(void *); j++) {
+  for (int j = 0; j < ARRAY_SIZE(e_data.smaa_sh); j++) {
     struct GPUShader **sh_array = &e_data.smaa_sh[0];
     DRW_SHADER_FREE_SAFE(sh_array[j]);
   }

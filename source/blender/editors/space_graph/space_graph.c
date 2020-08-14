@@ -64,7 +64,7 @@
 
 /* ******************** default callbacks for ipo space ***************** */
 
-static SpaceLink *graph_new(const ScrArea *UNUSED(area), const Scene *scene)
+static SpaceLink *graph_create(const ScrArea *UNUSED(area), const Scene *scene)
 {
   ARegion *region;
   SpaceGraph *sipo;
@@ -204,7 +204,7 @@ static void graph_main_region_draw(const bContext *C, ARegion *region)
 
   /* clear and setup matrix */
   UI_GetThemeColor3fv(TH_BACK, col);
-  GPU_clear_color(col[0], col[1], col[2], 0.0);
+  GPU_clear_color(col[0], col[1], col[2], 1.0f);
   GPU_clear(GPU_COLOR_BIT);
 
   UI_view2d_view_ortho(v2d);
@@ -362,7 +362,7 @@ static void graph_channel_region_draw(const bContext *C, ARegion *region)
 
   /* clear and setup matrix */
   UI_GetThemeColor3fv(TH_BACK, col);
-  GPU_clear_color(col[0], col[1], col[2], 0.0);
+  GPU_clear_color(col[0], col[1], col[2], 1.0f);
   GPU_clear(GPU_COLOR_BIT);
 
   UI_view2d_view_ortho(v2d);
@@ -838,7 +838,7 @@ void ED_spacetype_ipo(void)
   st->spaceid = SPACE_GRAPH;
   strncpy(st->name, "Graph", BKE_ST_MAXNAME);
 
-  st->new = graph_new;
+  st->create = graph_create;
   st->free = graph_free;
   st->init = graph_init;
   st->duplicate = graph_duplicate;

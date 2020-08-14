@@ -46,9 +46,5 @@ Desktop.ini
 
 # smoke simulation noise tile (generated)
 waveletNoiseTile.bin
-/CMakeFiles/
-/build_files/cmake/config/my.blend
-/compile_commands.json
-/salida
-/source/blender/makesdna/DNA_object_types.h.rej
 /data
+/salida

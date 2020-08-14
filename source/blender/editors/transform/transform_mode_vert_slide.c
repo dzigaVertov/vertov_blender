@@ -126,7 +126,7 @@ static void calcVertSlideMouseActiveVert(struct TransInfo *t, const int mval[2])
 {
   /* Active object may have no selected vertices. */
   VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
-  float mval_fl[2] = {UNPACK2(mval)};
+  const float mval_fl[2] = {UNPACK2(mval)};
   TransDataVertSlideVert *sv;
 
   /* set the vertex to use as a reference for the mouse direction 'curr_sv_index' */
@@ -153,8 +153,8 @@ static void calcVertSlideMouseActiveVert(struct TransInfo *t, const int mval[2])
 static void calcVertSlideMouseActiveEdges(struct TransInfo *t, const int mval[2])
 {
   VertSlideData *sld = TRANS_DATA_CONTAINER_FIRST_OK(t)->custom.mode.data;
-  float imval_fl[2] = {UNPACK2(t->mouse.imval)};
-  float mval_fl[2] = {UNPACK2(mval)};
+  const float imval_fl[2] = {UNPACK2(t->mouse.imval)};
+  const float mval_fl[2] = {UNPACK2(mval)};
 
   float dir[3];
   TransDataVertSlideVert *sv;
@@ -601,7 +601,7 @@ static void applyVertSlide(TransInfo *t, const int UNUSED(mval[2]))
   t->values_final[0] = final;
 
   /* header string */
-  ofs += BLI_strncpy_rlen(str + ofs, TIP_("Vert Slide: "), sizeof(str) - ofs);
+  ofs += BLI_strncpy_rlen(str + ofs, TIP_("Vertex Slide: "), sizeof(str) - ofs);
   if (hasNumInput(&t->num)) {
     char c[NUM_STR_REP_LEN];
     outputNumInput(&(t->num), c, &t->scene->unit);

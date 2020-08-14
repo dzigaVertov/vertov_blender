@@ -94,7 +94,7 @@ static void initData(GpencilModifierData *md)
   gpmd->falloff_type = eGPHook_Falloff_Smooth;
   gpmd->curfalloff = BKE_curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
   if (gpmd->curfalloff) {
-    BKE_curvemapping_initialize(gpmd->curfalloff);
+    BKE_curvemapping_init(gpmd->curfalloff);
   }
 }
 
@@ -120,7 +120,7 @@ static float gpencil_hook_falloff(const struct GPHookData_cb *tData, const float
   if (len_sq > tData->falloff_sq) {
     return 0.0f;
   }
-  else if (len_sq > 0.0f) {
+  if (len_sq > 0.0f) {
     float fac;
 
     if (tData->falloff_type == eGPHook_Falloff_Const) {

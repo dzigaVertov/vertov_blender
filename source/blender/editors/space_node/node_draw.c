@@ -947,9 +947,8 @@ static void node_draw_preview(bNodePreview *preview, rctf *prv)
                    draw_rect.ymin,
                    preview->xsize,
                    preview->ysize,
-                   GL_RGBA,
-                   GL_UNSIGNED_BYTE,
-                   GL_LINEAR,
+                   GPU_RGBA8,
+                   true,
                    preview->rect,
                    scale,
                    scale,
@@ -987,7 +986,7 @@ void node_draw_shadow(SpaceNode *snode, bNode *node, float radius, float alpha)
   else {
     const float margin = 3.0f;
 
-    float color[4] = {0.0f, 0.0f, 0.0f, 0.33f};
+    const float color[4] = {0.0f, 0.0f, 0.0f, 0.33f};
     UI_draw_roundbox_aa(true,
                         rct->xmin - margin,
                         rct->ymin - margin,

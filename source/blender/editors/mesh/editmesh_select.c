@@ -205,7 +205,7 @@ static BMElem *edbm_select_id_bm_elem_get(Base **bases, const uint sel_id, uint 
 /* -------------------------------------------------------------------- */
 /** \name Find Nearest Vert/Edge/Face
  *
- * \note Screen-space manhatten distances are used here,
+ * \note Screen-space manhattan distances are used here,
  * since its faster and good enough for the purpose of selection.
  *
  * \note \a dist_bias is used so we can bias against selected items.
@@ -415,7 +415,7 @@ struct NearestEdgeUserData_Hit {
   int index;
   BMEdge *edge;
 
-  /* edges only, un-biased manhatten distance to which ever edge we pick
+  /* edges only, un-biased manhattan distance to which ever edge we pick
    * (not used for choosing) */
   float dist_center;
 };
@@ -4229,10 +4229,7 @@ static int edbm_select_nth_exec(bContext *C, wmOperator *op)
   MEM_freeN(objects);
 
   if (!found_active_elt) {
-    BKE_report(op->reports,
-               RPT_ERROR,
-               (objects_len == 1 ? "Mesh has no active vert/edge/face" :
-                                   "Meshes have no active vert/edge/face"));
+    BKE_report(op->reports, RPT_ERROR, "Mesh object(s) have no active vertex/edge/face");
     return OPERATOR_CANCELLED;
   }
 

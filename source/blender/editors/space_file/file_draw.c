@@ -300,9 +300,8 @@ static void file_draw_preview(uiBlock *block,
                          (float)yco,
                          imb->x,
                          imb->y,
-                         GL_RGBA,
-                         GL_UNSIGNED_BYTE,
-                         GL_NEAREST,
+                         GPU_RGBA8,
+                         false,
                          imb->rect,
                          scale,
                          scale,
@@ -876,7 +875,9 @@ void file_draw_list(const bContext *C, ARegion *region)
             sfile->files, file, FILE_SEL_REMOVE, FILE_SEL_EDITING, CHECK_ALL);
       }
     }
-    else {
+
+    /* file_selflag might have been modified by branch above. */
+    if ((file_selflag & FILE_SEL_EDITING) == 0) {
       const int txpos = (params->display == FILE_IMGDISPLAY) ? sx : sx + 1 + icon_ofs;
       const int typos = (params->display == FILE_IMGDISPLAY) ?
                             sy - layout->tile_h + layout->textheight :

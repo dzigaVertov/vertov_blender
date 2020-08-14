@@ -37,6 +37,7 @@ set(INC_SYS
 set(SRC
   intern/BLI_args.c
   intern/BLI_array.c
+  intern/BLI_assert.c
   intern/BLI_dial_2d.c
   intern/BLI_dynstr.c
   intern/BLI_filelist.c
@@ -110,6 +111,7 @@ set(SRC
   intern/rct.c
   intern/scanfill.c
   intern/scanfill_utils.c
+  intern/session_uuid.c
   intern/smallhash.c
   intern/sort.c
   intern/sort_utils.c
@@ -239,6 +241,7 @@ set(SRC
   BLI_rect.h
   BLI_resource_collector.hh
   BLI_scanfill.h
+  BLI_session_uuid.h
   BLI_set.hh
   BLI_set_slots.hh
   BLI_smallhash.h
@@ -267,6 +270,7 @@ set(SRC
   BLI_utility_mixins.hh
   BLI_uvproject.h
   BLI_vector.hh
+  BLI_vector_adaptor.hh
   BLI_vector_set.hh
   BLI_vector_set_slots.hh
   BLI_vfontdata.h
@@ -340,3 +344,61 @@ set_source_files_properties(
 )
 
 blender_add_lib(bf_blenlib "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")
+
+if(WITH_GTESTS)
+  set(TEST_SRC
+    tests/BLI_array_store_test.cc
+    tests/BLI_array_test.cc
+    tests/BLI_array_utils_test.cc
+    tests/BLI_delaunay_2d_test.cc
+    tests/BLI_disjoint_set_test.cc
+    tests/BLI_edgehash_test.cc
+    tests/BLI_expr_pylike_eval_test.cc
+    tests/BLI_ghash_test.cc
+    tests/BLI_hash_mm2a_test.cc
+    tests/BLI_heap_simple_test.cc
+    tests/BLI_heap_test.cc
+    tests/BLI_index_mask_test.cc
+    tests/BLI_index_range_test.cc
+    tests/BLI_kdopbvh_test.cc
+    tests/BLI_linear_allocator_test.cc
+    tests/BLI_linklist_lockfree_test.cc
+    tests/BLI_listbase_test.cc
+    tests/BLI_map_test.cc
+    tests/BLI_math_base_safe_test.cc
+    tests/BLI_math_base_test.cc
+    tests/BLI_math_bits_test.cc
+    tests/BLI_math_color_test.cc
+    tests/BLI_math_geom_test.cc
+    tests/BLI_math_matrix_test.cc
+    tests/BLI_math_vector_test.cc
+    tests/BLI_memiter_test.cc
+    tests/BLI_memory_utils_test.cc
+    tests/BLI_multi_value_map_test.cc
+    tests/BLI_path_util_test.cc
+    tests/BLI_polyfill_2d_test.cc
+    tests/BLI_ressource_strings.h
+    tests/BLI_session_uuid_test.cc
+    tests/BLI_set_test.cc
+    tests/BLI_span_test.cc
+    tests/BLI_stack_cxx_test.cc
+    tests/BLI_stack_test.cc
+    tests/BLI_string_ref_test.cc
+    tests/BLI_string_test.cc
+    tests/BLI_string_utf8_test.cc
+    tests/BLI_task_graph_test.cc
+    tests/BLI_task_test.cc
+    tests/BLI_vector_set_test.cc
+    tests/BLI_vector_test.cc
+  )
+  set(TEST_INC
+    ../imbuf
+  )
+  set(TEST_LIB
+    bf_blenlib
+  )
+  include(GTestTesting)
+  blender_add_test_lib(bf_blenlib_tests "${TEST_SRC}" "${INC};${TEST_INC}" "${INC_SYS}" "${LIB};${TEST_LIB}")
+
+  add_subdirectory(tests/performance)
+endif()

@@ -49,13 +49,17 @@ ParticleFunction::ParticleFunction(const fn::MultiFunction *global_fn,
   }
 }
 
-ParticleFunctionEvaluator::ParticleFunctionEvaluator(
-    const ParticleFunction &particle_fn, const ParticleChunkContext &particle_chunk_context)
+ParticleFunctionEvaluator::ParticleFunctionEvaluator(const ParticleFunction &particle_fn,
+                                                     const SimulationSolveContext &solve_context,
+                                                     const ParticleChunkContext &particles)
     : particle_fn_(particle_fn),
-      particle_chunk_context_(particle_chunk_context),
-      mask_(particle_chunk_context_.index_mask()),
+      solve_context_(solve_context),
+      particles_(particles),
+      mask_(particles_.index_mask),
       outputs_(particle_fn_.output_types_.size(), nullptr)
 {
+  global_context_.add_global_context("PersistentDataHandleMap", &solve_context_.handle_map);
+  per_particle_context_.add_global_context("PersistentDataHandleMap", &solve_context_.handle_map);
 }
 
 ParticleFunctionEvaluator::~ParticleFunctionEvaluator()
@@ -86,8 +90,10 @@ void ParticleFunctionEvaluator::compute()
 fn::GVSpan ParticleFunctionEvaluator::get(int output_index, StringRef expected_name) const
 {
 #ifdef DEBUG
-  StringRef real_name = particle_fn_.output_names_[output_index];
-  BLI_assert(expected_name == real_name);
+  if (expected_name != "") {
+    StringRef real_name = particle_fn_.output_names_[output_index];
+    BLI_assert(expected_name == real_name);
+  }
   BLI_assert(is_computed_);
 #endif
   UNUSED_VARS_NDEBUG(expected_name);
@@ -96,9 +102,8 @@ fn::GVSpan ParticleFunctionEvaluator::get(int output_index, StringRef expected_n
   if (particle_fn_.output_is_global_[output_index]) {
     return fn::GVSpan::FromSingleWithMaxSize(type, buffer);
   }
-  else {
-    return fn::GVSpan(fn::GSpan(type, buffer, mask_.min_array_size()));
-  }
+
+  return fn::GVSpan(fn::GSpan(type, buffer, mask_.min_array_size()));
 }
 
 void ParticleFunctionEvaluator::compute_globals()
@@ -110,8 +115,9 @@ void ParticleFunctionEvaluator::compute_globals()
   fn::MFParamsBuilder params(*particle_fn_.global_fn_, mask_.min_array_size());
 
   /* Add input parameters. */
+  ParticleFunctionInputContext input_context{solve_context_, particles_};
   for (const ParticleFunctionInput *input : particle_fn_.global_inputs_) {
-    input->add_input(particle_chunk_context_.attributes(), params, resources_);
+    input->add_input(input_context, params, resources_);
   }
 
   /* Add output parameters. */
@@ -137,8 +143,9 @@ void ParticleFunctionEvaluator::compute_per_particle()
   fn::MFParamsBuilder params(*particle_fn_.per_particle_fn_, mask_.min_array_size());
 
   /* Add input parameters. */
+  ParticleFunctionInputContext input_context{solve_context_, particles_};
   for (const ParticleFunctionInput *input : particle_fn_.per_particle_inputs_) {
-    input->add_input(particle_chunk_context_.attributes(), params, resources_);
+    input->add_input(input_context, params, resources_);
   }
 
   /* Add output parameters. */

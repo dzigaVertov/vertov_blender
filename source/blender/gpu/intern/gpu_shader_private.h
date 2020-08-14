@@ -18,11 +18,13 @@
  * \ingroup gpu
  */
 
-#ifndef __GPU_SHADER_PRIVATE_H__
-#define __GPU_SHADER_PRIVATE_H__
+#pragma once
 
-#include "GPU_glew.h"
 #include "GPU_shader_interface.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct GPUShader {
   /** Handle for full program (links shader stages below). */
@@ -45,6 +47,8 @@ struct GPUShader {
 };
 
 /* XXX do not use it. Special hack to use OCIO with batch API. */
-void immGetProgram(GLuint *program, GPUShaderInterface **shaderface);
+GPUShader *immGetShader(void);
 
-#endif /* __GPU_SHADER_PRIVATE_H__ */
+#ifdef __cplusplus
+}
+#endif

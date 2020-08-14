@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __SIM_PARTICLE_ALLOCATOR_HH__
-#define __SIM_PARTICLE_ALLOCATOR_HH__
+#pragma once
 
 #include "BLI_array.hh"
 #include "BLI_vector.hh"
@@ -70,10 +69,11 @@ class ParticleAllocator : NonCopyable, NonMovable {
  private:
   AttributesAllocator attributes_allocator_;
   std::atomic<int> next_id_;
+  uint32_t hash_seed_;
 
  public:
-  ParticleAllocator(const fn::AttributesInfo &attributes_info, int next_id)
-      : attributes_allocator_(attributes_info), next_id_(next_id)
+  ParticleAllocator(const fn::AttributesInfo &attributes_info, int next_id, uint32_t hash_seed)
+      : attributes_allocator_(attributes_info), next_id_(next_id), hash_seed_(hash_seed)
   {
   }
 
@@ -96,5 +96,3 @@ class ParticleAllocator : NonCopyable, NonMovable {
 };
 
 }  // namespace blender::sim
-
-#endif /* __SIM_PARTICLE_ALLOCATOR_HH__ */

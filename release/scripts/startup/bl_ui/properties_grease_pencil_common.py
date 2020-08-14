@@ -299,7 +299,9 @@ class GPENCIL_MT_snap_pie(Menu):
             text="Selection to Cursor (Keep Offset)",
             icon='RESTRICT_SELECT_OFF'
             ).use_offset = True
+        pie.separator()
         pie.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin", icon='CURSOR')
+        pie.separator()
 
 
 class GPENCIL_MT_move_to_layer(Menu):
@@ -403,6 +405,7 @@ class GPENCIL_MT_cleanup(Menu):
         layout = self.layout
 
         layout.operator("gpencil.frame_clean_loose", text="Delete Loose Points")
+        layout.operator("gpencil.frame_clean_duplicate", text="Delete Duplicated Frames")
 
         if ob.mode != 'PAINT_GPENCIL':
             layout.operator("gpencil.stroke_merge_by_distance", text="Merge by Distance")

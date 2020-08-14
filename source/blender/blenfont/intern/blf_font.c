@@ -113,13 +113,6 @@ static void blf_batch_draw_exit(void)
   GPU_BATCH_DISCARD_SAFE(g_batch.batch);
 }
 
-void blf_batch_draw_vao_clear(void)
-{
-  if (g_batch.batch) {
-    GPU_batch_vao_cache_clear(g_batch.batch);
-  }
-}
-
 void blf_batch_draw_begin(FontBLF *font)
 {
   if (g_batch.batch == NULL) {
@@ -193,6 +186,8 @@ static GPUTexture *blf_batch_cache_texture_load(void)
     int remain = gc->bitmap_len - bitmap_len_landed;
     int offset_x = bitmap_len_landed % tex_width;
     int offset_y = bitmap_len_landed / tex_width;
+
+    GPU_texture_bind(gc->texture, 0);
 
     /* TODO(germano): Update more than one row in a single call. */
     while (remain) {

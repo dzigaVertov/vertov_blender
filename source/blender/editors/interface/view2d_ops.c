@@ -56,7 +56,7 @@ static bool view2d_poll(bContext *C)
 {
   ARegion *region = CTX_wm_region(C);
 
-  return (region != NULL) && (region->v2d.flag & V2D_IS_INITIALISED);
+  return (region != NULL) && (region->v2d.flag & V2D_IS_INIT);
 }
 
 /** \} */
@@ -185,8 +185,8 @@ static void view_pan_apply_ex(bContext *C, v2dViewPanData *vpd, float dx, float 
     v2d->cur.ymax += dy;
   }
 
-  /* validate that view is in valid configuration after this operation */
-  UI_view2d_curRect_validate(v2d);
+  /* Inform v2d about changes after this operation. */
+  UI_view2d_curRect_changed(C, v2d);
 
   /* don't rebuild full tree in outliner, since we're just changing our view */
   ED_region_tag_redraw_no_rebuild(vpd->region);
@@ -475,20 +475,29 @@ static int view_edge_pan_modal(bContext *C, wmOperator *op, const wmEvent *event
    * On successful handling, always pass events on to other handlers. */
   const int success_retval = OPERATOR_PASS_THROUGH;
 
-  /* Find whether the mouse is beyond X and Y edges. */
+  int outside_padding = RNA_int_get(op->ptr, "outside_padding") * UI_UNIT_X;
+  rcti padding_rect;
+  if (outside_padding != 0) {
+    padding_rect = region->winrct;
+    BLI_rcti_pad(&padding_rect, outside_padding, outside_padding);
+  }
+
   int pan_dir_x = 0;
   int pan_dir_y = 0;
-  if (event->x > region->winrct.xmax - EDGE_PAN_REGION_PAD) {
-    pan_dir_x = 1;
-  }
-  else if (event->x < region->winrct.xmin + EDGE_PAN_REGION_PAD) {
-    pan_dir_x = -1;
-  }
-  if (event->y > region->winrct.ymax - EDGE_PAN_REGION_PAD) {
-    pan_dir_y = 1;
-  }
-  else if (event->y < region->winrct.ymin + EDGE_PAN_REGION_PAD) {
-    pan_dir_y = -1;
+  if ((outside_padding == 0) || BLI_rcti_isect_pt(&padding_rect, event->x, event->y)) {
+    /* Find whether the mouse is beyond X and Y edges. */
+    if (event->x > region->winrct.xmax - EDGE_PAN_REGION_PAD) {
+      pan_dir_x = 1;
+    }
+    else if (event->x < region->winrct.xmin + EDGE_PAN_REGION_PAD) {
+      pan_dir_x = -1;
+    }
+    if (event->y > region->winrct.ymax - EDGE_PAN_REGION_PAD) {
+      pan_dir_y = 1;
+    }
+    else if (event->y < region->winrct.ymin + EDGE_PAN_REGION_PAD) {
+      pan_dir_y = -1;
+    }
   }
 
   const double current_time = PIL_check_seconds_timer();
@@ -532,6 +541,16 @@ static void VIEW2D_OT_edge_pan(wmOperatorType *ot)
 
   /* operator is modal */
   ot->flag = OPTYPE_INTERNAL;
+  RNA_def_int(ot->srna,
+              "outside_padding",
+              0,
+              0,
+              100,
+              "Outside Padding",
+              "Padding around the region in UI units within which panning is activated (0 to "
+              "disable boundary)",
+              0,
+              100);
 }
 
 #undef EDGE_PAN_REGION_PAD
@@ -938,8 +957,8 @@ static void view_zoomstep_apply_ex(
     }
   }
 
-  /* validate that view is in valid configuration after this operation */
-  UI_view2d_curRect_validate(v2d);
+  /* Inform v2d about changes after this operation. */
+  UI_view2d_curRect_changed(C, v2d);
 
   if (ED_region_snap_size_apply(region, snap_test)) {
     ScrArea *area = CTX_wm_area(C);
@@ -1197,8 +1216,8 @@ static void view_zoomdrag_apply(bContext *C, wmOperator *op)
     }
   }
 
-  /* validate that view is in valid configuration after this operation */
-  UI_view2d_curRect_validate(v2d);
+  /* Inform v2d about changes after this operation. */
+  UI_view2d_curRect_changed(C, v2d);
 
   if (ED_region_snap_size_apply(vzd->region, snap_test)) {
     ScrArea *area = CTX_wm_area(C);
@@ -1787,7 +1806,7 @@ void UI_view2d_smooth_view(bContext *C, ARegion *region, const rctf *cur, const 
   if (ok == false) {
     v2d->cur = sms.new_cur;
 
-    UI_view2d_curRect_validate(v2d);
+    UI_view2d_curRect_changed(C, v2d);
     ED_region_tag_redraw_no_rebuild(region);
     UI_view2d_sync(CTX_wm_screen(C), CTX_wm_area(C), v2d, V2D_LOCK_COPY);
   }
@@ -1834,7 +1853,7 @@ static int view2d_smoothview_invoke(bContext *C, wmOperator *UNUSED(op), const w
     BLI_rctf_interp(&v2d->cur, &sms->orig_cur, &sms->new_cur, step);
   }
 
-  UI_view2d_curRect_validate(v2d);
+  UI_view2d_curRect_changed(C, v2d);
   UI_view2d_sync(CTX_wm_screen(C), CTX_wm_area(C), v2d, V2D_LOCK_COPY);
   ED_region_tag_redraw_no_rebuild(region);
 
@@ -2157,8 +2176,8 @@ static void scroller_activate_apply(bContext *C, wmOperator *op)
       break;
   }
 
-  /* validate that view is in valid configuration after this operation */
-  UI_view2d_curRect_validate(v2d);
+  /* Inform v2d about changes after this operation. */
+  UI_view2d_curRect_changed(C, v2d);
 
   /* request updates to be done... */
   ED_region_tag_redraw_no_rebuild(vsm->region);
@@ -2391,8 +2410,8 @@ static int reset_exec(bContext *C, wmOperator *UNUSED(op))
     }
   }
 
-  /* validate that view is in valid configuration after this operation */
-  UI_view2d_curRect_validate(v2d);
+  /* Inform v2d about changes after this operation. */
+  UI_view2d_curRect_changed(C, v2d);
 
   if (ED_region_snap_size_apply(region, snap_test)) {
     ScrArea *area = CTX_wm_area(C);

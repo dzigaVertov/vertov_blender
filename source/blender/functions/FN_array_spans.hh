@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __FN_ARRAY_SPANS_HH__
-#define __FN_ARRAY_SPANS_HH__
+#pragma once
 
 /** \file
  * \ingroup fn
@@ -158,7 +157,7 @@ class GVArraySpan : public VArraySpanBase<void> {
     this->type_ = &array.type();
     this->virtual_size_ = virtual_size;
     this->category_ = VArraySpanCategory::SingleArray;
-    this->data_.single_array.start = array.buffer();
+    this->data_.single_array.start = array.data();
     this->data_.single_array.size = array.size();
   }
 
@@ -205,5 +204,3 @@ class GVArraySpan : public VArraySpanBase<void> {
 };
 
 }  // namespace blender::fn
-
-#endif /* __FN_ARRAY_SPANS_HH__ */

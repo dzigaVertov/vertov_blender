@@ -343,6 +343,7 @@ static void drawscredge_area_draw(
   }
 
   GPUBatch *batch = batch_screen_edges_get(NULL);
+  GPU_batch_program_set_builtin(batch, GPU_SHADER_2D_AREA_EDGES);
   GPU_batch_uniform_4fv(batch, "rect", (float *)&rect);
   GPU_batch_draw(batch);
 }
@@ -619,7 +620,7 @@ void ED_screen_preview_render(const bScreen *screen, int size_x, int size_y, uin
 
   screen_preview_draw(screen, size_x, size_y);
 
-  GPU_offscreen_read_pixels(offscreen, GL_UNSIGNED_BYTE, r_rect);
+  GPU_offscreen_read_pixels(offscreen, GPU_DATA_UNSIGNED_BYTE, r_rect);
   GPU_offscreen_unbind(offscreen, true);
 
   GPU_offscreen_free(offscreen);

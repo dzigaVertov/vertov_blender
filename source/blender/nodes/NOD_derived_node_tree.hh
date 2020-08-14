@@ -14,8 +14,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#ifndef __NOD_DERIVED_NODE_TREE_HH__
-#define __NOD_DERIVED_NODE_TREE_HH__
+#pragma once
 
 /** \file
  * \ingroup nodes
@@ -172,7 +171,6 @@ using NodeTreeRefMap = Map<bNodeTree *, std::unique_ptr<const NodeTreeRef>>;
 class DerivedNodeTree : NonCopyable, NonMovable {
  private:
   LinearAllocator<> allocator_;
-  bNodeTree *btree_;
   Vector<DNode *> nodes_by_id_;
   Vector<DGroupInput *> group_inputs_;
   Vector<DParentNode *> parent_nodes_;
@@ -181,7 +179,7 @@ class DerivedNodeTree : NonCopyable, NonMovable {
   Vector<DInputSocket *> input_sockets_;
   Vector<DOutputSocket *> output_sockets_;
 
-  Map<const bNodeType *, Vector<DNode *>> nodes_by_type_;
+  MultiValueMap<const bNodeType *, DNode *> nodes_by_type_;
 
  public:
   DerivedNodeTree(bNodeTree *btree, NodeTreeRefMap &node_tree_refs);
@@ -267,12 +265,12 @@ inline const DSocket &DSocket::as_base() const
 
 inline const DInputSocket &DSocket::as_input() const
 {
-  return *(DInputSocket *)this;
+  return static_cast<const DInputSocket &>(*this);
 }
 
 inline const DOutputSocket &DSocket::as_output() const
 {
-  return *(DOutputSocket *)this;
+  return static_cast<const DOutputSocket &>(*this);
 }
 
 inline PointerRNA *DSocket::rna() const
@@ -483,13 +481,7 @@ inline Span<const DNode *> DerivedNodeTree::nodes_by_type(StringRefNull idname) 
 
 inline Span<const DNode *> DerivedNodeTree::nodes_by_type(const bNodeType *nodetype) const
 {
-  const Vector<DNode *> *nodes = nodes_by_type_.lookup_ptr(nodetype);
-  if (nodes == nullptr) {
-    return {};
-  }
-  else {
-    return *nodes;
-  }
+  return nodes_by_type_.lookup(nodetype);
 }
 
 inline Span<const DSocket *> DerivedNodeTree::sockets() const
@@ -513,5 +505,3 @@ inline Span<const DGroupInput *> DerivedNodeTree::group_inputs() const
 }
 
 }  // namespace blender::nodes
-
-#endif /* __NOD_DERIVED_NODE_TREE_HH__ */

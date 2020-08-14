@@ -372,9 +372,8 @@ BLI_INLINE uint nearestVert(SDefBindCalcData *const data, const float point_co[3
       len_squared_v3v3(point_co, data->targetCos[edge->v2])) {
     return edge->v1;
   }
-  else {
-    return edge->v2;
-  }
+
+  return edge->v2;
 }
 
 BLI_INLINE int isPolyValid(const float coords[][2], const uint nr)
@@ -450,7 +449,7 @@ BLI_INLINE SDefBindWeightData *computeBindWeights(SDefBindCalcData *const data,
   SDefBindWeightData *bwdata;
   SDefBindPoly *bpoly;
 
-  float world[3] = {0.0f, 0.0f, 1.0f};
+  const float world[3] = {0.0f, 0.0f, 1.0f};
   float avg_point_dist = 0.0f;
   float tot_weight = 0.0f;
   int inf_weight_flags = 0;
@@ -1130,7 +1129,7 @@ static bool surfacedeformBind(SurfaceDeformModifierData *smd_orig,
     freeData((ModifierData *)smd_orig);
   }
   else if (data.success == MOD_SDEF_BIND_RESULT_OVERLAP_ERR) {
-    BKE_modifier_set_error((ModifierData *)smd_eval, "Target contains overlapping verts");
+    BKE_modifier_set_error((ModifierData *)smd_eval, "Target contains overlapping vertices");
     freeData((ModifierData *)smd_orig);
   }
   else if (data.success == MOD_SDEF_BIND_RESULT_GENERIC_ERR) {
@@ -1280,10 +1279,10 @@ static void surfacedeformModifier_do(ModifierData *md,
 
   /* Poly count checks */
   if (smd->numverts != numverts) {
-    BKE_modifier_set_error(md, "Verts changed from %u to %u", smd->numverts, numverts);
+    BKE_modifier_set_error(md, "Vertices changed from %u to %u", smd->numverts, numverts);
     return;
   }
-  else if (smd->numpoly != tnumpoly) {
+  if (smd->numpoly != tnumpoly) {
     BKE_modifier_set_error(md, "Target polygons changed from %u to %u", smd->numpoly, tnumpoly);
     return;
   }

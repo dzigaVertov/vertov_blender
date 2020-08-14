@@ -90,7 +90,7 @@ bool ui_but_is_interactive(const uiBut *but, const bool labeledit)
   if (but->flag & UI_SCROLLED) {
     return false;
   }
-  if ((but->type == UI_BTYPE_TEXT) && (but->dt == UI_EMBOSS_NONE) && !labeledit) {
+  if ((but->type == UI_BTYPE_TEXT) && (but->emboss == UI_EMBOSS_NONE) && !labeledit) {
     return false;
   }
   if ((but->type == UI_BTYPE_LISTROW) && labeledit) {
@@ -113,7 +113,7 @@ bool UI_but_is_utf8(const uiBut *but)
 #ifdef USE_UI_POPOVER_ONCE
 bool ui_but_is_popover_once_compat(const uiBut *but)
 {
-  return ((but->type == UI_BTYPE_BUT) || ui_but_is_toggle(but));
+  return (ELEM(but->type, UI_BTYPE_BUT, UI_BTYPE_DECORATOR) || ui_but_is_toggle(but));
 }
 #endif
 

@@ -2161,7 +2161,7 @@ void BKE_id_full_name_get(char name[MAX_ID_FULL_NAME], const ID *id, char separa
 
 /**
  * Generate full name of the data-block (without ID code, but with library if any),
- * with a 3-character prefix prepended indicating whether it comes from a library,
+ * with a 2 to 3 character prefix prepended indicating whether it comes from a library,
  * is overriding, has a fake or no user, etc.
  *
  * \note Result is unique to a given ID type in a given Main database.
@@ -2170,11 +2170,13 @@ void BKE_id_full_name_get(char name[MAX_ID_FULL_NAME], const ID *id, char separa
  *              will be filled with generated string.
  * \param separator_char: Character to use for separating name and library name. Can be 0 to use
  *                        default (' ').
+ * \param r_prefix_len: The length of the prefix added.
  */
 void BKE_id_full_name_ui_prefix_get(char name[MAX_ID_FULL_NAME_UI],
                                     const ID *id,
                                     const bool add_lib_hint,
-                                    char separator_char)
+                                    char separator_char,
+                                    int *r_prefix_len)
 {
   int i = 0;
 
@@ -2185,6 +2187,10 @@ void BKE_id_full_name_ui_prefix_get(char name[MAX_ID_FULL_NAME_UI],
   name[i++] = ' ';
 
   BKE_id_full_name_get(name + i, id, separator_char);
+
+  if (r_prefix_len) {
+    *r_prefix_len = i;
+  }
 }
 
 /**
@@ -2197,13 +2203,12 @@ char *BKE_id_to_unique_string_key(const struct ID *id)
   if (id->lib == NULL) {
     return BLI_strdup(id->name);
   }
-  else {
-    /* Prefix with an ascii character in the range of 32..96 (visible)
-     * this ensures we can't have a library ID pair that collide.
-     * Where 'LIfooOBbarOBbaz' could be ('LIfoo, OBbarOBbaz') or ('LIfooOBbar', 'OBbaz'). */
-    const char ascii_len = strlen(id->lib->id.name + 2) + 32;
-    return BLI_sprintfN("%c%s%s", ascii_len, id->lib->id.name, id->name);
-  }
+
+  /* Prefix with an ascii character in the range of 32..96 (visible)
+   * this ensures we can't have a library ID pair that collide.
+   * Where 'LIfooOBbarOBbaz' could be ('LIfoo, OBbarOBbaz') or ('LIfooOBbar', 'OBbaz'). */
+  const char ascii_len = strlen(id->lib->id.name + 2) + 32;
+  return BLI_sprintfN("%c%s%s", ascii_len, id->lib->id.name, id->name);
 }
 
 void BKE_id_tag_set_atomic(ID *id, int tag)
@@ -2252,7 +2257,7 @@ static int id_order_compare(const void *a, const void *b)
     if (*order_a < *order_b) {
       return -1;
     }
-    else if (*order_a > *order_b) {
+    if (*order_a > *order_b) {
       return 1;
     }
   }

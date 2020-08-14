@@ -18,8 +18,7 @@
  * \ingroup gpu
  */
 
-#ifndef __GPU_STATE_H__
-#define __GPU_STATE_H__
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,6 +86,7 @@ bool GPU_depth_mask_get(void);
 void GPU_stencil_mask(uint stencil);
 void GPU_unpack_row_length_set(uint len);
 void GPU_clip_distances(int enabled_len);
+bool GPU_mipmap_enabled(void);
 
 void GPU_flush(void);
 void GPU_finish(void);
@@ -108,5 +108,3 @@ void gpuPopAttr(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __GPU_STATE_H__ */
