@@ -305,6 +305,7 @@ static void gpencil_convert_spline(Main *bmain,
                                    bGPDframe *gpf,
                                    Nurb *nu)
 {
+  bGPdata *gpd = (bGPdata *)ob_gp->data;
   bool cyclic = true;
 
   /* Create Stroke. */
@@ -455,7 +456,7 @@ static void gpencil_convert_spline(Main *bmain,
   }
 
   if (sample > 0.0f) {
-    BKE_gpencil_stroke_sample(gps, sample, false);
+    BKE_gpencil_stroke_sample(gpd, gps, sample, false);
   }
 
   /* Recalc fill geometry. */
