@@ -1820,7 +1820,7 @@ static bool gpencil_generic_stroke_select(bContext *C,
     }
 
     // if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
-    //   BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+    //   BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
     //   BKE_gpencil_curve_sync_selection(gps);
     //   gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
     //   BKE_gpencil_stroke_geometry_update(gpd, gps);
@@ -2237,7 +2237,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   if (whole) {
     /* Generate editcurve if it does not exist */
     if (is_curve_edit && hit_curve == NULL) {
-      BKE_gpencil_stroke_editcurve_update(hit_stroke, gpd->curve_edit_threshold);
+      BKE_gpencil_stroke_editcurve_update(hit_stroke, gpd->curve_edit_threshold, gpd->curve_corner_angle);
       hit_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       BKE_gpencil_stroke_geometry_update(gpd, hit_stroke);
       hit_curve = hit_stroke->editcurve;

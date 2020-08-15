@@ -2654,7 +2654,7 @@ void ED_gpencil_select_curve_toggle_all(bContext *C, int action)
 
       /* Make sure stroke has an editcurve */
       if (gps->editcurve == NULL) {
-        BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold);
+        BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
         gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
         BKE_gpencil_stroke_geometry_update(gpd, gps);
       }

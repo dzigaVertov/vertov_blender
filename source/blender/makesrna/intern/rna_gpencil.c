@@ -2394,6 +2394,14 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
   RNA_def_property_ui_range(prop, FLT_MIN, 10.0, 2, 5);
   RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 
+  /* Curve editing corner angle. */
+  prop = RNA_def_property(srna, "curve_corner_angle", PROP_FLOAT, PROP_ANGLE);
+  RNA_def_property_float_sdna(prop, NULL, "curve_corner_angle");
+  RNA_def_property_float_default(prop, M_PI_2);
+  RNA_def_property_range(prop, 0.0f, M_PI);
+  RNA_def_property_ui_text(prop, "Corner Angle", "Angle threshold to be treated as corners.");
+  RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+
   prop = RNA_def_property(srna, "use_multiedit", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_STROKE_MULTIEDIT);
   RNA_def_property_ui_text(prop,
