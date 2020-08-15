@@ -305,6 +305,7 @@ static void gpencil_convert_spline(Main *bmain,
                                    bGPDframe *gpf,
                                    Nurb *nu)
 {
+  bGPdata *gpd = (bGPdata *)ob_gp->data;
   bool cyclic = true;
 
   /* Create Stroke. */
@@ -455,7 +456,7 @@ static void gpencil_convert_spline(Main *bmain,
   }
 
   if (sample > 0.0f) {
-    BKE_gpencil_stroke_sample(gps, sample, false);
+    BKE_gpencil_stroke_sample(gpd, gps, sample, false);
   }
 
   /* Recalc fill geometry. */
@@ -1006,12 +1007,12 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
     }
 
     bGPDspoint *pt = &gps->points[0];
-    copy_v3_v3(&pt->x, &cpt->bezt.vec[0]);
+    copy_v3_v3(&pt->x, cpt->bezt.vec[0]);
 
     pt->pressure = cpt->pressure;
     pt->strength = cpt->strength;
 
-    copy_v4_v4(pt->vert_color, &cpt->vert_color);
+    copy_v4_v4(pt->vert_color, cpt->vert_color);
 
     /* deselect */
     pt->flag &= ~GP_SPOINT_SELECT;
