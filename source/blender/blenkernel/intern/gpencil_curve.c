@@ -1018,12 +1018,12 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
     }
 
     bGPDspoint *pt = &gps->points[0];
-    copy_v3_v3(&pt->x, &cpt->bezt.vec[0]);
+    copy_v3_v3(&pt->x, cpt->bezt.vec[0]);
 
     pt->pressure = cpt->pressure;
     pt->strength = cpt->strength;
 
-    copy_v4_v4(pt->vert_color, &cpt->vert_color);
+    copy_v4_v4(pt->vert_color, cpt->vert_color);
 
     /* deselect */
     pt->flag &= ~GP_SPOINT_SELECT;
