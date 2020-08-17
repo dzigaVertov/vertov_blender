@@ -2467,6 +2467,6 @@ void GPENCIL_OT_clean_keyframe(wmOperatorType *ot)
 			 );
 
   /* Layer name */
-  ot->prop = RNA_def_string(ot->srna, "layer_name", "", 64, "layer name", "The name of the layer the frame belongs to");
+  ot->prop = RNA_def_string(ot->srna, "layer_name", "layer", 64, "layer name", "The name of the layer the frame belongs to");
     
 }
