@@ -4200,7 +4200,6 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   Scene *scene = CTX_data_scene(C);
-  Main *bmain = CTX_data_main(C);
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   ARegion *region = CTX_wm_region(C);
   int oldframe = (int)DEG_get_ctime(depsgraph);
@@ -4226,12 +4225,12 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
     GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
       if (gps->flag & GP_STROKE_SELECT) {
 
-        /* update frame to get the new location of objects */
-        if ((mode == GP_REPROJECT_SURFACE) && (cfra_prv != gpf_->framenum)) {
-          cfra_prv = gpf_->framenum;
-          CFRA = gpf_->framenum;
-          BKE_scene_graph_update_for_newframe(depsgraph, bmain);
-        }
+      /* update frame to get the new location of objects */
+      if ((mode == GP_REPROJECT_SURFACE) && (cfra_prv != gpf_->framenum)) {
+        cfra_prv = gpf_->framenum;
+        CFRA = gpf_->framenum;
+        BKE_scene_graph_update_for_newframe(depsgraph);
+      }
 
         ED_gpencil_stroke_reproject(depsgraph, &gsc, sctx, gpl, gpf_, gps, mode, keep_original);
 
@@ -4243,7 +4242,7 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
 
   /* return frame state and DB to original state */
   CFRA = oldframe;
-  BKE_scene_graph_update_for_newframe(depsgraph, bmain);
+  BKE_scene_graph_update_for_newframe(depsgraph);
 
   if (sctx != NULL) {
     ED_transform_snap_object_context_destroy(sctx);
