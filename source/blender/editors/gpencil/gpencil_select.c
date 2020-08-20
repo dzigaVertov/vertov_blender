@@ -1819,13 +1819,15 @@ static bool gpencil_generic_stroke_select(bContext *C,
       whole = ED_gpencil_stroke_point_is_inside(gps_active, &gsc, mval, gpstroke_iter.diff_mat);
     }
 
-    // if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
-    //   BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
-    //   BKE_gpencil_curve_sync_selection(gps);
-    //   gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-    //   BKE_gpencil_stroke_geometry_update(gpd, gps);
-    //   changed = true;
-    // }
+#if 0
+    if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
+      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+      BKE_gpencil_curve_sync_selection(gps);
+      gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
+      changed = true;
+    }
+#endif
 
     /* if stroke mode expand selection. */
     if ((strokemode) || (whole)) {
