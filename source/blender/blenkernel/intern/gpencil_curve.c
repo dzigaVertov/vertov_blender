@@ -566,7 +566,9 @@ void BKE_gpencil_convert_curve(Main *bmain,
 /**
  * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
  */
-bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_threshold, float corner_angle)
+bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
+                                                 float error_threshold,
+                                                 float corner_angle)
 {
   if (gps->totpoints < 1) {
     return NULL;
@@ -702,7 +704,9 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps, float error_th
 /**
  * Updates the editcurve for a stroke. Frees the old curve if one exists and generates a new one.
  */
-void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps, float error_threshold, float corner_angle)
+void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps,
+                                         float error_threshold,
+                                         float corner_angle)
 {
   if (gps == NULL || gps->totpoints < 0) {
     return;
@@ -1303,14 +1307,16 @@ void BKE_gpencil_strokes_selected_update_editcurve(bGPdata *gpd)
 
           /* Generate the curve if there is none or the stroke was changed */
           if (gps->editcurve == NULL) {
-            BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+            BKE_gpencil_stroke_editcurve_update(
+                gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
             /* Continue if curve could not be generated. */
             if (gps->editcurve == NULL) {
               continue;
             }
           }
           else if (gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
-            BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+            BKE_gpencil_stroke_editcurve_update(
+                gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
           }
           /* Update the selection from the stroke to the curve. */
           BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);

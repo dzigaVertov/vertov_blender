@@ -209,7 +209,8 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
     GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
     {
       if (gpc->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
-        BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+        BKE_gpencil_stroke_editcurve_update(
+            gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
         /* Update the selection from the stroke to the curve. */
         BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
 
