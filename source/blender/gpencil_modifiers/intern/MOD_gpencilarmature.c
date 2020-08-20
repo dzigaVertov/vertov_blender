@@ -129,7 +129,10 @@ static void deformStroke(GpencilModifierData *md,
   BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
-static void bakeModifier(Main *bmain, Depsgraph *depsgraph, GpencilModifierData *md, Object *ob)
+static void bakeModifier(Main *UNUSED(bmain),
+                         Depsgraph *depsgraph,
+                         GpencilModifierData *md,
+                         Object *ob)
 {
   Scene *scene = DEG_get_evaluated_scene(depsgraph);
   Object *object_eval = DEG_get_evaluated_object(depsgraph, ob);
@@ -148,7 +151,7 @@ static void bakeModifier(Main *bmain, Depsgraph *depsgraph, GpencilModifierData 
        * NOTE: this assumes that we don't want armature animation on non-keyframed frames
        */
       CFRA = gpf->framenum;
-      BKE_scene_graph_update_for_newframe(depsgraph, bmain);
+      BKE_scene_graph_update_for_newframe(depsgraph);
 
       /* compute armature effects on this frame */
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
@@ -159,7 +162,7 @@ static void bakeModifier(Main *bmain, Depsgraph *depsgraph, GpencilModifierData 
 
   /* return frame state and DB to original state */
   CFRA = oldframe;
-  BKE_scene_graph_update_for_newframe(depsgraph, bmain);
+  BKE_scene_graph_update_for_newframe(depsgraph);
 }
 
 static bool isDisabled(GpencilModifierData *md, int UNUSED(userRenderParams))
