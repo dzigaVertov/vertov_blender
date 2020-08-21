@@ -567,8 +567,8 @@ void BKE_gpencil_convert_curve(Main *bmain,
  * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
  */
 bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
-                                                 float error_threshold,
-                                                 float corner_angle)
+                                                 const float error_threshold,
+                                                 const float corner_angle)
 {
   if (gps->totpoints < 1) {
     return NULL;
@@ -705,8 +705,8 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
  * Updates the editcurve for a stroke. Frees the old curve if one exists and generates a new one.
  */
 void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps,
-                                         float error_threshold,
-                                         float corner_angle)
+                                         const float error_threshold,
+                                         const float corner_angle)
 {
   if (gps == NULL || gps->totpoints < 0) {
     return;
@@ -1000,7 +1000,7 @@ static float *gpencil_stroke_points_from_editcurve_fixed_resolu(bGPDcurve_point 
  */
 void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
                                                        const uint resolution,
-                                                       bool adaptive)
+                                                       const bool adaptive)
 {
   if (gps == NULL || gps->editcurve == NULL) {
     return;

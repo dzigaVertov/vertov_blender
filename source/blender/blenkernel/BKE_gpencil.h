@@ -167,7 +167,7 @@ struct bGPDstroke *BKE_gpencil_stroke_add_existing_style(struct bGPDframe *gpf,
                                                          int totpoints,
                                                          short thickness);
 
-struct bGPDcurve *BKE_gpencil_stroke_editcurve_new(int tot_curve_points);
+struct bGPDcurve *BKE_gpencil_stroke_editcurve_new(const int tot_curve_points);
 
 /* Stroke and Fill - Alpha Visibility Threshold */
 #define GPENCIL_ALPHA_OPACITY_THRESH 0.001f

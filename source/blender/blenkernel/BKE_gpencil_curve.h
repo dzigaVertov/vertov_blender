@@ -43,18 +43,18 @@ void BKE_gpencil_convert_curve(struct Main *bmain,
                                const float sample);
 
 struct bGPDcurve *BKE_gpencil_stroke_editcurve_generate(struct bGPDstroke *gps,
-                                                        float error_threshold,
-                                                        float corner_angle);
+                                                        const float error_threshold,
+                                                        const float corner_angle);
 void BKE_gpencil_stroke_editcurve_update(struct bGPDstroke *gps,
-                                         float error_threshold,
-                                         float corner_angle);
+                                         const float error_threshold,
+                                         const float corner_angle);
 void BKE_gpencil_editcurve_stroke_sync_selection(struct bGPDstroke *gps, struct bGPDcurve *gpc);
 void BKE_gpencil_stroke_editcurve_sync_selection(struct bGPDstroke *gps, struct bGPDcurve *gpc);
 void BKE_gpencil_strokes_selected_update_editcurve(struct bGPdata *gpd);
 void BKE_gpencil_strokes_selected_sync_selection_editcurve(struct bGPdata *gpd);
 void BKE_gpencil_stroke_update_geometry_from_editcurve(struct bGPDstroke *gps,
                                                        const uint resolution,
-                                                       bool is_adaptive);
+                                                       const bool is_adaptive);
 void BKE_gpencil_editcurve_recalculate_handles(struct bGPDstroke *gps);
 void BKE_gpencil_editcurve_subdivide(struct bGPDstroke *gps, const int cuts);
 
