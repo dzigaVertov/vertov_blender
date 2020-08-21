@@ -930,7 +930,7 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: handle copy in curve edit mode */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* for each visible (and editable) layer's selected strokes,
@@ -1501,7 +1501,7 @@ static int gpencil_strokes_copy_exec(bContext *C, wmOperator *op)
   ED_gpencil_strokes_copybuf_free();
 
   if (is_curve_edit) {
-    /* TODO: do curve copy */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* for each visible (and editable) layer's selected strokes,
@@ -1698,7 +1698,7 @@ static int gpencil_strokes_paste_exec(bContext *C, wmOperator *op)
   new_colors = gpencil_copybuf_validate_colormap(C);
 
   if (is_curve_edit) {
-    /* TODO: do curve paste */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* Copy over the strokes from the buffer (and adjust the colors) */
@@ -3278,7 +3278,7 @@ static int gpencil_snap_to_cursor(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: snap curve to cursor */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
@@ -3432,7 +3432,7 @@ static bool gpencil_stroke_points_centroid(Depsgraph *depsgraph,
   return changed;
 }
 
-static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *op)
 {
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Object *obact = CTX_data_active_object(C);
@@ -3451,7 +3451,7 @@ static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     changed = gpencil_stroke_points_centroid(depsgraph, C, obact, gpd, centroid, min, max, &count);
@@ -4123,7 +4123,7 @@ void GPENCIL_OT_stroke_join(wmOperatorType *ot)
 /** \name Stroke Flip Operator
  * \{ */
 
-static int gpencil_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_flip_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   Object *ob = CTX_data_active_object(C);
@@ -4154,7 +4154,7 @@ static int gpencil_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
         }
 
         if (is_curve_edit) {
-          /* TODO: flip curve */
+          BKE_report(op->reports, RPT_ERROR, "Not implemented!");
         }
         else {
           /* flip stroke */
@@ -4213,18 +4213,19 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
   sctx = ED_transform_snap_object_context_create_view3d(scene, 0, region, CTX_wm_view3d(C));
 
   bool changed = false;
-  if (is_curve_edit) {
-    /* TODO: reproject curve */
-  }
-  else {
-    /* Init space conversion stuff. */
-    GP_SpaceConversion gsc = {NULL};
-    gpencil_point_conversion_init(C, &gsc);
-    int cfra_prv = INT_MIN;
+  /* Init space conversion stuff. */
+  GP_SpaceConversion gsc = {NULL};
+  gpencil_point_conversion_init(C, &gsc);
+  int cfra_prv = INT_MIN;
 
-    /* Go through each editable + selected stroke, adjusting each of its points one by one... */
-    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-      if (gps->flag & GP_STROKE_SELECT) {
+  /* Go through each editable + selected stroke, adjusting each of its points one by one... */
+  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+    bool curve_select = false;
+    if (is_curve_edit && gps->editcurve != NULL) {
+      curve_select = gps->editcurve->flag & GP_CURVE_SELECT;
+    }
+
+    if (gps->flag & GP_STROKE_SELECT || curve_select) {
 
       /* update frame to get the new location of objects */
       if ((mode == GP_REPROJECT_SURFACE) && (cfra_prv != gpf_->framenum)) {
@@ -4233,13 +4234,22 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
         BKE_scene_graph_update_for_newframe(depsgraph);
       }
 
-        ED_gpencil_stroke_reproject(depsgraph, &gsc, sctx, gpl, gpf_, gps, mode, keep_original);
+      ED_gpencil_stroke_reproject(depsgraph, &gsc, sctx, gpl, gpf_, gps, mode, keep_original);
 
-        changed = true;
+      if (is_curve_edit && gps->editcurve != NULL) {
+        BKE_gpencil_stroke_editcurve_update(
+            gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+        /* Update the selection from the stroke to the curve. */
+        BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
+
+      changed = true;
     }
-    GP_EDITABLE_STROKES_END(gpstroke_iter);
   }
+  GP_EDITABLE_STROKES_END(gpstroke_iter);
 
   /* return frame state and DB to original state */
   CFRA = oldframe;
@@ -4319,17 +4329,10 @@ static int gpencil_recalc_geometry_exec(bContext *C, wmOperator *UNUSED(op))
   }
 
   bGPdata *gpd = (bGPdata *)ob->data;
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
-
-  if (is_curve_edit) {
-    /* TODO: reacalculate curve geometry */
-  }
-  else {
-    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-      LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
-        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-          BKE_gpencil_stroke_geometry_update(gpd, gps);
-        }
+  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+    LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
+      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
     }
   }
@@ -4651,7 +4654,7 @@ static int gpencil_stroke_simplify_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: do curve simplify */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* Go through each editable + selected stroke */
@@ -4711,7 +4714,7 @@ static int gpencil_stroke_simplify_fixed_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    /* TODO: do curve simplify fixed */
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* Go through each editable + selected stroke */
@@ -4811,7 +4814,7 @@ void GPENCIL_OT_stroke_sample(wmOperatorType *ot)
 /** \name Stroke Trim Operator
  * \{ */
 
-static int gpencil_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_trim_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
 
@@ -4843,9 +4846,7 @@ static int gpencil_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
 
           if (gps->flag & GP_STROKE_SELECT) {
             if (is_curve_edit) {
-              /* TODO: trim curve */
-              // gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-              // BKE_gpencil_stroke_geometry_update(gpd, gps);
+              BKE_report(op->reports, RPT_ERROR, "Not implemented!");
             }
             else {
               BKE_gpencil_stroke_trim(gpd, gps);
@@ -4992,7 +4993,7 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
               /* selected points mode */
               if (mode == GP_SEPARATE_POINT) {
                 if (is_curve_edit) {
-                  /* TODO: seperate curve points */
+                  BKE_report(op->reports, RPT_ERROR, "Not implemented!");
                 }
                 else {
                   /* make copy of source stroke */
@@ -5123,7 +5124,7 @@ void GPENCIL_OT_stroke_separate(wmOperatorType *ot)
 /** \name Stroke Split Operator
  * \{ */
 
-static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_split_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -5161,7 +5162,7 @@ static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
           /* Split selected strokes. */
           if (gps->flag & GP_STROKE_SELECT) {
             if (is_curve_edit) {
-              /* TODO: split curve points */
+              BKE_report(op->reports, RPT_ERROR, "Not implemented!");
             }
             else {
               /* make copy of source stroke */
