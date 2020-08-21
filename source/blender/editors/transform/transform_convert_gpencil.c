@@ -122,7 +122,7 @@ static void createTransGPencil_curves(bContext *C,
   tc->data_len = 0;
 
   /* Number of selected curve points */
-  int tot_curve_points = 0, tot_sel_curve_points = 0, tot_points = 0, tot_sel_points = 0;
+  uint32_t tot_curve_points = 0, tot_sel_curve_points = 0, tot_points = 0, tot_sel_points = 0;
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     /* Only editable and visible layers are considered. */
     if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
@@ -183,6 +183,11 @@ static void createTransGPencil_curves(bContext *C,
         }
       }
     }
+  }
+
+  if (((is_prop_edit && !is_prop_edit_connected) ? tot_curve_points : tot_sel_points) == 0) {
+    tc->data_len = 0;
+    return;
   }
 
   int data_len_pt = 0;
@@ -288,9 +293,10 @@ static void createTransGPencil_curves(bContext *C,
               const short sel_flag = get_bezt_sel_triple_flag(bezt, handles_visible);
               /* Iterate over bezier triple */
               for (int j = 0; j < 3; j++) {
-                bool is_ctrl_point = j == 1;
-                bezt_use |= sel_flag & (1 << j);
-                if (is_prop_edit || bezt_use) {
+                bool is_ctrl_point = (j == 1);
+                bool sel = sel_flag & (1 << j);
+
+                if (is_prop_edit || sel) {
                   copy_v3_v3(td->iloc, bezt->vec[j]);
                   td->loc = bezt->vec[j];
                   bool rotate_around_ctrl = !handles_visible ||
@@ -353,6 +359,8 @@ static void createTransGPencil_curves(bContext *C,
                   td++;
                   tail++;
                 }
+
+                bezt_use |= sel;
               }
 
               /* Update the handle types so transformation is possible */
