@@ -209,8 +209,7 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
     GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
     {
       if (gpc->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
-        BKE_gpencil_stroke_editcurve_update(
-            gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+        BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
         /* Update the selection from the stroke to the curve. */
         BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
 
@@ -1194,7 +1193,7 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
 {
   const int old_num_points = gpc->tot_curve_points;
   const bool first_select = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
-  const bool last_select = gpc->curve_points[old_num_points - 1].flag & GP_CURVE_POINT_SELECT;
+  bool last_select = gpc->curve_points[old_num_points - 1].flag & GP_CURVE_POINT_SELECT;
 
   /* iterate over middle points */
   for (int i = 1; i < gpc->tot_curve_points - 1; i++) {
@@ -1229,6 +1228,11 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
       gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
       BEZT_DESEL_ALL(&gpc_pt->bezt);
     }
+  }
+
+  /* Edgcase for single curve point. */
+  if (gpc->tot_curve_points == 1) {
+    last_select = false;
   }
 
   if (first_select || last_select) {
@@ -4237,8 +4241,7 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
       ED_gpencil_stroke_reproject(depsgraph, &gsc, sctx, gpl, gpf_, gps, mode, keep_original);
 
       if (is_curve_edit && gps->editcurve != NULL) {
-        BKE_gpencil_stroke_editcurve_update(
-            gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+        BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
         /* Update the selection from the stroke to the curve. */
         BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
 

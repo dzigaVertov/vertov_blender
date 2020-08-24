@@ -563,26 +563,25 @@ void BKE_gpencil_convert_curve(Main *bmain,
 /** \name Editcurve kernel functions
  * \{ */
 
-/**
- * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
- */
-bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
-                                                 const float error_threshold,
-                                                 const float corner_angle)
+static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
+                                                              const float stroke_radius)
 {
-  if (gps->totpoints < 1) {
-    return NULL;
-  }
-  else if (gps->totpoints == 1) {
+  BLI_assert(gps->totpoints < 3);
+
+  if (gps->totpoints == 1) {
     bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(1);
     bGPDspoint *pt = &gps->points[0];
     bGPDcurve_point *cpt = &editcurve->curve_points[0];
     BezTriple *bezt = &cpt->bezt;
 
+    /* Handles are twice as long as the radius of the point. */
+    float offset = (pt->pressure * stroke_radius) * 2.0f;
+
     float tmp_vec[3];
     for (int j = 0; j < 3; j++) {
       copy_v3_v3(tmp_vec, &pt->x);
-      tmp_vec[0] += (j - 1);
+      /* Move handles along the x-axis away from the control point */
+      tmp_vec[0] += (float)(j - 1) * offset;
       copy_v3_v3(bezt->vec[j], tmp_vec);
     }
 
@@ -591,12 +590,62 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
     copy_v4_v4(cpt->vert_color, pt->vert_color);
 
     /* default handle type */
-    bezt->h1 = HD_ALIGN;
-    bezt->h2 = HD_ALIGN;
+    bezt->h1 = HD_FREE;
+    bezt->h2 = HD_FREE;
 
     cpt->point_index = 0;
 
     return editcurve;
+  }
+  if (gps->totpoints == 2) {
+    bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_new(2);
+    bGPDspoint *first_pt = &gps->points[0];
+    bGPDspoint *last_pt = &gps->points[1];
+
+    float length = len_v3v3(&first_pt->x, &last_pt->x);
+    float offset = length / 3;
+    float dir[3];
+    sub_v3_v3v3(dir, &last_pt->x, &first_pt->x);
+
+    for (int i = 0; i < 2; i++) {
+      bGPDspoint *pt = &gps->points[i];
+      bGPDcurve_point *cpt = &editcurve->curve_points[i];
+      BezTriple *bezt = &cpt->bezt;
+
+      float tmp_vec[3];
+      for (int j = 0; j < 3; j++) {
+        copy_v3_v3(tmp_vec, dir);
+        normalize_v3_length(tmp_vec, (float)(j - 1) * offset);
+        add_v3_v3v3(bezt->vec[j], &pt->x, tmp_vec);
+      }
+
+      cpt->pressure = pt->pressure;
+      cpt->strength = pt->strength;
+      copy_v4_v4(cpt->vert_color, pt->vert_color);
+
+      /* default handle type */
+      bezt->h1 = HD_VECT;
+      bezt->h2 = HD_VECT;
+
+      cpt->point_index = 0;
+    }
+
+    return editcurve;
+  }
+
+  return NULL;
+}
+
+/**
+ * Creates a bGPDcurve by doing a cubic curve fitting on the grease pencil stroke points.
+ */
+bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
+                                                 const float error_threshold,
+                                                 const float corner_angle,
+                                                 const float stroke_radius)
+{
+  if (gps->totpoints < 3) {
+    return gpencil_stroke_editcurve_generate_edgecases(gps, stroke_radius);
   }
 #define POINT_DIM 9
 
@@ -704,9 +753,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
 /**
  * Updates the editcurve for a stroke. Frees the old curve if one exists and generates a new one.
  */
-void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps,
-                                         const float error_threshold,
-                                         const float corner_angle)
+void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps)
 {
   if (gps == NULL || gps->totpoints < 0) {
     return;
@@ -716,7 +763,11 @@ void BKE_gpencil_stroke_editcurve_update(bGPDstroke *gps,
     BKE_gpencil_free_stroke_editcurve(gps);
   }
 
-  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(gps, error_threshold, corner_angle);
+  float defaultpixsize = 1000.0f / gpd->pixfactor;
+  float stroke_radius = ((gps->thickness + gpl->line_change) / defaultpixsize) / 2.0f;
+
+  bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(
+      gps, gpd->curve_edit_threshold, gpd->curve_corner_angle, stroke_radius);
   if (editcurve == NULL) {
     return;
   }
@@ -1012,7 +1063,8 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
   if (curve_point_array_len == 0) {
     return;
   }
-  else if (curve_point_array_len == 1) {
+  /* Handle case for single curve point. */
+  if (curve_point_array_len == 1) {
     bGPDcurve_point *cpt = &curve_point_array[0];
     /* resize stroke point array */
     gps->totpoints = 1;
@@ -1022,7 +1074,7 @@ void BKE_gpencil_stroke_update_geometry_from_editcurve(bGPDstroke *gps,
     }
 
     bGPDspoint *pt = &gps->points[0];
-    copy_v3_v3(&pt->x, cpt->bezt.vec[0]);
+    copy_v3_v3(&pt->x, cpt->bezt.vec[1]);
 
     pt->pressure = cpt->pressure;
     pt->strength = cpt->strength;
@@ -1095,7 +1147,8 @@ void BKE_gpencil_editcurve_recalculate_handles(bGPDstroke *gps)
   }
 
   if (gpc->tot_curve_points == 1) {
-    BKE_nurb_handle_calc(&(gpc->curve_points[0].bezt), NULL, NULL, false, 0);
+    BKE_nurb_handle_calc(
+        &(gpc->curve_points[0].bezt), NULL, &(gpc->curve_points[0].bezt), false, 0);
     gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
   }
 
@@ -1307,16 +1360,14 @@ void BKE_gpencil_strokes_selected_update_editcurve(bGPdata *gpd)
 
           /* Generate the curve if there is none or the stroke was changed */
           if (gps->editcurve == NULL) {
-            BKE_gpencil_stroke_editcurve_update(
-                gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+            BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
             /* Continue if curve could not be generated. */
             if (gps->editcurve == NULL) {
               continue;
             }
           }
           else if (gps->editcurve->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
-            BKE_gpencil_stroke_editcurve_update(
-                gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+            BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
           }
           /* Update the selection from the stroke to the curve. */
           BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);

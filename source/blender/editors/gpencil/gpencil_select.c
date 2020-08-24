@@ -1821,7 +1821,7 @@ static bool gpencil_generic_stroke_select(bContext *C,
 
 #if 0
     if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
-      BKE_gpencil_stroke_editcurve_update(gps, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+      BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
       BKE_gpencil_curve_sync_selection(gps);
       gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       BKE_gpencil_stroke_geometry_update(gpd, gps);
@@ -2046,6 +2046,7 @@ void GPENCIL_OT_select_lasso(wmOperatorType *ot)
 static void gpencil_select_curve_point(bContext *C,
                                        const int mval[2],
                                        const int radius_squared,
+                                       bGPDlayer **r_gpl,
                                        bGPDstroke **r_gps,
                                        bGPDcurve **r_gpc,
                                        bGPDcurve_point **r_pt,
@@ -2080,6 +2081,7 @@ static void gpencil_select_curve_point(bContext *C,
           const int pt_distance = len_manhattan_v2v2_int(mval, screen_co);
 
           if (pt_distance <= radius_squared && pt_distance < hit_distance) {
+            *r_gpl = gpl;
             *r_gps = gps;
             *r_gpc = gpc;
             *r_pt = gpc_pt;
@@ -2147,8 +2149,14 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   }
 
   if (is_curve_edit) {
-    gpencil_select_curve_point(
-        C, mval, radius_squared, &hit_stroke, &hit_curve, &hit_curve_point, &hit_curve_handle);
+    gpencil_select_curve_point(C,
+                               mval,
+                               radius_squared,
+                               &hit_layer,
+                               &hit_stroke,
+                               &hit_curve,
+                               &hit_curve_point,
+                               &hit_curve_handle);
   }
 
   if (hit_curve == NULL) {
@@ -2239,8 +2247,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
   if (whole) {
     /* Generate editcurve if it does not exist */
     if (is_curve_edit && hit_curve == NULL) {
-      BKE_gpencil_stroke_editcurve_update(
-          hit_stroke, gpd->curve_edit_threshold, gpd->curve_corner_angle);
+      BKE_gpencil_stroke_editcurve_update(gpd, hit_layer, hit_stroke);
       hit_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
       BKE_gpencil_stroke_geometry_update(gpd, hit_stroke);
       hit_curve = hit_stroke->editcurve;
