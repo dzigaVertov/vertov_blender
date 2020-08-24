@@ -2193,9 +2193,9 @@ static int gpencil_delete_selected_strokes(bContext *C)
 
           /* free stroke if selected */
           if (gps->flag & GP_STROKE_SELECT) {
+            BLI_remlink(&gpf->strokes, gps);
             /* free stroke memory arrays, then stroke itself */
             BKE_gpencil_free_stroke(gps);
-            BLI_freelinkN(&gpf->strokes, gps);
 
             changed = true;
           }
@@ -2269,8 +2269,8 @@ static bool gpencil_dissolve_selected_curve_points(bContext *C,
 
       if (num_points_remaining < 1) {
         /* Delete stroke */
+        BLI_remlink(&gpf_->strokes, gps);
         BKE_gpencil_free_stroke(gps);
-        BLI_freelinkN(&gpf_->strokes, gps);
       }
       else {
         bGPDcurve_point *new_points = MEM_callocN(sizeof(bGPDcurve_point) * num_points_remaining,
@@ -2412,8 +2412,8 @@ static bool gpencil_dissolve_selected_stroke_points(bContext *C,
       /* if no points are left, we simply delete the entire stroke */
       if (tot <= 0) {
         /* remove the entire stroke */
+        BLI_remlink(&gpf_->strokes, gps);
         BKE_gpencil_free_stroke(gps);
-        BLI_freelinkN(&gpf_->strokes, gps);
       }
       else {
         /* just copy all points to keep into a smaller buffer */
