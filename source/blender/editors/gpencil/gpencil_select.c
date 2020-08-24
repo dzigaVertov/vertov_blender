@@ -1746,7 +1746,6 @@ static bool gpencil_generic_stroke_select(bContext *C,
 {
   GP_SpaceConversion gsc = {NULL};
   bool changed = false;
-  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   /* init space conversion stuff */
   gpencil_point_conversion_init(C, &gsc);
 
