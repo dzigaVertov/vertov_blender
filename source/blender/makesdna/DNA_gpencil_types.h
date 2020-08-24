@@ -39,7 +39,7 @@ struct Curve;
 
 #define GP_DEFAULT_CURVE_RESOLUTION 32
 #define GP_DEFAULT_CURVE_ERROR 0.1f
-#define GP_DEFAULT_curve_edit_corner_angle 1.57079632679489661923 /* pi/2 */
+#define GP_DEFAULT_CURVE_EDIT_CORNER_ANGLE M_PI_2
 
 /* ***************************************** */
 /* GP Stroke Points */

@@ -543,6 +543,8 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
   gpd->curve_edit_resolution = GP_DEFAULT_CURVE_RESOLUTION;
   gpd->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
+  gpd->curve_edit_corner_angle = GP_DEFAULT_CURVE_EDIT_CORNER_ANGLE;
+
   /* use adaptive curve resolution by default */
   gpd->flag |= GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
 
