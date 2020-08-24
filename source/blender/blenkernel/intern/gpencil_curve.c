@@ -767,7 +767,7 @@ void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstrok
   float stroke_radius = ((gps->thickness + gpl->line_change) / defaultpixsize) / 2.0f;
 
   bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(
-      gps, gpd->curve_edit_threshold, gpd->curve_corner_angle, stroke_radius);
+      gps, gpd->curve_edit_threshold, gpd->curve_edit_corner_angle, stroke_radius);
   if (editcurve == NULL) {
     return;
   }

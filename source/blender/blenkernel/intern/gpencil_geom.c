@@ -1284,7 +1284,7 @@ void BKE_gpencil_stroke_geometry_update(bGPdata *gpd, bGPDstroke *gps)
       if (gps->flag & GP_STROKE_NEEDS_CURVE_UPDATE) {
         bool is_adaptive = gpd->flag & GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
         BKE_gpencil_stroke_update_geometry_from_editcurve(
-            gps, gpd->editcurve_resolution, is_adaptive);
+            gps, gpd->curve_edit_resolution, is_adaptive);
         gps->flag &= ~GP_STROKE_NEEDS_CURVE_UPDATE;
       }
     }

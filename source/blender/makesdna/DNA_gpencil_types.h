@@ -39,7 +39,7 @@ struct Curve;
 
 #define GP_DEFAULT_CURVE_RESOLUTION 32
 #define GP_DEFAULT_CURVE_ERROR 0.1f
-#define GP_DEFAULT_CURVE_CORNER_ANGLE 1.57079632679489661923 /* pi/2 */
+#define GP_DEFAULT_curve_edit_corner_angle 1.57079632679489661923 /* pi/2 */
 
 /* ***************************************** */
 /* GP Stroke Points */
@@ -630,11 +630,11 @@ typedef struct bGPdata {
   /** Settings for this data-block. */
   int flag;
   /** Default resolution for generated curves using curve editing method. */
-  int editcurve_resolution;
+  int curve_edit_resolution;
   /** Curve Editing error threshold */
   float curve_edit_threshold;
   /** Curve Editing corner angle (less or equal is treated as corner) */
-  float curve_corner_angle;
+  float curve_edit_corner_angle;
 
   /* Palettes */
   /** List of bGPDpalette's   - Deprecated (2.78 - 2.79 only). */

@@ -519,9 +519,9 @@ void blo_do_versions_290(FileData *fd, Library *UNUSED(lib), Main *bmain)
     /* Keep this block, even when empty. */
 
     /* Init grease pencil default curve resolution. */
-    if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "editcurve_resolution")) {
+    if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "curve_edit_resolution")) {
       LISTBASE_FOREACH (bGPdata *, gpd, &bmain->gpencils) {
-        gpd->editcurve_resolution = GP_DEFAULT_CURVE_RESOLUTION;
+        gpd->curve_edit_resolution = GP_DEFAULT_CURVE_RESOLUTION;
         gpd->flag |= GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
       }
     }

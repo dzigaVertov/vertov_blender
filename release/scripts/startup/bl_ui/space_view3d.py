@@ -6959,7 +6959,7 @@ class VIEW3D_PT_gpencil_curve_edit(Panel):
         col = layout.column(align=True)
         col.prop(gpd, "edit_curve_resolution")
         col.prop(gpd, "curve_edit_threshold")
-        col.prop(gpd, "curve_corner_angle")
+        col.prop(gpd, "curve_edit_corner_angle")
         col.prop(gpd, "use_adaptive_curve_resolution")
 
 
