@@ -1475,7 +1475,8 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
     }
     GP_EDITABLE_CURVES_END(gps_iter);
   }
-  else {
+
+  if (changed == false) {
     GP_SpaceConversion gsc = {NULL};
     /* init space conversion stuff */
     gpencil_point_conversion_init(C, &gsc);
