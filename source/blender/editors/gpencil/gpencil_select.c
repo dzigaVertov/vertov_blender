@@ -185,6 +185,31 @@ static void deselect_all_selected(bContext *C)
   CTX_DATA_END;
 }
 
+static void select_all_curve_points(bGPDstroke *gps, bGPDcurve *gpc, bool deselect)
+{
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    BezTriple *bezt = &gpc_pt->bezt;
+    if (deselect == false) {
+      gpc_pt->flag |= GP_CURVE_POINT_SELECT;
+      BEZT_SEL_ALL(bezt);
+    }
+    else {
+      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(bezt);
+    }
+  }
+
+  if (deselect == false) {
+    gpc->flag |= GP_CURVE_SELECT;
+    gps->flag |= GP_STROKE_SELECT;
+  }
+  else {
+    gpc->flag &= ~GP_CURVE_SELECT;
+    gps->flag &= ~GP_STROKE_SELECT;
+  }
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -1216,7 +1241,8 @@ static bool gpencil_stroke_do_circle_sel(bGPdata *gpd,
                                          rcti *rect,
                                          const float diff_mat[4][4],
                                          const int selectmode,
-                                         const float scale)
+                                         const float scale,
+                                         const bool is_curve_edit)
 {
   bGPDspoint *pt = NULL;
   int x0 = 0, y0 = 0;
@@ -1278,6 +1304,16 @@ static bool gpencil_stroke_do_circle_sel(bGPdata *gpd,
         }
       }
     }
+  }
+
+  /* If curve edit mode, generate the curve. */
+  if (is_curve_edit && hit && gps_active->editcurve == NULL) {
+    BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps_active);
+    gps_active->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    /* Select all curve points. */
+    select_all_curve_points(gps_active, gps_active->editcurve, false);
+    BKE_gpencil_stroke_geometry_update(gpd, gps_active);
+    changed = true;
   }
 
   /* Ensure that stroke selection is in sync with its points. */
@@ -1462,7 +1498,8 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
                                               &rect,
                                               gpstroke_iter.diff_mat,
                                               selectmode,
-                                              scale);
+                                              scale,
+                                              is_curve_edit);
     }
     GP_EVALUATED_STROKES_END(gpstroke_iter);
   }
@@ -1742,7 +1779,8 @@ static bool gpencil_generic_stroke_select(bContext *C,
                                           const bool strokemode,
                                           const bool segmentmode,
                                           const eSelectOp sel_op,
-                                          const float scale)
+                                          const float scale,
+                                          const bool is_curve_edit)
 {
   GP_SpaceConversion gsc = {NULL};
   bool changed = false;
@@ -1818,16 +1856,6 @@ static bool gpencil_generic_stroke_select(bContext *C,
       whole = ED_gpencil_stroke_point_is_inside(gps_active, &gsc, mval, gpstroke_iter.diff_mat);
     }
 
-#if 0
-    if (is_curve_edit && (hit || whole) && gps->editcurve == NULL) {
-      BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
-      BKE_gpencil_curve_sync_selection(gps);
-      gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
-      BKE_gpencil_stroke_geometry_update(gpd, gps);
-      changed = true;
-    }
-#endif
-
     /* if stroke mode expand selection. */
     if ((strokemode) || (whole)) {
       const bool is_select = BKE_gpencil_stroke_select_check(gps_active) || whole;
@@ -1846,6 +1874,16 @@ static bool gpencil_generic_stroke_select(bContext *C,
         }
         changed = true;
       }
+    }
+
+    /* If curve edit mode, generate the curve. */
+    if (is_curve_edit && (hit || whole) && gps_active->editcurve == NULL) {
+      BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps_active);
+      gps_active->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      /* Select all curve points. */
+      select_all_curve_points(gps_active, gps_active->editcurve, false);
+      BKE_gpencil_stroke_geometry_update(gpd, gps_active);
+      changed = true;
     }
 
     /* Ensure that stroke selection is in sync with its points */
@@ -1901,8 +1939,17 @@ static int gpencil_generic_select_exec(bContext *C,
   }
 
   if (changed == false) {
-    changed = gpencil_generic_stroke_select(
-        C, ob, gpd, is_inside_fn, box, user_data, strokemode, segmentmode, sel_op, scale);
+    changed = gpencil_generic_stroke_select(C,
+                                            ob,
+                                            gpd,
+                                            is_inside_fn,
+                                            box,
+                                            user_data,
+                                            strokemode,
+                                            segmentmode,
+                                            sel_op,
+                                            scale,
+                                            is_curve_edit);
   }
 
   /* if paint mode,delete selected points */
@@ -2253,27 +2300,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
     }
     /* select all curve points */
     if (hit_curve != NULL) {
-      for (int i = 0; i < hit_curve->tot_curve_points; i++) {
-        bGPDcurve_point *gpc_pt = &hit_curve->curve_points[i];
-        BezTriple *bezt = &gpc_pt->bezt;
-        if (deselect == false) {
-          gpc_pt->flag |= GP_CURVE_POINT_SELECT;
-          BEZT_SEL_ALL(bezt);
-        }
-        else {
-          gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
-          BEZT_DESEL_ALL(bezt);
-        }
-      }
-
-      if (deselect == false) {
-        hit_curve->flag |= GP_CURVE_SELECT;
-        hit_stroke->flag |= GP_STROKE_SELECT;
-      }
-      else {
-        hit_curve->flag &= ~GP_CURVE_SELECT;
-        hit_stroke->flag &= ~GP_STROKE_SELECT;
-      }
+      select_all_curve_points(hit_stroke, hit_curve, deselect);
     }
     else {
       bGPDspoint *pt;
