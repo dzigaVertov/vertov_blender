@@ -563,6 +563,7 @@ void BKE_gpencil_convert_curve(Main *bmain,
 /** \name Editcurve kernel functions
  * \{ */
 
+/* Helper: generate curves with one or two curve points */
 static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
                                                               const float stroke_radius)
 {
@@ -590,8 +591,8 @@ static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
     copy_v4_v4(cpt->vert_color, pt->vert_color);
 
     /* default handle type */
-    bezt->h1 = HD_FREE;
-    bezt->h2 = HD_FREE;
+    bezt->h1 = HD_ALIGN;
+    bezt->h2 = HD_ALIGN;
 
     cpt->point_index = 0;
 
@@ -624,10 +625,10 @@ static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
       copy_v4_v4(cpt->vert_color, pt->vert_color);
 
       /* default handle type */
-      bezt->h1 = HD_VECT;
-      bezt->h2 = HD_VECT;
+      bezt->h1 = HD_ALIGN;
+      bezt->h2 = HD_ALIGN;
 
-      cpt->point_index = 0;
+      cpt->point_index = i;
     }
 
     return editcurve;
@@ -755,7 +756,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
  */
 void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps)
 {
-  if (gps == NULL || gps->totpoints < 0) {
+  if (gps == NULL || gps->totpoints <= 0) {
     return;
   }
 
@@ -768,9 +769,8 @@ void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstrok
 
   bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(
       gps, gpd->curve_edit_threshold, gpd->curve_edit_corner_angle, stroke_radius);
-  if (editcurve == NULL) {
-    return;
-  }
+
+  BLI_assert(editcurve != NULL);
 
   gps->editcurve = editcurve;
 }
