@@ -912,6 +912,98 @@ static void gpencil_duplicate_points(bGPdata *gpd,
   }
 }
 
+static void gpencil_duplicate_selected_curve_points(
+    bGPdata *gpd, bGPDlayer *gpl, ListBase *new_strokes, bGPDstroke *gps, bGPDcurve *gpc)
+{
+  if (gpc == NULL) {
+    return;
+  }
+  const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+  const int idx_last = gpc->tot_curve_points - 1;
+  bGPDstroke *gps_first = NULL;
+  bGPDstroke *gps_last = NULL;
+
+  int idx_start = 0;
+  int idx_end = 0;
+  bool prev_selected = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
+  for (int i = 1; i < gpc->tot_curve_points; i++) {
+    bool selected = gpc->curve_points[i].flag & GP_CURVE_POINT_SELECT;
+    if (prev_selected == false && selected == true) {
+      idx_start = i;
+    }
+    /* Island ends if the current point is unselected or if we reached the end of the stroke. */
+    if ((prev_selected == true && selected == false) || (selected == true && i == idx_last)) {
+      idx_end = selected ? i : i - 1;
+      int island_length = idx_end - idx_start + 1;
+
+      bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
+      new_stroke->points = NULL;
+      if (island_length != gpc->tot_curve_points) {
+        new_stroke->flag &= ~GP_STROKE_CYCLIC;
+      }
+      new_stroke->editcurve = BKE_gpencil_stroke_editcurve_new(island_length);
+
+      if (gps_first == NULL) {
+        gps_first = new_stroke;
+      }
+
+      bGPDcurve *new_gpc = new_stroke->editcurve;
+      memcpy(new_gpc->curve_points,
+             gpc->curve_points + idx_start,
+             sizeof(bGPDcurve_point) * island_length);
+
+      BLI_strncpy(
+          new_stroke->runtime.tmp_layerinfo, gpl->info, sizeof(new_stroke->runtime.tmp_layerinfo));
+
+      BKE_gpencil_editcurve_recalculate_handles(new_stroke);
+      new_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+      /* Calc geometry data. */
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+
+      /* Insert stroke into frame. */
+      BLI_addtail(new_strokes, new_stroke);
+
+      gps_last = new_stroke;
+    }
+    prev_selected = selected;
+  }
+
+  /* join first and last stroke if cyclic */
+  if (is_cyclic && gps_first != NULL && gps_last != NULL && gps_first != gps_last) {
+    bGPDcurve *gpc_first = gps_first->editcurve;
+    bGPDcurve *gpc_last = gps_last->editcurve;
+    int first_tot_points = gpc_first->tot_curve_points;
+    int old_tot_points = gpc_last->tot_curve_points;
+
+    gpc_last->tot_curve_points = first_tot_points + old_tot_points;
+    gpc_last->curve_points = MEM_recallocN(gpc_last->curve_points,
+                                           sizeof(bGPDcurve_point) * gpc_last->tot_curve_points);
+    /* copy data from first to last */
+    memcpy(gpc_last->curve_points + old_tot_points,
+           gpc_first->curve_points,
+           sizeof(bGPDcurve_point) * first_tot_points);
+
+    BKE_gpencil_editcurve_recalculate_handles(gps_last);
+    gps_last->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+    /* Calc geometry data. */
+    BKE_gpencil_stroke_geometry_update(gpd, gps_last);
+
+    /* remove first one */
+    BLI_remlink(new_strokes, gps_first);
+    BKE_gpencil_free_stroke(gps_first);
+  }
+
+  /* Deselect curve. */
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    gpc->curve_points[i].flag &= ~GP_CURVE_POINT_SELECT;
+    BEZT_DESEL_ALL(&gpc->curve_points[i].bezt);
+  }
+  gpc->flag &= ~GP_CURVE_SELECT;
+  BKE_gpencil_stroke_editcurve_sync_selection(gps, gpc);
+}
+
 static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -929,7 +1021,31 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+      ListBase new_strokes = {NULL, NULL};
+      bGPDframe *gpf = gpl->actframe;
+      if (gpf == NULL) {
+        continue;
+      }
+
+      for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+        if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          continue;
+        }
+        if (gps->editcurve == NULL) {
+          continue;
+        }
+
+        bGPDcurve *gpc = gps->editcurve;
+        if (gpc->flag & GP_CURVE_SELECT) {
+          gpencil_duplicate_selected_curve_points(gpd, gpl, &new_strokes, gps, gpc);
+          changed = true;
+        }
+      }
+
+      BLI_movelisttolist(&gpf->strokes, &new_strokes);
+    }
+    CTX_DATA_END;
   }
   else {
     /* for each visible (and editable) layer's selected strokes,
@@ -996,9 +1112,11 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
     CTX_DATA_END;
   }
 
-  /* updates */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* updates */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -2863,6 +2981,7 @@ static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
       idx_end = selected ? i - 1 : i;
       int island_length = idx_end - idx_start + 1;
 
+#if 0
       /* If an island has only a single curve point, there is no curve segment, so skip island */
       if (island_length == 1) {
         if (is_cyclic) {
@@ -2876,7 +2995,7 @@ static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
           continue;
         }
       }
-
+#endif
       bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
       new_stroke->points = NULL;
       new_stroke->flag &= ~GP_STROKE_CYCLIC;
