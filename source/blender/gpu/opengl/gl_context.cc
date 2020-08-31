@@ -31,6 +31,7 @@
 
 #include "gpu_context_private.hh"
 
+#include "gl_immediate.hh"
 #include "gl_state.hh"
 
 #include "gl_backend.hh" /* TODO remove */
@@ -46,10 +47,6 @@ using namespace blender::gpu;
 GLContext::GLContext(void *ghost_window, GLSharedOrphanLists &shared_orphan_list)
     : shared_orphan_list_(shared_orphan_list)
 {
-  default_framebuffer_ = ghost_window ?
-                             GHOST_GetDefaultOpenGLFramebuffer((GHOST_WindowHandle)ghost_window) :
-                             0;
-
   glGenVertexArrays(1, &default_vao_);
 
   float data[4] = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -59,6 +56,39 @@ GLContext::GLContext(void *ghost_window, GLSharedOrphanLists &shared_orphan_list
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   state_manager = new GLStateManager();
+  imm = new GLImmediate();
+  ghost_window_ = ghost_window;
+
+  if (ghost_window) {
+    GLuint default_fbo = GHOST_GetDefaultOpenGLFramebuffer((GHOST_WindowHandle)ghost_window);
+    GHOST_RectangleHandle bounds = GHOST_GetClientBounds((GHOST_WindowHandle)ghost_window);
+    int w = GHOST_GetWidthRectangle(bounds);
+    int h = GHOST_GetHeightRectangle(bounds);
+    GHOST_DisposeRectangle(bounds);
+
+    if (default_fbo != 0) {
+      front_left = new GLFrameBuffer("front_left", this, GL_COLOR_ATTACHMENT0, default_fbo, w, h);
+      back_left = new GLFrameBuffer("back_left", this, GL_COLOR_ATTACHMENT0, default_fbo, w, h);
+    }
+    else {
+      front_left = new GLFrameBuffer("front_left", this, GL_FRONT_LEFT, 0, w, h);
+      back_left = new GLFrameBuffer("back_left", this, GL_BACK_LEFT, 0, w, h);
+    }
+    /* TODO(fclem) enable is supported. */
+    const bool supports_stereo_quad_buffer = false;
+    if (supports_stereo_quad_buffer) {
+      front_right = new GLFrameBuffer("front_right", this, GL_FRONT_RIGHT, 0, w, h);
+      back_right = new GLFrameBuffer("back_right", this, GL_BACK_RIGHT, 0, w, h);
+    }
+  }
+  else {
+    /* For offscreen contexts. Default framebuffer is NULL. */
+    back_left = new GLFrameBuffer("back_left", this, GL_NONE, 0, 0, 0);
+  }
+
+  active_fb = back_left;
+  static_cast<GLStateManager *>(state_manager)->active_fb = static_cast<GLFrameBuffer *>(
+      back_left);
 }
 
 GLContext::~GLContext()
@@ -91,6 +121,27 @@ void GLContext::activate(void)
 
   /* Clear accumulated orphans. */
   orphans_clear();
+
+  if (ghost_window_) {
+    /* Get the correct framebuffer size for the internal framebuffers. */
+    GHOST_RectangleHandle bounds = GHOST_GetClientBounds((GHOST_WindowHandle)ghost_window_);
+    int w = GHOST_GetWidthRectangle(bounds);
+    int h = GHOST_GetHeightRectangle(bounds);
+    GHOST_DisposeRectangle(bounds);
+
+    if (front_left) {
+      front_left->size_set(w, h);
+    }
+    if (back_left) {
+      back_left->size_set(w, h);
+    }
+    if (front_right) {
+      front_right->size_set(w, h);
+    }
+    if (back_right) {
+      back_right->size_set(w, h);
+    }
+  }
 }
 
 void GLContext::deactivate(void)
