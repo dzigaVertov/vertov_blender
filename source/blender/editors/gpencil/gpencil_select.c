@@ -1802,6 +1802,8 @@ static bool gpencil_generic_stroke_select(bContext *C,
       gps->flag &= ~GP_STROKE_SELECT;
     }
     CTX_DATA_END;
+
+    changed = true;
   }
 
   /* select/deselect points */

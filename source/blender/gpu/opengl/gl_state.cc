@@ -26,6 +26,8 @@
 
 #include "glew-mx.h"
 
+#include "gl_context.hh"
+#include "gl_framebuffer.hh"
 #include "gl_state.hh"
 
 using namespace blender::gpu;
@@ -53,12 +55,22 @@ GLStateManager::GLStateManager(void) : GPUStateManager()
     glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
   }
 
+  /* Limits. */
+  glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, line_width_range_);
+
   /* Force update using default state. */
   current_ = ~state;
   current_mutable_ = ~mutable_state;
   set_state(state);
   set_mutable_state(mutable_state);
 }
+
+void GLStateManager::apply_state(void)
+{
+  this->set_state(this->state);
+  this->set_mutable_state(this->mutable_state);
+  active_fb->apply_state();
+};
 
 void GLStateManager::set_state(const GPUState &state)
 {
@@ -121,22 +133,6 @@ void GLStateManager::set_mutable_state(const GPUStateMutable &state)
 {
   GPUStateMutable changed = state ^ current_mutable_;
 
-  if ((changed.viewport_rect[0] != 0) || (changed.viewport_rect[1] != 0) ||
-      (changed.viewport_rect[2] != 0) || (changed.viewport_rect[3] != 0)) {
-    glViewport(UNPACK4(state.viewport_rect));
-  }
-
-  if ((changed.scissor_rect[0] != 0) || (changed.scissor_rect[1] != 0) ||
-      (changed.scissor_rect[2] != 0) || (changed.scissor_rect[3] != 0)) {
-    if ((state.scissor_rect[2] > 0)) {
-      glScissor(UNPACK4(state.scissor_rect));
-      glEnable(GL_SCISSOR_TEST);
-    }
-    else {
-      glDisable(GL_SCISSOR_TEST);
-    }
-  }
-
   /* TODO remove, should be uniform. */
   if (changed.point_size != 0) {
     if (state.point_size > 0.0f) {
@@ -150,7 +146,7 @@ void GLStateManager::set_mutable_state(const GPUStateMutable &state)
 
   if (changed.line_width != 0) {
     /* TODO remove, should use wide line shader. */
-    glLineWidth(clamp_f(state.line_width, 1.0f, GPU_max_line_width()));
+    glLineWidth(clamp_f(state.line_width, line_width_range_[0], line_width_range_[1]));
   }
 
   if (changed.depth_range[0] != 0 || changed.depth_range[1] != 0) {
@@ -411,8 +407,10 @@ void GLStateManager::set_blend(const eGPUBlend value)
     }
   }
 
+  /* Always set the blend function. This avoid a rendering error when blending is disabled but
+   * GPU_BLEND_CUSTOM was used just before and the framebuffer is using more than 1 color targe */
+  glBlendFuncSeparate(src_rgb, dst_rgb, src_alpha, dst_alpha);
   if (value != GPU_BLEND_NONE) {
-    glBlendFuncSeparate(src_rgb, dst_rgb, src_alpha, dst_alpha);
     glEnable(GL_BLEND);
   }
   else {

@@ -249,7 +249,7 @@ uiBut *uiDefAutoButR(uiBlock *block,
       break;
     case PROP_POINTER: {
       if (icon == 0) {
-        PointerRNA pptr = RNA_property_pointer_get(ptr, prop);
+        const PointerRNA pptr = RNA_property_pointer_get(ptr, prop);
         icon = RNA_struct_ui_icon(pptr.type ? pptr.type : RNA_property_pointer_type(ptr, prop));
       }
       if (icon == ICON_DOT) {
@@ -436,7 +436,7 @@ void ui_rna_collection_search_update_fn(const struct bContext *C,
     int name_prefix_offset = 0;
     int iconid = ICON_NONE;
     bool has_sep_char = false;
-    bool is_id = itemptr.type && RNA_struct_is_ID(itemptr.type);
+    const bool is_id = itemptr.type && RNA_struct_is_ID(itemptr.type);
 
     if (is_id) {
       iconid = ui_id_icon_get(C, itemptr.data, false);
@@ -489,7 +489,7 @@ void ui_rna_collection_search_update_fn(const struct bContext *C,
     /* If no item has an own icon to display, libraries can use the library icons rather than the
      * name prefix for showing the library status. */
     int name_prefix_offset = cis->name_prefix_offset;
-    if (!has_id_icon && cis->is_id) {
+    if (!has_id_icon && cis->is_id && !requires_exact_data_name) {
       cis->iconid = UI_library_icon_get(cis->data);
       /* No need to re-allocate, string should be shorter than before (lib status prefix is
        * removed). */

@@ -31,6 +31,7 @@
 #include "DNA_userdef_types.h"
 
 #include "BLI_alloca.h"
+#include "BLI_dynstr.h"
 #include "BLI_listbase.h"
 #include "BLI_math.h"
 #include "BLI_rect.h"
@@ -225,7 +226,7 @@ typedef struct uiLayoutItemRoot {
 
 static const char *ui_item_name_add_colon(const char *name, char namestr[UI_MAX_NAME_STR])
 {
-  int len = strlen(name);
+  const int len = strlen(name);
 
   if (len != 0 && len + 1 < UI_MAX_NAME_STR) {
     memcpy(namestr, name, len);
@@ -251,7 +252,7 @@ static int ui_item_fit(
       return available - pos;
     }
 
-    float width = *extra_pixel + (item * available) / (float)all;
+    const float width = *extra_pixel + (item * available) / (float)all;
     *extra_pixel = width - (int)width;
     return (int)width;
   }
@@ -262,7 +263,7 @@ static int ui_item_fit(
       return available - pos;
     }
 
-    float width = *extra_pixel + (item * available) / (float)all;
+    const float width = *extra_pixel + (item * available) / (float)all;
     *extra_pixel = width - (int)width;
     return (int)width;
   }
@@ -457,8 +458,8 @@ static void ui_layer_but_cb(bContext *C, void *arg_but, void *arg_index)
   PointerRNA *ptr = &but->rnapoin;
   PropertyRNA *prop = but->rnaprop;
   int i, index = POINTER_AS_INT(arg_index);
-  int shift = win->eventstate->shift;
-  int len = RNA_property_array_length(ptr, prop);
+  const int shift = win->eventstate->shift;
+  const int len = RNA_property_array_length(ptr, prop);
 
   if (!shift) {
     RNA_property_boolean_set_index(ptr, prop, index, true);
@@ -519,7 +520,7 @@ static void ui_item_array(uiLayout *layout,
   if (type == PROP_BOOLEAN && ELEM(subtype, PROP_LAYER, PROP_LAYER_MEMBER)) {
     /* special check for layer layout */
     int butw, buth, unit;
-    int cols = (len >= 20) ? 2 : 1;
+    const int cols = (len >= 20) ? 2 : 1;
     const uint colbuts = len / (2 * cols);
     uint layer_used = 0;
     uint layer_active = 0;
@@ -721,7 +722,7 @@ static void ui_item_enum_expand_handle(bContext *C, void *arg1, void *arg2)
 
   if (!win->eventstate->shift) {
     uiBut *but = (uiBut *)arg1;
-    int enum_value = POINTER_AS_INT(arg2);
+    const int enum_value = POINTER_AS_INT(arg2);
 
     int current_value = RNA_property_enum_get(&but->rnapoin, but->rnaprop);
     if (!(current_value & enum_value)) {
@@ -814,7 +815,7 @@ static void ui_item_enum_expand_exec(uiLayout *layout,
   BLI_assert(RNA_property_type(prop) == PROP_ENUM);
 
   uiLayout *layout_radial = NULL;
-  bool radial = (layout->root->type == UI_LAYOUT_PIEMENU);
+  const bool radial = (layout->root->type == UI_LAYOUT_PIEMENU);
   if (radial) {
     RNA_property_enum_items_gettexted_all(block->evil_C, ptr, prop, &item_array, NULL, &free);
   }
@@ -1179,7 +1180,7 @@ static uiBut *uiItemFullO_ptr_ex(uiLayout *layout,
 
   w = ui_text_icon_width(layout, name, icon, 0);
 
-  int prev_emboss = layout->emboss;
+  const int prev_emboss = layout->emboss;
   if (flag & UI_ITEM_R_NO_BG) {
     layout->emboss = UI_EMBOSS_NONE;
   }
@@ -1223,7 +1224,7 @@ static uiBut *uiItemFullO_ptr_ex(uiLayout *layout,
       opptr->data = properties;
     }
     else {
-      IDPropertyTemplate val = {0};
+      const IDPropertyTemplate val = {0};
       opptr->data = IDP_New(IDP_GROUP, &val, "wmOperatorProperties");
     }
     if (r_opptr) {
@@ -1977,9 +1978,7 @@ void uiItemFullR(uiLayout *layout,
     uiLayout *layout;
     uiBut *but;
   } ui_decorate = {
-      .use_prop_decorate = (((layout->item.flag & UI_ITEM_PROP_DECORATE) != 0) &&
-                            (use_prop_sep && ptr->owner_id &&
-                             id_can_have_animdata(ptr->owner_id))),
+      .use_prop_decorate = (((layout->item.flag & UI_ITEM_PROP_DECORATE) != 0) && use_prop_sep),
   };
 #endif /* UI_PROP_DECORATE */
 
@@ -2043,7 +2042,7 @@ void uiItemFullR(uiLayout *layout,
     if ((layout->root->type == UI_LAYOUT_MENU) ||
         /* Use checkboxes only as a fallback in pie-menu's, when no icon is defined. */
         ((layout->root->type == UI_LAYOUT_PIEMENU) && (icon == ICON_NONE))) {
-      int prop_flag = RNA_property_flag(prop);
+      const int prop_flag = RNA_property_flag(prop);
       if (type == PROP_BOOLEAN) {
         if ((is_array == false) || (index != RNA_NO_INDEX)) {
           if (prop_flag & PROP_ICONS_CONSECUTIVE) {
@@ -2060,7 +2059,7 @@ void uiItemFullR(uiLayout *layout,
       }
       else if (type == PROP_ENUM) {
         if (index == RNA_ENUM_VALUE) {
-          int enum_value = RNA_property_enum_get(ptr, prop);
+          const int enum_value = RNA_property_enum_get(ptr, prop);
           if (prop_flag & PROP_ICONS_CONSECUTIVE) {
             icon = ICON_CHECKBOX_DEHLT; /* but->iconadd will set to correct icon */
           }
@@ -2099,7 +2098,7 @@ void uiItemFullR(uiLayout *layout,
   int w, h;
   ui_item_rna_size(layout, name, icon, ptr, prop, index, icon_only, compact, &w, &h);
 
-  int prev_emboss = layout->emboss;
+  const int prev_emboss = layout->emboss;
   if (no_bg) {
     layout->emboss = UI_EMBOSS_NONE;
   }
@@ -3193,7 +3192,7 @@ uiLayout *uiItemL_respect_property_split(uiLayout *layout, const char *text, int
 {
   if (layout->item.flag & UI_ITEM_PROP_SEP) {
     uiBlock *block = uiLayoutGetBlock(layout);
-    uiPropertySplitWrapper split_wrapper = uiItemPropertySplitWrapperCreate(layout);
+    const uiPropertySplitWrapper split_wrapper = uiItemPropertySplitWrapperCreate(layout);
     /* Further items added to 'layout' will automatically be added to split_wrapper.property_row */
 
     uiItemL_(split_wrapper.label_column, text, icon);
@@ -3272,7 +3271,7 @@ void uiItemV(uiLayout *layout, const char *name, int icon, int argval)
 void uiItemS_ex(uiLayout *layout, float factor)
 {
   uiBlock *block = layout->root->block;
-  bool is_menu = ui_block_is_menu(block);
+  const bool is_menu = ui_block_is_menu(block);
   if (is_menu && !UI_block_can_add_separator(block)) {
     return;
   }
@@ -3406,14 +3405,7 @@ void uiItemMenuEnumO_ptr(uiLayout *layout,
   BLI_strncpy(lvl->propname, propname, sizeof(lvl->propname));
   lvl->opcontext = layout->root->opcontext;
 
-  but = ui_item_menu(layout,
-                     name,
-                     icon,
-                     menu_item_enum_opname_menu,
-                     NULL,
-                     lvl,
-                     RNA_struct_ui_description(ot->srna),
-                     true);
+  but = ui_item_menu(layout, name, icon, menu_item_enum_opname_menu, NULL, lvl, NULL, true);
 
   /* add hotkey here, lower UI code can't detect it */
   if ((layout->root->block->flag & UI_BLOCK_LOOP) && (ot->prop && ot->invoke)) {
@@ -3794,7 +3786,7 @@ static void ui_litem_layout_radial(uiLayout *litem)
    * also the old code at http://developer.blender.org/T5103
    */
 
-  int pie_radius = U.pie_menu_radius * UI_DPI_FAC;
+  const int pie_radius = U.pie_menu_radius * UI_DPI_FAC;
 
   x = litem->x;
   y = litem->y;
@@ -5503,6 +5495,24 @@ void uiLayoutSetContextFromBut(uiLayout *layout, uiBut *but)
 }
 
 /* this is a bit of a hack but best keep it in one place at least */
+wmOperatorType *UI_but_operatortype_get_from_enum_menu(uiBut *but, PropertyRNA **r_prop)
+{
+  if (r_prop != NULL) {
+    *r_prop = NULL;
+  }
+
+  if (but->menu_create_func == menu_item_enum_opname_menu) {
+    MenuItemLevel *lvl = but->func_argN;
+    wmOperatorType *ot = WM_operatortype_find(lvl->opname, false);
+    if ((ot != NULL) && (r_prop != NULL)) {
+      *r_prop = RNA_struct_type_find_property(ot->srna, lvl->propname);
+    }
+    return ot;
+  }
+  return NULL;
+}
+
+/* this is a bit of a hack but best keep it in one place at least */
 MenuType *UI_but_menutype_get(uiBut *but)
 {
   if (but->menu_create_func == ui_item_menutype_func) {
@@ -5625,6 +5635,129 @@ void UI_paneltype_draw(bContext *C, PanelType *pt, uiLayout *layout)
   if (layout->context) {
     CTX_store_set(C, NULL);
   }
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Layout (Debuging/Introspection)
+ *
+ * Serialize the layout as a Python compatible dictionary,
+ *
+ * \note Proper string escaping isn't used,
+ * triple quotes are used to prevent single quotes from interfering with Python syntax.
+ * If we want this to be fool-proof, we would need full Python compatible string escape support.
+ * As we don't use triple quotes in the UI it's good-enough in practice.
+ * \{ */
+
+static void ui_layout_introspect_button(DynStr *ds, uiButtonItem *bitem)
+{
+  uiBut *but = bitem->but;
+  BLI_dynstr_appendf(ds, "'type':%d, ", (int)but->type);
+  BLI_dynstr_appendf(ds, "'draw_string':'''%s''', ", but->drawstr);
+  /* Not exactly needed, rna has this. */
+  BLI_dynstr_appendf(ds, "'tip':'''%s''', ", but->tip ? but->tip : "");
+
+  if (but->optype) {
+    char *opstr = WM_operator_pystring_ex(
+        but->block->evil_C, NULL, false, true, but->optype, but->opptr);
+    BLI_dynstr_appendf(ds, "'operator':'''%s''', ", opstr ? opstr : "");
+    MEM_freeN(opstr);
+  }
+
+  {
+    PropertyRNA *prop = NULL;
+    wmOperatorType *ot = UI_but_operatortype_get_from_enum_menu(but, &prop);
+    if (ot) {
+      char *opstr = WM_operator_pystring_ex(but->block->evil_C, NULL, false, true, ot, NULL);
+      BLI_dynstr_appendf(ds, "'operator':'''%s''', ", opstr ? opstr : "");
+      BLI_dynstr_appendf(ds, "'property':'''%s''', ", prop ? RNA_property_identifier(prop) : "");
+      MEM_freeN(opstr);
+    }
+  }
+
+  if (but->rnaprop) {
+    BLI_dynstr_appendf(ds,
+                       "'rna':'%s.%s[%d]', ",
+                       RNA_struct_identifier(but->rnapoin.type),
+                       RNA_property_identifier(but->rnaprop),
+                       but->rnaindex);
+  }
+}
+
+static void ui_layout_introspect_items(DynStr *ds, ListBase *lb)
+{
+  uiItem *item;
+
+  BLI_dynstr_append(ds, "[");
+
+  for (item = lb->first; item; item = item->next) {
+
+    BLI_dynstr_append(ds, "{");
+
+#define CASE_ITEM(id) \
+  case id: { \
+    const char *id_str = STRINGIFY(id); \
+    BLI_dynstr_append(ds, "'type': '"); \
+    /* Skip 'ITEM_'. */ \
+    BLI_dynstr_append(ds, id_str + 5); \
+    BLI_dynstr_append(ds, "', "); \
+    break; \
+  } \
+    ((void)0)
+
+    switch (item->type) {
+      CASE_ITEM(ITEM_BUTTON);
+      CASE_ITEM(ITEM_LAYOUT_ROW);
+      CASE_ITEM(ITEM_LAYOUT_COLUMN);
+      CASE_ITEM(ITEM_LAYOUT_COLUMN_FLOW);
+      CASE_ITEM(ITEM_LAYOUT_ROW_FLOW);
+      CASE_ITEM(ITEM_LAYOUT_BOX);
+      CASE_ITEM(ITEM_LAYOUT_ABSOLUTE);
+      CASE_ITEM(ITEM_LAYOUT_SPLIT);
+      CASE_ITEM(ITEM_LAYOUT_OVERLAP);
+      CASE_ITEM(ITEM_LAYOUT_ROOT);
+      CASE_ITEM(ITEM_LAYOUT_GRID_FLOW);
+      CASE_ITEM(ITEM_LAYOUT_RADIAL);
+    }
+
+#undef CASE_ITEM
+
+    switch (item->type) {
+      case ITEM_BUTTON:
+        ui_layout_introspect_button(ds, (uiButtonItem *)item);
+        break;
+      default:
+        BLI_dynstr_append(ds, "'items':");
+        ui_layout_introspect_items(ds, &((uiLayout *)item)->items);
+        break;
+    }
+
+    BLI_dynstr_append(ds, "}");
+
+    if (item != lb->last) {
+      BLI_dynstr_append(ds, ", ");
+    }
+  }
+  /* Don't use a comma here as it's not needed and
+   * causes the result to evaluate to a tuple of 1. */
+  BLI_dynstr_append(ds, "]");
+}
+
+/**
+ * Evaluate layout items as a Python dictionary.
+ */
+const char *UI_layout_introspect(uiLayout *layout)
+{
+  DynStr *ds = BLI_dynstr_new();
+  uiLayout layout_copy = *layout;
+  layout_copy.item.next = NULL;
+  layout_copy.item.prev = NULL;
+  ListBase layout_dummy_list = {&layout_copy, &layout_copy};
+  ui_layout_introspect_items(ds, &layout_dummy_list);
+  const char *result = BLI_dynstr_get_cstring(ds);
+  BLI_dynstr_free(ds);
+  return result;
 }
 
 /** \} */

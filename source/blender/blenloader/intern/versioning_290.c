@@ -33,6 +33,7 @@
 #include "DNA_gpencil_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_object_types.h"
+#include "DNA_rigidbody_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_shader_fx_types.h"
 
@@ -503,6 +504,35 @@ void blo_do_versions_290(FileData *fd, Library *UNUSED(lib), Main *bmain)
           }
         }
       }
+    }
+
+    /* Initialize solver for Boolean. */
+    if (!DNA_struct_elem_find(fd->filesdna, "BooleanModifierData", "enum", "solver")) {
+      for (Object *object = bmain->objects.first; object != NULL; object = object->id.next) {
+        LISTBASE_FOREACH (ModifierData *, md, &object->modifiers) {
+          if (md->type == eModifierType_Boolean) {
+            BooleanModifierData *bmd = (BooleanModifierData *)md;
+            bmd->solver = eBooleanModifierSolver_Fast;
+          }
+        }
+      }
+    }
+  }
+
+  for (Scene *scene = bmain->scenes.first; scene; scene = scene->id.next) {
+    RigidBodyWorld *rbw = scene->rigidbody_world;
+
+    if (rbw == NULL) {
+      continue;
+    }
+
+    /* The substep method changed from "per second" to "per frame".
+     * To get the new value simply divide the old bullet sim fps with the scene fps.
+     */
+    rbw->substeps_per_frame /= FPS;
+
+    if (rbw->substeps_per_frame <= 0) {
+      rbw->substeps_per_frame = 1;
     }
   }
 

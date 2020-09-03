@@ -1267,13 +1267,13 @@ void sort_time_fcurve(FCurve *fcu)
 }
 
 /* This function tests if any BezTriples are out of order, thus requiring a sort */
-short test_time_fcurve(FCurve *fcu)
+bool test_time_fcurve(FCurve *fcu)
 {
   unsigned int a;
 
   /* sanity checks */
   if (fcu == NULL) {
-    return 0;
+    return false;
   }
 
   /* currently, only need to test beztriples */
@@ -1283,7 +1283,7 @@ short test_time_fcurve(FCurve *fcu)
     /* loop through all BezTriples, stopping when one exceeds the one after it */
     for (a = 0, bezt = fcu->bezt; a < (fcu->totvert - 1); a++, bezt++) {
       if (bezt->vec[1][0] > (bezt + 1)->vec[1][0]) {
-        return 1;
+        return true;
       }
     }
   }
@@ -1293,13 +1293,13 @@ short test_time_fcurve(FCurve *fcu)
     /* loop through all FPoints, stopping when one exceeds the one after it */
     for (a = 0, fpt = fcu->fpt; a < (fcu->totvert - 1); a++, fpt++) {
       if (fpt->vec[0] > (fpt + 1)->vec[0]) {
-        return 1;
+        return true;
       }
     }
   }
 
   /* none need any swapping */
-  return 0;
+  return false;
 }
 
 /** \} */
@@ -2047,7 +2047,7 @@ void BKE_fmodifiers_blend_write(BlendWriter *writer, ListBase *fmodifiers)
   }
 }
 
-void BKE_fmodifiers_blend_data_read(BlendDataReader *reader, ListBase *fmodifiers, FCurve *curve)
+void BKE_fmodifiers_blend_read_data(BlendDataReader *reader, ListBase *fmodifiers, FCurve *curve)
 {
   LISTBASE_FOREACH (FModifier *, fcm, fmodifiers) {
     /* relink general data */
@@ -2080,7 +2080,7 @@ void BKE_fmodifiers_blend_data_read(BlendDataReader *reader, ListBase *fmodifier
   }
 }
 
-void BKE_fmodifiers_blend_lib_read(BlendLibReader *reader, ID *id, ListBase *fmodifiers)
+void BKE_fmodifiers_blend_read_lib(BlendLibReader *reader, ID *id, ListBase *fmodifiers)
 {
   LISTBASE_FOREACH (FModifier *, fcm, fmodifiers) {
     /* data for specific modifiers */
@@ -2094,7 +2094,7 @@ void BKE_fmodifiers_blend_lib_read(BlendLibReader *reader, ID *id, ListBase *fmo
   }
 }
 
-void BKE_fmodifiers_blend_expand(BlendExpander *expander, ListBase *fmodifiers)
+void BKE_fmodifiers_blend_read_expand(BlendExpander *expander, ListBase *fmodifiers)
 {
   LISTBASE_FOREACH (FModifier *, fcm, fmodifiers) {
     /* library data for specific F-Modifier types */
@@ -2147,7 +2147,7 @@ void BKE_fcurve_blend_write(BlendWriter *writer, ListBase *fcurves)
   }
 }
 
-void BKE_fcurve_blend_data_read(BlendDataReader *reader, ListBase *fcurves)
+void BKE_fcurve_blend_read_data(BlendDataReader *reader, ListBase *fcurves)
 {
   /* link F-Curve data to F-Curve again (non ID-libs) */
   LISTBASE_FOREACH (FCurve *, fcu, fcurves) {
@@ -2199,11 +2199,11 @@ void BKE_fcurve_blend_data_read(BlendDataReader *reader, ListBase *fcurves)
 
     /* modifiers */
     BLO_read_list(reader, &fcu->modifiers);
-    BKE_fmodifiers_blend_data_read(reader, &fcu->modifiers, fcu);
+    BKE_fmodifiers_blend_read_data(reader, &fcu->modifiers, fcu);
   }
 }
 
-void BKE_fcurve_blend_lib_read(BlendLibReader *reader, ID *id, ListBase *fcurves)
+void BKE_fcurve_blend_read_lib(BlendLibReader *reader, ID *id, ListBase *fcurves)
 {
   if (fcurves == NULL) {
     return;
@@ -2229,11 +2229,11 @@ void BKE_fcurve_blend_lib_read(BlendLibReader *reader, ID *id, ListBase *fcurves
     }
 
     /* modifiers */
-    BKE_fmodifiers_blend_lib_read(reader, id, &fcu->modifiers);
+    BKE_fmodifiers_blend_read_lib(reader, id, &fcu->modifiers);
   }
 }
 
-void BKE_fcurve_blend_expand(BlendExpander *expander, ListBase *fcurves)
+void BKE_fcurve_blend_read_expand(BlendExpander *expander, ListBase *fcurves)
 {
   LISTBASE_FOREACH (FCurve *, fcu, fcurves) {
     /* Driver targets if there is a driver */
@@ -2250,7 +2250,7 @@ void BKE_fcurve_blend_expand(BlendExpander *expander, ListBase *fcurves)
     }
 
     /* F-Curve Modifiers */
-    BKE_fmodifiers_blend_expand(expander, &fcu->modifiers);
+    BKE_fmodifiers_blend_read_expand(expander, &fcu->modifiers);
   }
 }
 

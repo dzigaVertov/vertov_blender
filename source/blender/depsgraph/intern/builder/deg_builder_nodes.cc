@@ -1129,9 +1129,11 @@ void DepsgraphNodeBuilder::build_rigidbody(Scene *scene)
       if (object->rigidbody_object == nullptr) {
         continue;
       }
+
       if (object->rigidbody_object->type == RBO_TYPE_PASSIVE) {
         continue;
       }
+
       /* Create operation for flushing results. */
       /* Object's transform component - where the rigidbody operation
        * lives. */

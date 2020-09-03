@@ -22,7 +22,7 @@
  *
  * GPU shader interface (C --> GLSL)
  *
- * Structure detailling needed vertex inputs and resources for a specific shader.
+ * Structure detailing needed vertex inputs and resources for a specific shader.
  * A shader interface can be shared between two similar shaders.
  */
 
@@ -54,8 +54,6 @@ class GLShaderInterface : public ShaderInterface {
 
   void ref_add(GLVaoCache *ref);
   void ref_remove(GLVaoCache *ref);
-
-  // bool resource_binding_validate();
 
   MEM_CXX_CLASS_ALLOC_FUNCS("GLShaderInterface");
 };
