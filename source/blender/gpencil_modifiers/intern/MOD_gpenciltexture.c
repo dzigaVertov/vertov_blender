@@ -86,6 +86,7 @@ static void deformStroke(GpencilModifierData *md,
 {
   TextureGpencilModifierData *mmd = (TextureGpencilModifierData *)md;
   const int def_nr = BKE_object_defgroup_name_index(ob, mmd->vgname);
+  bGPdata *gpd = ob->data;
 
   if (!is_stroke_affected_by_modifier(ob,
                                       mmd->layername,
@@ -106,7 +107,7 @@ static void deformStroke(GpencilModifierData *md,
     gps->uv_translation[0] += mmd->fill_offset[0];
     gps->uv_translation[1] += mmd->fill_offset[1];
     gps->uv_scale *= mmd->fill_scale;
-    BKE_gpencil_stroke_geometry_update(gps);
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
   }
 
   if ((mmd->mode == STROKE) || (mmd->mode == STROKE_AND_FILL)) {
@@ -158,25 +159,24 @@ static void foreachIDLink(GpencilModifierData *md, Object *ob, IDWalkFunc walk, 
   walk(userData, ob, (ID **)&mmd->material, IDWALK_CB_USER);
 }
 
-static void panel_draw(const bContext *C, Panel *panel)
+static void panel_draw(const bContext *UNUSED(C), Panel *panel)
 {
   uiLayout *col;
   uiLayout *layout = panel->layout;
 
-  PointerRNA ptr;
-  gpencil_modifier_panel_get_property_pointers(C, panel, NULL, &ptr);
+  PointerRNA *ptr = gpencil_modifier_panel_get_property_pointers(panel, NULL);
 
-  int mode = RNA_enum_get(&ptr, "mode");
+  int mode = RNA_enum_get(ptr, "mode");
 
   uiLayoutSetPropSep(layout, true);
 
-  uiItemR(layout, &ptr, "mode", 0, NULL, ICON_NONE);
+  uiItemR(layout, ptr, "mode", 0, NULL, ICON_NONE);
 
   if (ELEM(mode, STROKE, STROKE_AND_FILL)) {
     col = uiLayoutColumn(layout, false);
-    uiItemR(col, &ptr, "fit_method", 0, IFACE_("Stroke Fit Method"), ICON_NONE);
-    uiItemR(col, &ptr, "uv_offset", 0, NULL, ICON_NONE);
-    uiItemR(col, &ptr, "uv_scale", 0, IFACE_("Scale"), ICON_NONE);
+    uiItemR(col, ptr, "fit_method", 0, IFACE_("Stroke Fit Method"), ICON_NONE);
+    uiItemR(col, ptr, "uv_offset", 0, NULL, ICON_NONE);
+    uiItemR(col, ptr, "uv_scale", 0, IFACE_("Scale"), ICON_NONE);
   }
 
   if (mode == STROKE_AND_FILL) {
@@ -185,17 +185,17 @@ static void panel_draw(const bContext *C, Panel *panel)
 
   if (ELEM(mode, FILL, STROKE_AND_FILL)) {
     col = uiLayoutColumn(layout, false);
-    uiItemR(col, &ptr, "fill_rotation", 0, NULL, ICON_NONE);
-    uiItemR(col, &ptr, "fill_offset", 0, IFACE_("Offset"), ICON_NONE);
-    uiItemR(col, &ptr, "fill_scale", 0, IFACE_("Scale"), ICON_NONE);
+    uiItemR(col, ptr, "fill_rotation", 0, NULL, ICON_NONE);
+    uiItemR(col, ptr, "fill_offset", 0, IFACE_("Offset"), ICON_NONE);
+    uiItemR(col, ptr, "fill_scale", 0, IFACE_("Scale"), ICON_NONE);
   }
 
-  gpencil_modifier_panel_end(layout, &ptr);
+  gpencil_modifier_panel_end(layout, ptr);
 }
 
-static void mask_panel_draw(const bContext *C, Panel *panel)
+static void mask_panel_draw(const bContext *UNUSED(C), Panel *panel)
 {
-  gpencil_modifier_masking_panel_draw(C, panel, true, true);
+  gpencil_modifier_masking_panel_draw(panel, true, true);
 }
 
 static void panelRegister(ARegionType *region_type)

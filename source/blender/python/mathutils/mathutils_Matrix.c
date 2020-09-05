@@ -809,7 +809,7 @@ static PyObject *C_Matrix_OrthoProjection(PyObject *cls, PyObject *args)
   else {
     /* arbitrary plane */
 
-    int vec_size = (matSize == 2 ? 2 : 3);
+    const int vec_size = (matSize == 2 ? 2 : 3);
     float tvec[4];
 
     if (mathutils_array_parse(tvec,
@@ -2156,7 +2156,8 @@ static PyObject *Matrix_str(MatrixObject *self)
   for (col = 0; col < self->num_col; col++) {
     maxsize[col] = 0;
     for (row = 0; row < self->num_row; row++) {
-      int size = BLI_snprintf(dummy_buf, sizeof(dummy_buf), "%.4f", MATRIX_ITEM(self, row, col));
+      const int size = BLI_snprintf(
+          dummy_buf, sizeof(dummy_buf), "%.4f", MATRIX_ITEM(self, row, col));
       maxsize[col] = max_ii(maxsize[col], size);
     }
   }
@@ -3300,13 +3301,13 @@ static bool Matrix_ParseCheck(MatrixObject *pymat)
   if (!MatrixObject_Check(pymat)) {
     PyErr_Format(
         PyExc_TypeError, "expected a mathutils.Matrix, not a %.200s", Py_TYPE(pymat)->tp_name);
-    return 0;
+    return false;
   }
   /* sets error */
   if (BaseMath_ReadCallback(pymat) == -1) {
-    return 0;
+    return false;
   }
-  return 1;
+  return true;
 }
 
 int Matrix_ParseAny(PyObject *o, void *p)

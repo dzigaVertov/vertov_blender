@@ -169,6 +169,8 @@ static void cloth_brush_add_length_constraint(SculptSession *ss,
   length_constraint->elem_position_a = cloth_sim->pos[v1];
   length_constraint->elem_position_b = cloth_sim->pos[v2];
 
+  length_constraint->type = SCULPT_CLOTH_CONSTRAINT_STRUCTURAL;
+
   if (use_persistent) {
     length_constraint->length = len_v3v3(SCULPT_vertex_persistent_co_get(ss, v1),
                                          SCULPT_vertex_persistent_co_get(ss, v2));
@@ -201,6 +203,8 @@ static void cloth_brush_add_softbody_constraint(SculptClothSimulation *cloth_sim
   length_constraint->elem_position_a = cloth_sim->pos[v];
   length_constraint->elem_position_b = cloth_sim->init_pos[v];
 
+  length_constraint->type = SCULPT_CLOTH_CONSTRAINT_SOFTBODY;
+
   length_constraint->length = 0.0f;
   length_constraint->strength = strength;
 
@@ -219,6 +223,8 @@ static void cloth_brush_add_deformation_constraint(SculptClothSimulation *cloth_
 
   length_constraint->elem_index_a = v;
   length_constraint->elem_index_b = v;
+
+  length_constraint->type = SCULPT_CLOTH_CONSTRAINT_DEFORMATION;
 
   length_constraint->elem_position_a = cloth_sim->pos[v];
   length_constraint->elem_position_b = cloth_sim->deformation_pos[v];
@@ -301,11 +307,17 @@ static void do_cloth_brush_build_constraints_task_cb_ex(
     if (brush && brush->sculpt_tool == SCULPT_TOOL_CLOTH) {
       /* The cloth brush works by applying forces in most of its modes, but some of them require
        * deformation coordinates to make the simulation stable. */
-      if (cloth_is_deform_brush && len_squared < radius_squared) {
-        /* When a deform brush is used as part of the cloth brush, deformation constraints are
-         * created with different strengths and only inside the radius of the brush. */
+      if (brush->cloth_deform_type == BRUSH_CLOTH_DEFORM_GRAB && len_squared < radius_squared) {
+        /* When the grab brush brush is used as part of the cloth brush, deformation constraints
+         * are created with different strengths and only inside the radius of the brush. */
         const float fade = BKE_brush_curve_strength(brush, sqrtf(len_squared), ss->cache->radius);
         cloth_brush_add_deformation_constraint(data->cloth_sim, vd.index, fade);
+      }
+      else if (brush->cloth_deform_type == BRUSH_CLOTH_DEFORM_SNAKE_HOOK) {
+        /* Cloth Snake Hook creates deformation constraint with fixed strength because the strength
+         * is controlled per iteration using cloth_sim->deformation_strength. */
+        cloth_brush_add_deformation_constraint(
+            data->cloth_sim, vd.index, CLOTH_DEFORMATION_TARGET_STRENGTH);
       }
     }
     else if (data->cloth_sim->deformation_pos) {
@@ -397,7 +409,7 @@ static void do_cloth_brush_apply_forces_task_cb_ex(void *__restrict userdata,
         brush, ss->cache->radius, ss->cache->initial_location, cloth_sim->init_pos[vd.index]);
 
     float current_vertex_location[3];
-    if (SCULPT_is_cloth_deform_brush(brush)) {
+    if (brush->cloth_deform_type == BRUSH_CLOTH_DEFORM_GRAB) {
       SCULPT_orig_vert_data_update(&orig_data, &vd);
       copy_v3_v3(current_vertex_location, orig_data.co);
     }
@@ -454,6 +466,12 @@ static void do_cloth_brush_apply_forces_task_cb_ex(void *__restrict userdata,
                          orig_data.co,
                          ss->cache->grab_delta_symmetry,
                          fade);
+          zero_v3(force);
+          break;
+        case BRUSH_CLOTH_DEFORM_SNAKE_HOOK:
+          copy_v3_v3(cloth_sim->deformation_pos[vd.index], cloth_sim->pos[vd.index]);
+          madd_v3_v3fl(cloth_sim->deformation_pos[vd.index], ss->cache->grab_delta_symmetry, fade);
+          cloth_sim->deformation_strength[vd.index] = fade;
           zero_v3(force);
           break;
         case BRUSH_CLOTH_DEFORM_PINCH_POINT:
@@ -718,13 +736,21 @@ static void cloth_brush_satisfy_constraints(SculptSession *ss,
                                                   cloth_sim->init_pos[v2]) :
                                               1.0f;
 
+      float deformation_strength = 1.0f;
+      if (constraint->type == SCULPT_CLOTH_CONSTRAINT_DEFORMATION) {
+        deformation_strength = (cloth_sim->deformation_strength[v1] +
+                                cloth_sim->deformation_strength[v2]) *
+                               0.5f;
+      }
+
       madd_v3_v3fl(cloth_sim->pos[v1],
                    correction_vector_half,
-                   1.0f * mask_v1 * sim_factor_v1 * constraint->strength);
+                   1.0f * mask_v1 * sim_factor_v1 * constraint->strength * deformation_strength);
       if (v1 != v2) {
         madd_v3_v3fl(cloth_sim->pos[v2],
                      correction_vector_half,
-                     -1.0f * mask_v2 * sim_factor_v2 * constraint->strength);
+                     -1.0f * mask_v2 * sim_factor_v2 * constraint->strength *
+                         deformation_strength);
       }
     }
   }
@@ -824,6 +850,15 @@ static void cloth_brush_apply_brush_foces(Sculpt *sd, Object *ob, PBVHNode **nod
     }
   }
 
+  if (brush->cloth_deform_type == BRUSH_CLOTH_DEFORM_SNAKE_HOOK) {
+    /* Set the deformation strength to 0. Snake hook will initialize the strength in the required
+     * area. */
+    const int totverts = SCULPT_vertex_count_get(ss);
+    for (int i = 0; i < totverts; i++) {
+      ss->cache->cloth_sim->deformation_strength[i] = 0.0f;
+    }
+  }
+
   TaskParallelSettings settings;
   BKE_pbvh_parallel_range_settings(&settings, true, totnode);
   BLI_task_parallel_range(
@@ -862,6 +897,8 @@ SculptClothSimulation *SCULPT_cloth_brush_simulation_create(SculptSession *ss,
   if (brush && SCULPT_is_cloth_deform_brush(brush)) {
     cloth_sim->deformation_pos = MEM_calloc_arrayN(
         totverts, sizeof(float[3]), "cloth sim deformation positions");
+    cloth_sim->deformation_strength = MEM_calloc_arrayN(
+        totverts, sizeof(float), "cloth sim deformation strength");
   }
 
   cloth_sim->mass = cloth_mass;
@@ -921,6 +958,7 @@ void SCULPT_cloth_brush_simulation_init(SculptSession *ss, SculptClothSimulation
     copy_v3_v3(cloth_sim->prev_pos[i], SCULPT_vertex_co_get(ss, i));
     if (has_deformation_pos) {
       copy_v3_v3(cloth_sim->deformation_pos[i], SCULPT_vertex_co_get(ss, i));
+      cloth_sim->deformation_strength[i] = 1.0f;
     }
   }
 }
@@ -986,6 +1024,7 @@ void SCULPT_cloth_simulation_free(struct SculptClothSimulation *cloth_sim)
   MEM_SAFE_FREE(cloth_sim->length_constraint_tweak);
   MEM_SAFE_FREE(cloth_sim->deformation_pos);
   MEM_SAFE_FREE(cloth_sim->init_pos);
+  MEM_SAFE_FREE(cloth_sim->deformation_strength);
   if (cloth_sim->collider_list) {
     BKE_collider_cache_free(&cloth_sim->collider_list);
   }
@@ -1071,6 +1110,25 @@ static EnumPropertyItem prop_cloth_filter_type[] = {
     {0, NULL, 0, NULL, NULL},
 };
 
+static EnumPropertyItem prop_cloth_filter_orientation_items[] = {
+    {SCULPT_FILTER_ORIENTATION_LOCAL,
+     "LOCAL",
+     0,
+     "Local",
+     "Use the local axis to limit the force and set the gravity direction"},
+    {SCULPT_FILTER_ORIENTATION_WORLD,
+     "WORLD",
+     0,
+     "World",
+     "Use the global axis to limit the force and set the gravity direction"},
+    {SCULPT_FILTER_ORIENTATION_VIEW,
+     "VIEW",
+     0,
+     "View",
+     "Use the view axis to limit the force and set the gravity direction"},
+    {0, NULL, 0, NULL, NULL},
+};
+
 typedef enum eClothFilterForceAxis {
   CLOTH_FILTER_FORCE_X = 1 << 0,
   CLOTH_FILTER_FORCE_Y = 1 << 1,
@@ -1120,7 +1178,15 @@ static void cloth_filter_apply_forces_task_cb(void *__restrict userdata,
 
     switch (filter_type) {
       case CLOTH_FILTER_GRAVITY:
-        force[2] = -data->filter_strength * fade;
+        if (ss->filter_cache->orientation == SCULPT_FILTER_ORIENTATION_VIEW) {
+          /* When using the view orientation apply gravity in the -Y axis, this way objects will
+           * fall down instead of backwards. */
+          force[1] = -data->filter_strength * fade;
+        }
+        else {
+          force[2] = -data->filter_strength * fade;
+        }
+        SCULPT_filter_to_object_space(force, ss->filter_cache);
         break;
       case CLOTH_FILTER_INFLATE: {
         float normal[3];
@@ -1138,11 +1204,13 @@ static void cloth_filter_apply_forces_task_cb(void *__restrict userdata,
         break;
     }
 
+    SCULPT_filter_to_orientation_space(force, ss->filter_cache);
     for (int axis = 0; axis < 3; axis++) {
       if (!ss->filter_cache->enabled_force_axis[axis]) {
         force[axis] = 0.0f;
       }
     }
+    SCULPT_filter_to_object_space(force, ss->filter_cache);
 
     add_v3_v3(force, sculpt_gravity);
 
@@ -1173,7 +1241,7 @@ static int sculpt_cloth_filter_modal(bContext *C, wmOperator *op, const wmEvent 
     return OPERATOR_RUNNING_MODAL;
   }
 
-  float len = event->prevclickx - event->mval[0];
+  const float len = event->prevclickx - event->x;
   filter_strength = filter_strength * -len * 0.001f * UI_DPI_FAC;
 
   SCULPT_vertex_random_access_ensure(ss);
@@ -1264,6 +1332,9 @@ static int sculpt_cloth_filter_invoke(bContext *C, wmOperator *op, const wmEvent
   ss->filter_cache->enabled_force_axis[1] = force_axis & CLOTH_FILTER_FORCE_Y;
   ss->filter_cache->enabled_force_axis[2] = force_axis & CLOTH_FILTER_FORCE_Z;
 
+  SculptFilterOrientation orientation = RNA_enum_get(op->ptr, "orientation");
+  ss->filter_cache->orientation = orientation;
+
   WM_event_add_modal_handler(C, op);
   return OPERATOR_RUNNING_MODAL;
 }
@@ -1297,6 +1368,12 @@ void SCULPT_OT_cloth_filter(struct wmOperatorType *ot)
                     CLOTH_FILTER_FORCE_X | CLOTH_FILTER_FORCE_Y | CLOTH_FILTER_FORCE_Z,
                     "Force axis",
                     "Apply the force in the selected axis");
+  RNA_def_enum(ot->srna,
+               "orientation",
+               prop_cloth_filter_orientation_items,
+               SCULPT_FILTER_ORIENTATION_LOCAL,
+               "Orientation",
+               "Orientation of the axis to limit the filter force");
   RNA_def_float(ot->srna,
                 "cloth_mass",
                 1.0f,

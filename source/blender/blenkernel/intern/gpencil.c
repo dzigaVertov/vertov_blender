@@ -126,6 +126,12 @@ IDTypeInfo IDType_ID_GD = {
     .free_data = greasepencil_free_data,
     .make_local = NULL,
     .foreach_id = greasepencil_foreach_id,
+    .foreach_cache = NULL,
+
+    .blend_write = NULL,
+    .blend_read_data = NULL,
+    .blend_read_lib = NULL,
+    .blend_read_expand = NULL,
 };
 
 /* ************************************************** */
@@ -177,6 +183,20 @@ void BKE_gpencil_free_stroke_weights(bGPDstroke *gps)
   }
 }
 
+void BKE_gpencil_free_stroke_editcurve(bGPDstroke *gps)
+{
+  if (gps == NULL) {
+    return;
+  }
+  bGPDcurve *editcurve = gps->editcurve;
+  if (editcurve == NULL) {
+    return;
+  }
+  MEM_freeN(editcurve->curve_points);
+  MEM_freeN(editcurve);
+  gps->editcurve = NULL;
+}
+
 /* free stroke, doesn't unlink from any listbase */
 void BKE_gpencil_free_stroke(bGPDstroke *gps)
 {
@@ -193,6 +213,9 @@ void BKE_gpencil_free_stroke(bGPDstroke *gps)
   }
   if (gps->triangles) {
     MEM_freeN(gps->triangles);
+  }
+  if (gps->editcurve != NULL) {
+    BKE_gpencil_free_stroke_editcurve(gps);
   }
 
   MEM_freeN(gps);
@@ -524,6 +547,13 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
   gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 
+  gpd->curve_edit_resolution = GP_DEFAULT_CURVE_RESOLUTION;
+  gpd->curve_edit_threshold = GP_DEFAULT_CURVE_ERROR;
+  gpd->curve_edit_corner_angle = GP_DEFAULT_CURVE_EDIT_CORNER_ANGLE;
+
+  /* use adaptive curve resolution by default */
+  gpd->flag |= GP_DATA_CURVE_ADAPTIVE_RESOLUTION;
+
   gpd->zdepth_offset = 0.150f;
 
   /* grid settings */
@@ -612,6 +642,8 @@ bGPDstroke *BKE_gpencil_stroke_new(int mat_idx, int totpoints, short thickness)
 
   gps->mat_nr = mat_idx;
 
+  gps->editcurve = NULL;
+
   return gps;
 }
 
@@ -663,6 +695,16 @@ bGPDstroke *BKE_gpencil_stroke_add_existing_style(
   return gps;
 }
 
+bGPDcurve *BKE_gpencil_stroke_editcurve_new(const int tot_curve_points)
+{
+  bGPDcurve *new_gp_curve = (bGPDcurve *)MEM_callocN(sizeof(bGPDcurve), __func__);
+  new_gp_curve->tot_curve_points = tot_curve_points;
+  new_gp_curve->curve_points = (bGPDcurve_point *)MEM_callocN(
+      sizeof(bGPDcurve_point) * tot_curve_points, __func__);
+
+  return new_gp_curve;
+}
+
 /* ************************************************** */
 /* Data Duplication */
 
@@ -681,13 +723,28 @@ void BKE_gpencil_stroke_weights_duplicate(bGPDstroke *gps_src, bGPDstroke *gps_d
   BKE_defvert_array_copy(gps_dst->dvert, gps_src->dvert, gps_src->totpoints);
 }
 
+/* Make a copy of a given gpencil stroke editcurve */
+bGPDcurve *BKE_gpencil_stroke_curve_duplicate(bGPDcurve *gpc_src)
+{
+  bGPDcurve *gpc_dst = MEM_dupallocN(gpc_src);
+
+  if (gpc_src->curve_points != NULL) {
+    gpc_dst->curve_points = MEM_dupallocN(gpc_src->curve_points);
+  }
+
+  return gpc_dst;
+}
+
 /**
  * Make a copy of a given grease-pencil stroke.
  * \param gps_src: Source grease pencil strokes.
  * \param dup_points: Duplicate points data.
+ * \param dup_curve: Duplicate curve data.
  * \return Pointer to new stroke.
  */
-bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_points)
+bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src,
+                                         const bool dup_points,
+                                         const bool dup_curve)
 {
   bGPDstroke *gps_dst = NULL;
 
@@ -705,6 +762,10 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src, const bool dup_poi
     else {
       gps_dst->dvert = NULL;
     }
+  }
+
+  if (dup_curve && gps_src->editcurve != NULL) {
+    gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
   }
 
   /* return new stroke */
@@ -734,7 +795,7 @@ bGPDframe *BKE_gpencil_frame_duplicate(const bGPDframe *gpf_src)
   BLI_listbase_clear(&gpf_dst->strokes);
   LISTBASE_FOREACH (bGPDstroke *, gps_src, &gpf_src->strokes) {
     /* make copy of source stroke */
-    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
     BLI_addtail(&gpf_dst->strokes, gps_dst);
   }
 
@@ -759,7 +820,7 @@ void BKE_gpencil_frame_copy_strokes(bGPDframe *gpf_src, struct bGPDframe *gpf_ds
   BLI_listbase_clear(&gpf_dst->strokes);
   LISTBASE_FOREACH (bGPDstroke *, gps_src, &gpf_src->strokes) {
     /* make copy of source stroke */
-    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+    gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
     BLI_addtail(&gpf_dst->strokes, gps_dst);
   }
 }
@@ -884,6 +945,39 @@ void BKE_gpencil_stroke_sync_selection(bGPDstroke *gps)
       gps->flag |= GP_STROKE_SELECT;
       break;
     }
+  }
+}
+
+void BKE_gpencil_curve_sync_selection(bGPDstroke *gps)
+{
+  bGPDcurve *gpc = gps->editcurve;
+  if (gpc == NULL) {
+    return;
+  }
+
+  gps->flag &= ~GP_STROKE_SELECT;
+  gpc->flag &= ~GP_CURVE_SELECT;
+
+  bool is_selected = false;
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+    BezTriple *bezt = &gpc_pt->bezt;
+
+    if (BEZT_ISSEL_ANY(bezt)) {
+      gpc_pt->flag |= GP_SPOINT_SELECT;
+    }
+    else {
+      gpc_pt->flag &= ~GP_SPOINT_SELECT;
+    }
+
+    if (gpc_pt->flag & GP_SPOINT_SELECT) {
+      is_selected = true;
+    }
+  }
+
+  if (is_selected) {
+    gpc->flag |= GP_CURVE_SELECT;
+    gps->flag |= GP_STROKE_SELECT;
   }
 }
 
@@ -2104,7 +2198,6 @@ int BKE_gpencil_object_material_index_get(Object *ob, Material *ma)
  */
 void BKE_gpencil_palette_ensure(Main *bmain, Scene *scene)
 {
-  const int totcol = 120;
   const char *hexcol[] = {
       "FFFFFF", "F2F2F2", "E6E6E6", "D9D9D9", "CCCCCC", "BFBFBF", "B2B2B2", "A6A6A6", "999999",
       "8C8C8C", "808080", "737373", "666666", "595959", "4C4C4C", "404040", "333333", "262626",
@@ -2122,44 +2215,47 @@ void BKE_gpencil_palette_ensure(Main *bmain, Scene *scene)
       "0000FF", "3F007F", "00007F"};
 
   ToolSettings *ts = scene->toolsettings;
-  GpPaint *gp_paint = ts->gp_paint;
-  Paint *paint = &gp_paint->paint;
-
-  if (paint->palette != NULL) {
+  if (ts->gp_paint->paint.palette != NULL) {
     return;
   }
 
-  paint->palette = BLI_findstring(&bmain->palettes, "Palette", offsetof(ID, name) + 2);
-  /* Try with first palette. */
-  if (bmain->palettes.first != NULL) {
-    paint->palette = bmain->palettes.first;
-    ts->gp_vertexpaint->paint.palette = paint->palette;
-    return;
+  /* Try to find the default palette. */
+  const char *palette_id = "Palette";
+  struct Palette *palette = BLI_findstring(&bmain->palettes, palette_id, offsetof(ID, name) + 2);
+
+  if (palette == NULL) {
+    /* Fall back to the first palette. */
+    palette = bmain->palettes.first;
   }
 
-  if (paint->palette == NULL) {
-    paint->palette = BKE_palette_add(bmain, "Palette");
-    ts->gp_vertexpaint->paint.palette = paint->palette;
+  if (palette == NULL) {
+    /* Fall back to creating a palette. */
+    palette = BKE_palette_add(bmain, palette_id);
+    id_us_min(&palette->id);
 
     /* Create Colors. */
-    for (int i = 0; i < totcol; i++) {
-      PaletteColor *palcol = BKE_palette_color_add(paint->palette);
-      if (palcol) {
-        hex_to_rgb((char *)hexcol[i], palcol->rgb, palcol->rgb + 1, palcol->rgb + 2);
-      }
+    for (int i = 0; i < ARRAY_SIZE(hexcol); i++) {
+      PaletteColor *palcol = BKE_palette_color_add(palette);
+      hex_to_rgb(hexcol[i], palcol->rgb, palcol->rgb + 1, palcol->rgb + 2);
     }
   }
+
+  BLI_assert(palette != NULL);
+  BKE_paint_palette_set(&ts->gp_paint->paint, palette);
+  BKE_paint_palette_set(&ts->gp_vertexpaint->paint, palette);
 }
 
 /**
  * Create grease pencil strokes from image
  * \param sima: Image
+ * \param gpd: Grease pencil data-block
  * \param gpf: Grease pencil frame
  * \param size: Size
  * \param mask: Mask
  * \return  True if done
  */
-bool BKE_gpencil_from_image(SpaceImage *sima, bGPDframe *gpf, const float size, const bool mask)
+bool BKE_gpencil_from_image(
+    SpaceImage *sima, bGPdata *gpd, bGPDframe *gpf, const float size, const bool mask)
 {
   Image *image = sima->image;
   bool done = false;
@@ -2207,7 +2303,7 @@ bool BKE_gpencil_from_image(SpaceImage *sima, bGPDframe *gpf, const float size, 
           pt->flag |= GP_SPOINT_SELECT;
         }
       }
-      BKE_gpencil_stroke_geometry_update(gps);
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
     }
   }
 

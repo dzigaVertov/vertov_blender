@@ -39,6 +39,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_gpencil_modifier_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
@@ -51,8 +52,11 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
+#include "BKE_layer.h"
 #include "BKE_lib_id.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_object.h"
@@ -75,6 +79,7 @@
 
 #include "UI_view2d.h"
 
+#include "ED_armature.h"
 #include "ED_gpencil.h"
 #include "ED_object.h"
 #include "ED_outliner.h"
@@ -140,6 +145,24 @@ static bool gpencil_editmode_toggle_poll(bContext *C)
   return ED_gpencil_data_get_active(C) != NULL;
 }
 
+static bool gpencil_stroke_not_in_curve_edit_mode(bContext *C)
+{
+  Object *ob = CTX_data_active_object(C);
+  if ((ob == NULL) || (ob->type != OB_GPENCIL)) {
+    return false;
+  }
+  bGPdata *gpd = (bGPdata *)ob->data;
+  bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd);
+
+  return (gpl != NULL && !GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd));
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Toggle Edit Mode Operator
+ * \{ */
+
 static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 {
   const int back = RNA_boolean_get(op->ptr, "back");
@@ -182,6 +205,22 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
     }
     ob->restore_mode = ob->mode;
     ob->mode = mode;
+  }
+
+  /* Recalculate editcurves for strokes where the geometry/vertex colors have changed */
+  if (GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if (gpc->flag & GP_CURVE_NEEDS_STROKE_UPDATE) {
+        BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
+        /* Update the selection from the stroke to the curve. */
+        BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+      }
+    }
+    GP_EDITABLE_CURVES_END(gps_iter);
   }
 
   /* setup other modes */
@@ -544,6 +583,8 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
     gpd = ob->data;
     is_object = true;
   }
+  const int mode_flag = OB_MODE_WEIGHT_GPENCIL;
+  const bool is_mode_set = (ob->mode & mode_flag) != 0;
 
   if (gpd == NULL) {
     return OPERATOR_CANCELLED;
@@ -566,6 +607,9 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
     }
     ob->restore_mode = ob->mode;
     ob->mode = mode;
+
+    /* Prepare armature posemode. */
+    ED_object_posemode_set_for_weight_paint(C, bmain, ob, is_mode_set);
   }
 
   if (mode == OB_MODE_WEIGHT_GPENCIL) {
@@ -768,7 +812,8 @@ void GPENCIL_OT_selection_opacity_toggle(wmOperatorType *ot)
 /* ************** Duplicate Selected Strokes **************** */
 
 /* Make copies of selected point segments in a selected stroke */
-static void gpencil_duplicate_points(const bGPDstroke *gps,
+static void gpencil_duplicate_points(bGPdata *gpd,
+                                     const bGPDstroke *gps,
                                      ListBase *new_strokes,
                                      const char *layername)
 {
@@ -808,7 +853,7 @@ static void gpencil_duplicate_points(const bGPDstroke *gps,
         bGPDstroke *gpsd;
 
         /* make a stupid copy first of the entire stroke (to get the flags too) */
-        gpsd = BKE_gpencil_stroke_duplicate((bGPDstroke *)gps, false);
+        gpsd = BKE_gpencil_stroke_duplicate((bGPDstroke *)gps, false, true);
 
         /* saves original layer name */
         BLI_strncpy(gpsd->runtime.tmp_layerinfo, layername, sizeof(gpsd->runtime.tmp_layerinfo));
@@ -832,7 +877,7 @@ static void gpencil_duplicate_points(const bGPDstroke *gps,
           }
         }
 
-        BKE_gpencil_stroke_geometry_update(gpsd);
+        BKE_gpencil_stroke_geometry_update(gpd, gpsd);
 
         /* add to temp buffer */
         gpsd->next = gpsd->prev = NULL;
@@ -846,9 +891,102 @@ static void gpencil_duplicate_points(const bGPDstroke *gps,
   }
 }
 
+static void gpencil_duplicate_selected_curve_points(
+    bGPdata *gpd, bGPDlayer *gpl, ListBase *new_strokes, bGPDstroke *gps, bGPDcurve *gpc)
+{
+  if (gpc == NULL) {
+    return;
+  }
+  const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+  const int idx_last = gpc->tot_curve_points - 1;
+  bGPDstroke *gps_first = NULL;
+  bGPDstroke *gps_last = NULL;
+
+  int idx_start = 0;
+  int idx_end = 0;
+  bool prev_selected = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
+  for (int i = 1; i < gpc->tot_curve_points; i++) {
+    bool selected = gpc->curve_points[i].flag & GP_CURVE_POINT_SELECT;
+    if (prev_selected == false && selected == true) {
+      idx_start = i;
+    }
+    /* Island ends if the current point is unselected or if we reached the end of the stroke. */
+    if ((prev_selected == true && selected == false) || (selected == true && i == idx_last)) {
+      idx_end = selected ? i : i - 1;
+      int island_length = idx_end - idx_start + 1;
+
+      bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
+      new_stroke->points = NULL;
+      if (island_length != gpc->tot_curve_points) {
+        new_stroke->flag &= ~GP_STROKE_CYCLIC;
+      }
+      new_stroke->editcurve = BKE_gpencil_stroke_editcurve_new(island_length);
+
+      if (gps_first == NULL) {
+        gps_first = new_stroke;
+      }
+
+      bGPDcurve *new_gpc = new_stroke->editcurve;
+      memcpy(new_gpc->curve_points,
+             gpc->curve_points + idx_start,
+             sizeof(bGPDcurve_point) * island_length);
+
+      BLI_strncpy(
+          new_stroke->runtime.tmp_layerinfo, gpl->info, sizeof(new_stroke->runtime.tmp_layerinfo));
+
+      BKE_gpencil_editcurve_recalculate_handles(new_stroke);
+      new_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+      /* Calc geometry data. */
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+
+      /* Insert stroke into frame. */
+      BLI_addtail(new_strokes, new_stroke);
+
+      gps_last = new_stroke;
+    }
+    prev_selected = selected;
+  }
+
+  /* join first and last stroke if cyclic */
+  if (is_cyclic && gps_first != NULL && gps_last != NULL && gps_first != gps_last) {
+    bGPDcurve *gpc_first = gps_first->editcurve;
+    bGPDcurve *gpc_last = gps_last->editcurve;
+    int first_tot_points = gpc_first->tot_curve_points;
+    int old_tot_points = gpc_last->tot_curve_points;
+
+    gpc_last->tot_curve_points = first_tot_points + old_tot_points;
+    gpc_last->curve_points = MEM_recallocN(gpc_last->curve_points,
+                                           sizeof(bGPDcurve_point) * gpc_last->tot_curve_points);
+    /* copy data from first to last */
+    memcpy(gpc_last->curve_points + old_tot_points,
+           gpc_first->curve_points,
+           sizeof(bGPDcurve_point) * first_tot_points);
+
+    BKE_gpencil_editcurve_recalculate_handles(gps_last);
+    gps_last->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+    /* Calc geometry data. */
+    BKE_gpencil_stroke_geometry_update(gpd, gps_last);
+
+    /* remove first one */
+    BLI_remlink(new_strokes, gps_first);
+    BKE_gpencil_free_stroke(gps_first);
+  }
+
+  /* Deselect curve. */
+  for (int i = 0; i < gpc->tot_curve_points; i++) {
+    gpc->curve_points[i].flag &= ~GP_CURVE_POINT_SELECT;
+    BEZT_DESEL_ALL(&gpc->curve_points[i].bezt);
+  }
+  gpc->flag &= ~GP_CURVE_SELECT;
+  BKE_gpencil_stroke_editcurve_sync_selection(gps, gpc);
+}
+
 static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   if (gpd == NULL) {
     BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data");
@@ -860,69 +998,104 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* for each visible (and editable) layer's selected strokes,
-   * copy the strokes into a temporary buffer, then append
-   * once all done
-   */
-  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-    ListBase new_strokes = {NULL, NULL};
-    bGPDframe *gpf = gpl->actframe;
-    bGPDstroke *gps;
-
-    if (gpf == NULL) {
-      continue;
-    }
-
-    /* make copies of selected strokes, and deselect these once we're done */
-    for (gps = gpf->strokes.first; gps; gps = gps->next) {
-      /* skip strokes that are invalid for current view */
-      if (ED_gpencil_stroke_can_use(C, gps) == false) {
+  bool changed = false;
+  if (is_curve_edit) {
+    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+      ListBase new_strokes = {NULL, NULL};
+      bGPDframe *gpf = gpl->actframe;
+      if (gpf == NULL) {
         continue;
       }
 
-      if (gps->flag & GP_STROKE_SELECT) {
-        if (gps->totpoints == 1) {
-          /* Special Case: If there's just a single point in this stroke... */
-          bGPDstroke *gpsd;
-
-          /* make direct copies of the stroke and its points */
-          gpsd = BKE_gpencil_stroke_duplicate(gps, true);
-
-          BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
-
-          /* Initialize triangle information. */
-          BKE_gpencil_stroke_geometry_update(gpsd);
-
-          /* add to temp buffer */
-          gpsd->next = gpsd->prev = NULL;
-          BLI_addtail(&new_strokes, gpsd);
+      for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
+        if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          continue;
         }
-        else {
-          /* delegate to a helper, as there's too much to fit in here (for copying subsets)... */
-          gpencil_duplicate_points(gps, &new_strokes, gpl->info);
+        if (gps->editcurve == NULL) {
+          continue;
         }
 
-        /* deselect original stroke, or else the originals get moved too
-         * (when using the copy + move macro)
-         */
-        bGPDspoint *pt;
-        int i;
-        for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-          pt->flag &= ~GP_SPOINT_SELECT;
+        bGPDcurve *gpc = gps->editcurve;
+        if (gpc->flag & GP_CURVE_SELECT) {
+          gpencil_duplicate_selected_curve_points(gpd, gpl, &new_strokes, gps, gpc);
+          changed = true;
         }
-        gps->flag &= ~GP_STROKE_SELECT;
       }
+
+      BLI_movelisttolist(&gpf->strokes, &new_strokes);
     }
-
-    /* add all new strokes in temp buffer to the frame (preventing double-copies) */
-    BLI_movelisttolist(&gpf->strokes, &new_strokes);
-    BLI_assert(new_strokes.first == NULL);
+    CTX_DATA_END;
   }
-  CTX_DATA_END;
+  else {
+    /* for each visible (and editable) layer's selected strokes,
+     * copy the strokes into a temporary buffer, then append
+     * once all done
+     */
+    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+      ListBase new_strokes = {NULL, NULL};
+      bGPDframe *gpf = gpl->actframe;
+      bGPDstroke *gps;
 
-  /* updates */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+      if (gpf == NULL) {
+        continue;
+      }
+
+      /* make copies of selected strokes, and deselect these once we're done */
+      for (gps = gpf->strokes.first; gps; gps = gps->next) {
+        /* skip strokes that are invalid for current view */
+        if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          continue;
+        }
+
+        if (gps->flag & GP_STROKE_SELECT) {
+          if (gps->totpoints == 1) {
+            /* Special Case: If there's just a single point in this stroke... */
+            bGPDstroke *gpsd;
+
+            /* make direct copies of the stroke and its points */
+            gpsd = BKE_gpencil_stroke_duplicate(gps, true, true);
+
+            BLI_strncpy(
+                gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
+
+            /* Initialize triangle information. */
+            BKE_gpencil_stroke_geometry_update(gpd, gpsd);
+
+            /* add to temp buffer */
+            gpsd->next = gpsd->prev = NULL;
+            BLI_addtail(&new_strokes, gpsd);
+          }
+          else {
+            /* delegate to a helper, as there's too much to fit in here (for copying subsets)... */
+            gpencil_duplicate_points(gpd, gps, &new_strokes, gpl->info);
+          }
+
+          /* deselect original stroke, or else the originals get moved too
+           * (when using the copy + move macro)
+           */
+          bGPDspoint *pt;
+          int i;
+          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+            pt->flag &= ~GP_SPOINT_SELECT;
+          }
+          gps->flag &= ~GP_STROKE_SELECT;
+
+          changed = true;
+        }
+      }
+
+      /* add all new strokes in temp buffer to the frame (preventing double-copies) */
+      BLI_movelisttolist(&gpf->strokes, &new_strokes);
+      BLI_assert(new_strokes.first == NULL);
+    }
+    CTX_DATA_END;
+  }
+
+  if (changed) {
+    /* updates */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -979,7 +1152,7 @@ static void gpencil_copy_move_point(bGPDstroke *gps,
   }
 }
 
-static void gpencil_add_move_points(bGPDframe *gpf, bGPDstroke *gps)
+static void gpencil_add_move_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gps)
 {
   bGPDspoint *temp_points = NULL;
   MDeformVert *temp_dverts = NULL;
@@ -1000,7 +1173,7 @@ static void gpencil_add_move_points(bGPDframe *gpf, bGPDstroke *gps)
     pt = &gps->points[i];
     if (pt->flag == GP_SPOINT_SELECT) {
       /* duplicate original stroke data */
-      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false);
+      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false, true);
       gps_new->prev = gps_new->next = NULL;
 
       /* add new points array */
@@ -1018,8 +1191,8 @@ static void gpencil_add_move_points(bGPDframe *gpf, bGPDstroke *gps)
       gpencil_copy_move_point(gps_new, gps->points, gps->dvert, i, 0, true);
 
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(gps);
-      BKE_gpencil_stroke_geometry_update(gps_new);
+      BKE_gpencil_stroke_geometry_update(gpd, gps);
+      BKE_gpencil_stroke_geometry_update(gpd, gps_new);
 
       /* deselect orinal point */
       pt->flag &= ~GP_SPOINT_SELECT;
@@ -1094,7 +1267,7 @@ static void gpencil_add_move_points(bGPDframe *gpf, bGPDstroke *gps)
     }
 
     /* Calc geometry data. */
-    BKE_gpencil_stroke_geometry_update(gps);
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
 
     MEM_SAFE_FREE(temp_points);
     MEM_SAFE_FREE(temp_dverts);
@@ -1106,10 +1279,99 @@ static void gpencil_add_move_points(bGPDframe *gpf, bGPDstroke *gps)
   }
 }
 
+static void gpencil_curve_extrude_points(bGPdata *gpd,
+                                         bGPDframe *gpf,
+                                         bGPDstroke *gps,
+                                         bGPDcurve *gpc)
+{
+  const int old_num_points = gpc->tot_curve_points;
+  const bool first_select = gpc->curve_points[0].flag & GP_CURVE_POINT_SELECT;
+  bool last_select = gpc->curve_points[old_num_points - 1].flag & GP_CURVE_POINT_SELECT;
+
+  /* iterate over middle points */
+  for (int i = 1; i < gpc->tot_curve_points - 1; i++) {
+    bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+
+    /* Create new stroke if selected point */
+    if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+      bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(gps, false, false);
+      gps_new->points = NULL;
+      gps_new->flag &= ~GP_STROKE_CYCLIC;
+      gps_new->prev = gps_new->next = NULL;
+
+      gps_new->editcurve = BKE_gpencil_stroke_editcurve_new(2);
+      bGPDcurve *new_gpc = gps_new->editcurve;
+      for (int j = 0; j < new_gpc->tot_curve_points; j++) {
+        bGPDcurve_point *gpc_pt_new = &new_gpc->curve_points[j];
+        memcpy(gpc_pt_new, gpc_pt, sizeof(bGPDcurve_point));
+        gpc_pt_new->flag &= ~GP_CURVE_POINT_SELECT;
+        BEZT_DESEL_ALL(&gpc_pt_new->bezt);
+      }
+
+      /* select last point */
+      bGPDcurve_point *gpc_pt_last = &new_gpc->curve_points[1];
+      gpc_pt_last->flag |= GP_CURVE_POINT_SELECT;
+      BEZT_SEL_ALL(&gpc_pt_last->bezt);
+
+      BLI_insertlinkafter(&gpf->strokes, gps, gps_new);
+
+      gps_new->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+      BKE_gpencil_stroke_geometry_update(gpd, gps_new);
+
+      gpc_pt->flag &= ~GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&gpc_pt->bezt);
+    }
+  }
+
+  /* Edgcase for single curve point. */
+  if (gpc->tot_curve_points == 1) {
+    last_select = false;
+  }
+
+  if (first_select || last_select) {
+    int new_num_points = old_num_points;
+
+    if (first_select) {
+      new_num_points++;
+    }
+    if (last_select) {
+      new_num_points++;
+    }
+
+    /* Grow the array */
+    gpc->tot_curve_points = new_num_points;
+    gpc->curve_points = MEM_recallocN(gpc->curve_points, sizeof(bGPDcurve_point) * new_num_points);
+
+    if (first_select) {
+      /* shift points by one */
+      memmove(
+          &gpc->curve_points[1], &gpc->curve_points[0], sizeof(bGPDcurve_point) * old_num_points);
+
+      bGPDcurve_point *old_first = &gpc->curve_points[1];
+
+      old_first->flag &= GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&old_first->bezt);
+    }
+
+    if (last_select) {
+      bGPDcurve_point *old_last = &gpc->curve_points[gpc->tot_curve_points - 2];
+      bGPDcurve_point *new_last = &gpc->curve_points[gpc->tot_curve_points - 1];
+      memcpy(new_last, old_last, sizeof(bGPDcurve_point));
+
+      old_last->flag &= GP_CURVE_POINT_SELECT;
+      BEZT_DESEL_ALL(&old_last->bezt);
+    }
+
+    gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+    BKE_gpencil_stroke_geometry_update(gpd, gps);
+  }
+}
+
 static int gpencil_extrude_exec(bContext *C, wmOperator *op)
 {
   Object *obact = CTX_data_active_object(C);
   bGPdata *gpd = (bGPdata *)obact->data;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
   bGPDstroke *gps = NULL;
 
@@ -1118,6 +1380,7 @@ static int gpencil_extrude_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
+  bool changed = false;
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
@@ -1133,9 +1396,22 @@ static int gpencil_extrude_exec(bContext *C, wmOperator *op)
             continue;
           }
 
-          if (gps->flag & GP_STROKE_SELECT) {
-            gpencil_add_move_points(gpf, gps);
+          if (is_curve_edit) {
+            if (gps->editcurve == NULL) {
+              continue;
+            }
+            bGPDcurve *gpc = gps->editcurve;
+            if (gpc->flag & GP_CURVE_SELECT) {
+              gpencil_curve_extrude_points(gpd, gpf, gps, gpc);
+            }
           }
+          else {
+            if (gps->flag & GP_STROKE_SELECT) {
+              gpencil_add_move_points(gpd, gpf, gps);
+            }
+          }
+
+          changed = true;
         }
         /* if not multiedit, exit loop*/
         if (!is_multiedit) {
@@ -1146,10 +1422,13 @@ static int gpencil_extrude_exec(bContext *C, wmOperator *op)
   }
   CTX_DATA_END;
 
-  /* updates */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
-  DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* updates */
+    DEG_id_tag_update(&gpd->id,
+                      ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
+    DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -1296,6 +1575,7 @@ static int gpencil_strokes_copy_exec(bContext *C, wmOperator *op)
   Main *bmain = CTX_data_main(C);
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   if (gpd == NULL) {
     BKE_report(op->reports, RPT_ERROR, "No Grease Pencil data");
@@ -1310,56 +1590,62 @@ static int gpencil_strokes_copy_exec(bContext *C, wmOperator *op)
   /* clear the buffer first */
   ED_gpencil_strokes_copybuf_free();
 
-  /* for each visible (and editable) layer's selected strokes,
-   * copy the strokes into a temporary buffer, then append
-   * once all done
-   */
-  CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-    bGPDframe *gpf = gpl->actframe;
-    bGPDstroke *gps;
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+  }
+  else {
+    /* for each visible (and editable) layer's selected strokes,
+     * copy the strokes into a temporary buffer, then append
+     * once all done
+     */
+    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
+      bGPDframe *gpf = gpl->actframe;
+      bGPDstroke *gps;
 
-    if (gpf == NULL) {
-      continue;
-    }
-
-    /* make copies of selected strokes, and deselect these once we're done */
-    for (gps = gpf->strokes.first; gps; gps = gps->next) {
-      /* skip strokes that are invalid for current view */
-      if (ED_gpencil_stroke_can_use(C, gps) == false) {
+      if (gpf == NULL) {
         continue;
       }
 
-      if (gps->flag & GP_STROKE_SELECT) {
-        if (gps->totpoints == 1) {
-          /* Special Case: If there's just a single point in this stroke... */
-          bGPDstroke *gpsd;
-
-          /* make direct copies of the stroke and its points */
-          gpsd = BKE_gpencil_stroke_duplicate(gps, false);
-
-          /* saves original layer name */
-          BLI_strncpy(gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
-          gpsd->points = MEM_dupallocN(gps->points);
-          if (gps->dvert != NULL) {
-            gpsd->dvert = MEM_dupallocN(gps->dvert);
-            BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
-          }
-
-          /* Calc geometry data. */
-          BKE_gpencil_stroke_geometry_update(gpsd);
-
-          /* add to temp buffer */
-          gpsd->next = gpsd->prev = NULL;
-          BLI_addtail(&gpencil_strokes_copypastebuf, gpsd);
+      /* make copies of selected strokes, and deselect these once we're done */
+      for (gps = gpf->strokes.first; gps; gps = gps->next) {
+        /* skip strokes that are invalid for current view */
+        if (ED_gpencil_stroke_can_use(C, gps) == false) {
+          continue;
         }
-        else {
-          /* delegate to a helper, as there's too much to fit in here (for copying subsets)... */
-          gpencil_duplicate_points(gps, &gpencil_strokes_copypastebuf, gpl->info);
+
+        if (gps->flag & GP_STROKE_SELECT) {
+          if (gps->totpoints == 1) {
+            /* Special Case: If there's just a single point in this stroke... */
+            bGPDstroke *gpsd;
+
+            /* make direct copies of the stroke and its points */
+            gpsd = BKE_gpencil_stroke_duplicate(gps, false, true);
+
+            /* saves original layer name */
+            BLI_strncpy(
+                gpsd->runtime.tmp_layerinfo, gpl->info, sizeof(gpsd->runtime.tmp_layerinfo));
+            gpsd->points = MEM_dupallocN(gps->points);
+            if (gps->dvert != NULL) {
+              gpsd->dvert = MEM_dupallocN(gps->dvert);
+              BKE_gpencil_stroke_weights_duplicate(gps, gpsd);
+            }
+
+            /* Calc geometry data. */
+            BKE_gpencil_stroke_geometry_update(gpd, gpsd);
+
+            /* add to temp buffer */
+            gpsd->next = gpsd->prev = NULL;
+            BLI_addtail(&gpencil_strokes_copypastebuf, gpsd);
+          }
+          else {
+            /* delegate to a helper, as there's too much to fit in here (for copying subsets)... */
+            gpencil_duplicate_points(gpd, gps, &gpencil_strokes_copypastebuf, gpl->info);
+          }
         }
       }
     }
+    CTX_DATA_END;
   }
-  CTX_DATA_END;
 
   /* Build up hash of material colors used in these strokes */
   if (gpencil_strokes_copypastebuf.first) {
@@ -1434,6 +1720,7 @@ static int gpencil_strokes_paste_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = (bGPdata *)ob->data;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   bGPDlayer *gpl = BKE_gpencil_layer_active_get(gpd); /* only use active for copy merge */
   Scene *scene = CTX_data_scene(C);
   bGPDframe *gpf;
@@ -1497,46 +1784,52 @@ static int gpencil_strokes_paste_exec(bContext *C, wmOperator *op)
   /* Ensure that all the necessary colors exist */
   new_colors = gpencil_copybuf_validate_colormap(C);
 
-  /* Copy over the strokes from the buffer (and adjust the colors) */
-  bGPDstroke *gps_init = (!on_back) ? gpencil_strokes_copypastebuf.first :
-                                      gpencil_strokes_copypastebuf.last;
-  for (bGPDstroke *gps = gps_init; gps; gps = (!on_back) ? gps->next : gps->prev) {
-    if (ED_gpencil_stroke_can_use(C, gps)) {
-      /* Need to verify if layer exists */
-      if (type != GP_COPY_TO_ACTIVE) {
-        gpl = BLI_findstring(&gpd->layers, gps->runtime.tmp_layerinfo, offsetof(bGPDlayer, info));
-        if (gpl == NULL) {
-          /* no layer - use active (only if layer deleted before paste) */
-          gpl = BKE_gpencil_layer_active_get(gpd);
-        }
-      }
-
-      /* Ensure we have a frame to draw into
-       * NOTE: Since this is an op which creates strokes,
-       *       we are obliged to add a new frame if one
-       *       doesn't exist already
-       */
-      gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_ADD_NEW);
-      if (gpf) {
-        /* Create new stroke */
-        bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, true);
-        new_stroke->runtime.tmp_layerinfo[0] = '\0';
-        new_stroke->next = new_stroke->prev = NULL;
-
-        /* Calc geometry data. */
-        BKE_gpencil_stroke_geometry_update(new_stroke);
-
-        if (on_back) {
-          BLI_addhead(&gpf->strokes, new_stroke);
-        }
-        else {
-          BLI_addtail(&gpf->strokes, new_stroke);
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+  }
+  else {
+    /* Copy over the strokes from the buffer (and adjust the colors) */
+    bGPDstroke *gps_init = (!on_back) ? gpencil_strokes_copypastebuf.first :
+                                        gpencil_strokes_copypastebuf.last;
+    for (bGPDstroke *gps = gps_init; gps; gps = (!on_back) ? gps->next : gps->prev) {
+      if (ED_gpencil_stroke_can_use(C, gps)) {
+        /* Need to verify if layer exists */
+        if (type != GP_COPY_TO_ACTIVE) {
+          gpl = BLI_findstring(
+              &gpd->layers, gps->runtime.tmp_layerinfo, offsetof(bGPDlayer, info));
+          if (gpl == NULL) {
+            /* no layer - use active (only if layer deleted before paste) */
+            gpl = BKE_gpencil_layer_active_get(gpd);
+          }
         }
 
-        /* Remap material */
-        Material *ma = BLI_ghash_lookup(new_colors, POINTER_FROM_INT(new_stroke->mat_nr));
-        new_stroke->mat_nr = BKE_gpencil_object_material_index_get(ob, ma);
-        CLAMP_MIN(new_stroke->mat_nr, 0);
+        /* Ensure we have a frame to draw into
+         * NOTE: Since this is an op which creates strokes,
+         *       we are obliged to add a new frame if one
+         *       doesn't exist already
+         */
+        gpf = BKE_gpencil_layer_frame_get(gpl, CFRA, GP_GETFRAME_ADD_NEW);
+        if (gpf) {
+          /* Create new stroke */
+          bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, true, true);
+          new_stroke->runtime.tmp_layerinfo[0] = '\0';
+          new_stroke->next = new_stroke->prev = NULL;
+
+          /* Calc geometry data. */
+          BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+
+          if (on_back) {
+            BLI_addhead(&gpf->strokes, new_stroke);
+          }
+          else {
+            BLI_addtail(&gpf->strokes, new_stroke);
+          }
+
+          /* Remap material */
+          Material *ma = BLI_ghash_lookup(new_colors, POINTER_FROM_INT(new_stroke->mat_nr));
+          new_stroke->mat_nr = BKE_gpencil_object_material_index_get(ob, ma);
+          CLAMP_MIN(new_stroke->mat_nr, 0);
+        }
       }
     }
   }
@@ -1940,10 +2233,10 @@ typedef enum eGP_DissolveMode {
 /* Delete selected strokes */
 static int gpencil_delete_selected_strokes(bContext *C)
 {
-  bool changed = false;
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
 
+  bool changed = false;
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
 
@@ -1964,16 +2257,9 @@ static int gpencil_delete_selected_strokes(bContext *C)
 
           /* free stroke if selected */
           if (gps->flag & GP_STROKE_SELECT) {
+            BLI_remlink(&gpf->strokes, gps);
             /* free stroke memory arrays, then stroke itself */
-            if (gps->points) {
-              MEM_freeN(gps->points);
-            }
-            if (gps->dvert) {
-              BKE_gpencil_free_stroke_weights(gps);
-              MEM_freeN(gps->dvert);
-            }
-            MEM_SAFE_FREE(gps->triangles);
-            BLI_freelinkN(&gpf->strokes, gps);
+            BKE_gpencil_free_stroke(gps);
 
             changed = true;
           }
@@ -1993,11 +2279,144 @@ static int gpencil_delete_selected_strokes(bContext *C)
 
 /* ----------------------------------- */
 
-/* Delete selected points but keep the stroke */
-static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
+static bool gpencil_dissolve_selected_curve_points(bContext *C,
+                                                   bGPdata *gpd,
+                                                   eGP_DissolveMode mode)
 {
-  Object *ob = CTX_data_active_object(C);
-  bGPdata *gpd = (bGPdata *)ob->data;
+  bool changed = false;
+  GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+  {
+    if (gpc->flag & GP_CURVE_SELECT) {
+      int first = 0, last = 0;
+      int num_points_remaining = gpc->tot_curve_points;
+
+      switch (mode) {
+        case GP_DISSOLVE_POINTS:
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if (cpt->flag & GP_CURVE_POINT_SELECT) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        case GP_DISSOLVE_BETWEEN:
+          first = -1;
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if (cpt->flag & GP_CURVE_POINT_SELECT) {
+              if (first < 0) {
+                first = i;
+              }
+              last = i;
+            }
+          }
+
+          for (int i = first + 1; i < last; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        case GP_DISSOLVE_UNSELECT:
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *cpt = &gpc->curve_points[i];
+            if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+              num_points_remaining--;
+            }
+          }
+          break;
+        default:
+          return false;
+          break;
+      }
+
+      if (num_points_remaining < 1) {
+        /* Delete stroke */
+        BLI_remlink(&gpf_->strokes, gps);
+        BKE_gpencil_free_stroke(gps);
+      }
+      else {
+        bGPDcurve_point *new_points = MEM_callocN(sizeof(bGPDcurve_point) * num_points_remaining,
+                                                  __func__);
+
+        int idx = 0;
+        switch (mode) {
+          case GP_DISSOLVE_POINTS:
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if ((cpt->flag & GP_CURVE_POINT_SELECT) == 0) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+            break;
+          case GP_DISSOLVE_BETWEEN:
+            for (int i = 0; i < first; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+
+              *new_cpt = *cpt;
+              idx++;
+            }
+
+            for (int i = first; i < last; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if (cpt->flag & GP_CURVE_POINT_SELECT) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+
+            for (int i = last; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+
+              *new_cpt = *cpt;
+              idx++;
+            }
+            break;
+          case GP_DISSOLVE_UNSELECT:
+            for (int i = 0; i < gpc->tot_curve_points; i++) {
+              bGPDcurve_point *cpt = &gpc->curve_points[i];
+              bGPDcurve_point *new_cpt = &new_points[idx];
+              if (cpt->flag & GP_CURVE_POINT_SELECT) {
+                *new_cpt = *cpt;
+                idx++;
+              }
+            }
+            break;
+          default:
+            return false;
+            break;
+        }
+
+        if (gpc->curve_points != NULL) {
+          MEM_freeN(gpc->curve_points);
+        }
+
+        gpc->curve_points = new_points;
+        gpc->tot_curve_points = num_points_remaining;
+
+        BKE_gpencil_editcurve_recalculate_handles(gps);
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+      }
+
+      changed = true;
+    }
+  }
+  GP_EDITABLE_CURVES_END(gps_iter);
+
+  return changed;
+}
+
+static bool gpencil_dissolve_selected_stroke_points(bContext *C,
+                                                    bGPdata *gpd,
+                                                    eGP_DissolveMode mode)
+{
   bool changed = false;
   int first = 0;
   int last = 0;
@@ -2057,18 +2476,8 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
       /* if no points are left, we simply delete the entire stroke */
       if (tot <= 0) {
         /* remove the entire stroke */
-        if (gps->points) {
-          MEM_freeN(gps->points);
-        }
-        if (gps->dvert) {
-          BKE_gpencil_free_stroke_weights(gps);
-          MEM_freeN(gps->dvert);
-        }
-        if (gps->triangles) {
-          MEM_freeN(gps->triangles);
-        }
-        BLI_freelinkN(&gpf_->strokes, gps);
-        DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+        BLI_remlink(&gpf_->strokes, gps);
+        BKE_gpencil_free_stroke(gps);
       }
       else {
         /* just copy all points to keep into a smaller buffer */
@@ -2185,7 +2594,7 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
         gps->totpoints = tot;
 
         /* Calc geometry data. */
-        BKE_gpencil_stroke_geometry_update(gps);
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
 
         /* deselect the stroke, since none of its selected points will still be selected */
         gps->flag &= ~GP_STROKE_SELECT;
@@ -2199,6 +2608,24 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
   }
   GP_EDITABLE_STROKES_END(gpstroke_iter);
 
+  return changed;
+}
+
+/* Delete selected points but keep the stroke */
+static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
+{
+  Object *ob = CTX_data_active_object(C);
+  bGPdata *gpd = (bGPdata *)ob->data;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  bool changed = false;
+
+  if (is_curve_edit) {
+    changed = gpencil_dissolve_selected_curve_points(C, gpd, mode);
+  }
+  else {
+    changed = gpencil_dissolve_selected_stroke_points(C, gpd, mode);
+  }
+
   if (changed) {
     DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
     WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -2211,14 +2638,15 @@ static int gpencil_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 
 /* Temp data for storing information about an "island" of points
  * that should be kept when splitting up a stroke. Used in:
- * gp_stroke_delete_tagged_points()
+ * gpencil_stroke_delete_tagged_points()
  */
 typedef struct tGPDeleteIsland {
   int start_idx;
   int end_idx;
 } tGPDeleteIsland;
 
-static void gpencil_stroke_join_islands(bGPDframe *gpf,
+static void gpencil_stroke_join_islands(bGPdata *gpd,
+                                        bGPDframe *gpf,
                                         bGPDstroke *gps_first,
                                         bGPDstroke *gps_last)
 {
@@ -2227,7 +2655,7 @@ static void gpencil_stroke_join_islands(bGPDframe *gpf,
   const int totpoints = gps_first->totpoints + gps_last->totpoints;
 
   /* create new stroke */
-  bGPDstroke *join_stroke = BKE_gpencil_stroke_duplicate(gps_first, false);
+  bGPDstroke *join_stroke = BKE_gpencil_stroke_duplicate(gps_first, false, true);
 
   join_stroke->points = MEM_callocN(sizeof(bGPDspoint) * totpoints, __func__);
   join_stroke->totpoints = totpoints;
@@ -2295,7 +2723,7 @@ static void gpencil_stroke_join_islands(bGPDframe *gpf,
   /* add new stroke at head */
   BLI_addhead(&gpf->strokes, join_stroke);
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(join_stroke);
+  BKE_gpencil_stroke_geometry_update(gpd, join_stroke);
 
   /* remove first stroke */
   BLI_remlink(&gpf->strokes, gps_first);
@@ -2320,7 +2748,8 @@ static void gpencil_stroke_join_islands(bGPDframe *gpf,
  * 2) Each island gets converted to a new stroke
  * If the number of points is <= limit, the stroke is deleted
  */
-void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
+void gpencil_stroke_delete_tagged_points(bGPdata *gpd,
+                                         bGPDframe *gpf,
                                          bGPDstroke *gps,
                                          bGPDstroke *next_stroke,
                                          int tag_flags,
@@ -2372,7 +2801,7 @@ void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
     /* Create each new stroke... */
     for (idx = 0; idx < num_islands; idx++) {
       tGPDeleteIsland *island = &islands[idx];
-      new_stroke = BKE_gpencil_stroke_duplicate(gps, false);
+      new_stroke = BKE_gpencil_stroke_duplicate(gps, false, true);
 
       /* if cyclic and first stroke, save to join later */
       if ((is_cyclic) && (gps_first == NULL)) {
@@ -2443,7 +2872,7 @@ void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
       }
       else {
         /* Calc geometry data. */
-        BKE_gpencil_stroke_geometry_update(new_stroke);
+        BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
 
         if (next_stroke) {
           BLI_insertlinkbefore(&gpf->strokes, next_stroke, new_stroke);
@@ -2455,7 +2884,7 @@ void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
     }
     /* if cyclic, need to join last stroke with first stroke */
     if ((is_cyclic) && (gps_first != NULL) && (gps_first != new_stroke)) {
-      gpencil_stroke_join_islands(gpf, gps_first, new_stroke);
+      gpencil_stroke_join_islands(gpd, gpf, gps_first, new_stroke);
     }
   }
 
@@ -2467,11 +2896,121 @@ void gpencil_stroke_delete_tagged_points(bGPDframe *gpf,
   BKE_gpencil_free_stroke(gps);
 }
 
+static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
+                                               bGPDframe *gpf,
+                                               bGPDstroke *gps,
+                                               bGPDstroke *next_stroke,
+                                               bGPDcurve *gpc,
+                                               int tag_flags,
+                                               bool select,
+                                               int limit)
+{
+  if (gpc == NULL) {
+    return;
+  }
+  const bool is_cyclic = gps->flag & GP_STROKE_CYCLIC;
+  const int idx_last = gpc->tot_curve_points - 1;
+  bGPDstroke *gps_first = NULL;
+  bGPDstroke *gps_last = NULL;
+
+  int idx_start = 0;
+  int idx_end = 0;
+  bool prev_selected = gpc->curve_points[0].flag & tag_flags;
+  for (int i = 1; i < gpc->tot_curve_points; i++) {
+    bool selected = gpc->curve_points[i].flag & tag_flags;
+    if (prev_selected == true && selected == false) {
+      idx_start = i;
+    }
+    /* Island ends if the current point is selected or if we reached the end of the stroke */
+    if ((prev_selected == false && selected == true) || (selected == false && i == idx_last)) {
+
+      idx_end = selected ? i - 1 : i;
+      int island_length = idx_end - idx_start + 1;
+
+#if 0
+      /* If an island has only a single curve point, there is no curve segment, so skip island */
+      if (island_length == 1) {
+        if (is_cyclic) {
+          if (idx_start > 0 && idx_end < idx_last) {
+            prev_selected = selected;
+            continue;
+          }
+        }
+        else {
+          prev_selected = selected;
+          continue;
+        }
+      }
+#endif
+      bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
+      new_stroke->points = NULL;
+      new_stroke->flag &= ~GP_STROKE_CYCLIC;
+      new_stroke->editcurve = BKE_gpencil_stroke_editcurve_new(island_length);
+
+      if (gps_first == NULL) {
+        gps_first = new_stroke;
+      }
+
+      bGPDcurve *new_gpc = new_stroke->editcurve;
+      memcpy(new_gpc->curve_points,
+             gpc->curve_points + idx_start,
+             sizeof(bGPDcurve_point) * island_length);
+
+      BKE_gpencil_editcurve_recalculate_handles(new_stroke);
+      new_stroke->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+      /* Calc geometry data. */
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+
+      if (next_stroke) {
+        BLI_insertlinkbefore(&gpf->strokes, next_stroke, new_stroke);
+      }
+      else {
+        BLI_addtail(&gpf->strokes, new_stroke);
+      }
+
+      gps_last = new_stroke;
+    }
+    prev_selected = selected;
+  }
+
+  /* join first and last stroke if cyclic */
+  if (is_cyclic && gps_first != NULL && gps_last != NULL && gps_first != gps_last) {
+    bGPDcurve *gpc_first = gps_first->editcurve;
+    bGPDcurve *gpc_last = gps_last->editcurve;
+    int first_tot_points = gpc_first->tot_curve_points;
+    int old_tot_points = gpc_last->tot_curve_points;
+
+    gpc_last->tot_curve_points = first_tot_points + old_tot_points;
+    gpc_last->curve_points = MEM_recallocN(gpc_last->curve_points,
+                                           sizeof(bGPDcurve_point) * gpc_last->tot_curve_points);
+    /* copy data from first to last */
+    memcpy(gpc_last->curve_points + old_tot_points,
+           gpc_first->curve_points,
+           sizeof(bGPDcurve_point) * first_tot_points);
+
+    BKE_gpencil_editcurve_recalculate_handles(gps_last);
+    gps_last->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+
+    /* Calc geometry data. */
+    BKE_gpencil_stroke_geometry_update(gpd, gps_last);
+
+    /* remove first one */
+    BLI_remlink(&gpf->strokes, gps_first);
+    BKE_gpencil_free_stroke(gps_first);
+  }
+
+  /* Delete the old stroke */
+  BLI_remlink(&gpf->strokes, gps);
+  BKE_gpencil_free_stroke(gps);
+}
+
 /* Split selected strokes into segments, splitting on selected points */
 static int gpencil_delete_selected_points(bContext *C)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
   bool changed = false;
 
@@ -2501,8 +3040,16 @@ static int gpencil_delete_selected_points(bContext *C)
             /* deselect old stroke, since it will be used as template for the new strokes */
             gps->flag &= ~GP_STROKE_SELECT;
 
-            /* delete unwanted points by splitting stroke into several smaller ones */
-            gpencil_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+            if (is_curve_edit) {
+              bGPDcurve *gpc = gps->editcurve;
+              gpencil_curve_delete_tagged_points(
+                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT, false, 0);
+            }
+            else {
+              /* delete unwanted points by splitting stroke into several smaller ones */
+              gpencil_stroke_delete_tagged_points(
+                  gpd, gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+            }
 
             changed = true;
           }
@@ -2657,7 +3204,9 @@ static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Object *obact = CTX_data_active_object(C);
   const float gridf = ED_view3d_grid_view_scale(scene, v3d, rv3d, NULL);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
+  bool changed = false;
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     /* only editable and visible layers are considered */
     if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
@@ -2668,9 +3217,6 @@ static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
       BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
 
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        bGPDspoint *pt;
-        int i;
-
         /* skip strokes that are invalid for current view */
         if (ED_gpencil_stroke_can_use(C, gps) == false) {
           continue;
@@ -2680,30 +3226,82 @@ static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
           continue;
         }
 
-        // TODO: if entire stroke is selected, offset entire stroke by same amount?
-        for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-          /* only if point is selected */
-          if (pt->flag & GP_SPOINT_SELECT) {
-            /* apply parent transformations */
-            float fpt[3];
-            mul_v3_m4v3(fpt, diff_mat, &pt->x);
+        if (is_curve_edit) {
+          if (gps->editcurve == NULL) {
+            continue;
+          }
+          float inv_diff_mat[4][4];
+          invert_m4_m4_safe(inv_diff_mat, diff_mat);
 
-            fpt[0] = gridf * floorf(0.5f + fpt[0] / gridf);
-            fpt[1] = gridf * floorf(0.5f + fpt[1] / gridf);
-            fpt[2] = gridf * floorf(0.5f + fpt[2] / gridf);
+          bGPDcurve *gpc = gps->editcurve;
+          for (int i = 0; i < gpc->tot_curve_points; i++) {
+            bGPDcurve_point *gpc_pt = &gpc->curve_points[i];
+            BezTriple *bezt = &gpc_pt->bezt;
+            if (gpc_pt->flag & GP_CURVE_POINT_SELECT) {
+              float tmp0[3], tmp1[3], tmp2[3], offset[3];
+              mul_v3_m4v3(tmp0, diff_mat, bezt->vec[0]);
+              mul_v3_m4v3(tmp1, diff_mat, bezt->vec[1]);
+              mul_v3_m4v3(tmp2, diff_mat, bezt->vec[2]);
 
-            /* return data */
-            copy_v3_v3(&pt->x, fpt);
-            gpencil_apply_parent_point(depsgraph, obact, gpl, pt);
+              /* calculate the offset vector */
+              offset[0] = gridf * floorf(0.5f + tmp1[0] / gridf) - tmp1[0];
+              offset[1] = gridf * floorf(0.5f + tmp1[1] / gridf) - tmp1[1];
+              offset[2] = gridf * floorf(0.5f + tmp1[2] / gridf) - tmp1[2];
+
+              /* shift bezTriple */
+              add_v3_v3(bezt->vec[0], offset);
+              add_v3_v3(bezt->vec[1], offset);
+              add_v3_v3(bezt->vec[2], offset);
+
+              mul_v3_m4v3(tmp0, inv_diff_mat, bezt->vec[0]);
+              mul_v3_m4v3(tmp1, inv_diff_mat, bezt->vec[1]);
+              mul_v3_m4v3(tmp2, inv_diff_mat, bezt->vec[2]);
+              copy_v3_v3(bezt->vec[0], tmp0);
+              copy_v3_v3(bezt->vec[1], tmp1);
+              copy_v3_v3(bezt->vec[2], tmp2);
+
+              changed = true;
+            }
+          }
+
+          if (changed) {
+            BKE_gpencil_editcurve_recalculate_handles(gps);
+            gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+            BKE_gpencil_stroke_geometry_update(gpd, gps);
+          }
+        }
+        else {
+          // TODO: if entire stroke is selected, offset entire stroke by same amount?
+          for (int i = 0; i < gps->totpoints; i++) {
+            bGPDspoint *pt = &gps->points[i];
+            /* only if point is selected */
+            if (pt->flag & GP_SPOINT_SELECT) {
+              /* apply parent transformations */
+              float fpt[3];
+              mul_v3_m4v3(fpt, diff_mat, &pt->x);
+
+              fpt[0] = gridf * floorf(0.5f + fpt[0] / gridf);
+              fpt[1] = gridf * floorf(0.5f + fpt[1] / gridf);
+              fpt[2] = gridf * floorf(0.5f + fpt[2] / gridf);
+
+              /* return data */
+              copy_v3_v3(&pt->x, fpt);
+              gpencil_apply_parent_point(depsgraph, obact, gpl, pt);
+
+              changed = true;
+            }
           }
         }
       }
     }
   }
 
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
+
   return OPERATOR_FINISHED;
 }
 
@@ -2727,7 +3325,7 @@ void GPENCIL_OT_snap_to_grid(wmOperatorType *ot)
 static int gpencil_snap_to_cursor(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   Scene *scene = CTX_data_scene(C);
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Object *obact = CTX_data_active_object(C);
@@ -2735,50 +3333,60 @@ static int gpencil_snap_to_cursor(bContext *C, wmOperator *op)
   const bool use_offset = RNA_boolean_get(op->ptr, "use_offset");
   const float *cursor_global = scene->cursor.location;
 
-  LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
-    /* only editable and visible layers are considered */
-    if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
-      bGPDframe *gpf = gpl->actframe;
-      float diff_mat[4][4];
+  bool changed = false;
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+  }
+  else {
+    LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
+      /* only editable and visible layers are considered */
+      if (BKE_gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
+        bGPDframe *gpf = gpl->actframe;
+        float diff_mat[4][4];
 
-      /* calculate difference matrix */
-      BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
+        /* calculate difference matrix */
+        BKE_gpencil_parent_matrix_get(depsgraph, obact, gpl, diff_mat);
 
-      LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        bGPDspoint *pt;
-        int i;
+        LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
+          bGPDspoint *pt;
+          int i;
 
-        /* skip strokes that are invalid for current view */
-        if (ED_gpencil_stroke_can_use(C, gps) == false) {
-          continue;
-        }
-        /* check if the color is editable */
-        if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
-          continue;
-        }
-        /* only continue if this stroke is selected (editable doesn't guarantee this)... */
-        if ((gps->flag & GP_STROKE_SELECT) == 0) {
-          continue;
-        }
-
-        if (use_offset) {
-          float offset[3];
-
-          /* compute offset from first point of stroke to cursor */
-          /* TODO: Allow using midpoint instead? */
-          sub_v3_v3v3(offset, cursor_global, &gps->points->x);
-
-          /* apply offset to all points in the stroke */
-          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-            add_v3_v3(&pt->x, offset);
+          /* skip strokes that are invalid for current view */
+          if (ED_gpencil_stroke_can_use(C, gps) == false) {
+            continue;
           }
-        }
-        else {
-          /* affect each selected point */
-          for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-            if (pt->flag & GP_SPOINT_SELECT) {
-              copy_v3_v3(&pt->x, cursor_global);
-              gpencil_apply_parent_point(depsgraph, obact, gpl, pt);
+          /* check if the color is editable */
+          if (ED_gpencil_stroke_color_use(obact, gpl, gps) == false) {
+            continue;
+          }
+          /* only continue if this stroke is selected (editable doesn't guarantee this)... */
+          if ((gps->flag & GP_STROKE_SELECT) == 0) {
+            continue;
+          }
+
+          if (use_offset) {
+            float offset[3];
+
+            /* compute offset from first point of stroke to cursor */
+            /* TODO: Allow using midpoint instead? */
+            sub_v3_v3v3(offset, cursor_global, &gps->points->x);
+
+            /* apply offset to all points in the stroke */
+            for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+              add_v3_v3(&pt->x, offset);
+            }
+
+            changed = true;
+          }
+          else {
+            /* affect each selected point */
+            for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+              if (pt->flag & GP_SPOINT_SELECT) {
+                copy_v3_v3(&pt->x, cursor_global);
+                gpencil_apply_parent_point(depsgraph, obact, gpl, pt);
+
+                changed = true;
+              }
             }
           }
         }
@@ -2786,9 +3394,12 @@ static int gpencil_snap_to_cursor(bContext *C, wmOperator *op)
     }
   }
 
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
+
   return OPERATOR_FINISHED;
 }
 
@@ -2814,25 +3425,22 @@ void GPENCIL_OT_snap_to_cursor(wmOperatorType *ot)
                              "Offset the entire stroke instead of selected points only");
 }
 
-/* ------------------------------- */
+/** \} */
 
-static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
+/* -------------------------------------------------------------------- */
+/** \name Snapping Cursor to Selection Operator
+ * \{ */
+
+static bool gpencil_stroke_points_centroid(Depsgraph *depsgraph,
+                                           bContext *C,
+                                           Object *obact,
+                                           bGPdata *gpd,
+                                           float r_centroid[3],
+                                           float r_min[3],
+                                           float r_max[3],
+                                           size_t *count)
 {
-  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-  Object *obact = CTX_data_active_object(C);
-  Object *ob_eval = DEG_get_evaluated_object(depsgraph, obact);
-  bGPdata *gpd = (bGPdata *)ob_eval->data;
-
-  Scene *scene = CTX_data_scene(C);
-  View3D *v3d = CTX_wm_view3d(C);
-
-  float *cursor = scene->cursor.location;
-  float centroid[3] = {0.0f};
-  float min[3], max[3];
-  size_t count = 0;
-
-  INIT_MINMAX(min, max);
-
+  bool changed = false;
   /* calculate midpoints from selected points */
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     /* only editable and visible layers are considered */
@@ -2866,29 +3474,61 @@ static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
             float fpt[3];
             mul_v3_m4v3(fpt, diff_mat, &pt->x);
 
-            add_v3_v3(centroid, fpt);
-            minmax_v3v3_v3(min, max, fpt);
+            add_v3_v3(r_centroid, fpt);
+            minmax_v3v3_v3(r_min, r_max, fpt);
 
-            count++;
+            *count++;
           }
         }
+
+        changed = true;
       }
     }
   }
 
-  if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_BOUNDS) {
-    mid_v3_v3v3(cursor, min, max);
+  return changed;
+}
+
+static int gpencil_snap_cursor_to_sel(bContext *C, wmOperator *op)
+{
+  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+  Object *obact = CTX_data_active_object(C);
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+
+  Scene *scene = CTX_data_scene(C);
+  View3D *v3d = CTX_wm_view3d(C);
+
+  float *cursor = scene->cursor.location;
+  float centroid[3] = {0.0f};
+  float min[3], max[3];
+  size_t count = 0;
+
+  INIT_MINMAX(min, max);
+
+  bool changed = false;
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
-  else { /* #V3D_AROUND_CENTER_MEDIAN. */
-    zero_v3(cursor);
-    if (count) {
-      mul_v3_fl(centroid, 1.0f / (float)count);
-      copy_v3_v3(cursor, centroid);
-    }
+  else {
+    changed = gpencil_stroke_points_centroid(depsgraph, C, obact, gpd, centroid, min, max, &count);
   }
 
-  DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
-  WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
+  if (changed) {
+    if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_BOUNDS) {
+      mid_v3_v3v3(cursor, min, max);
+    }
+    else { /* #V3D_AROUND_CENTER_MEDIAN. */
+      zero_v3(cursor);
+      if (count) {
+        mul_v3_fl(centroid, 1.0f / (float)count);
+        copy_v3_v3(cursor, centroid);
+      }
+    }
+
+    DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
+    WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -2932,6 +3572,7 @@ static int gpencil_stroke_apply_thickness_exec(bContext *C, wmOperator *UNUSED(o
       }
     }
   }
+
   /* clear value */
   gpl->thickness = 0.0f;
   gpl->line_change = 0;
@@ -2971,6 +3612,7 @@ static int gpencil_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
   const int type = RNA_enum_get(op->ptr, "type");
   const bool geometry = RNA_boolean_get(op->ptr, "geometry");
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
   bGPDstroke *gps = NULL;
 
   /* sanity checks */
@@ -2978,6 +3620,7 @@ static int gpencil_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
+  bool changed = false;
   /* loop all selected strokes */
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
@@ -3001,6 +3644,7 @@ static int gpencil_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
             continue;
           }
 
+          bool before = (bool)(gps->flag & GP_STROKE_CYCLIC);
           switch (type) {
             case GP_STROKE_CYCLIC_CLOSE:
               /* Close all (enable) */
@@ -3019,9 +3663,19 @@ static int gpencil_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
               break;
           }
 
-          /* Create new geometry. */
-          if ((gps->flag & GP_STROKE_CYCLIC) && (geometry)) {
-            BKE_gpencil_stroke_close(gps);
+          if (before != (gps->flag & GP_STROKE_CYCLIC)) {
+            /* Create new geometry. */
+            if (is_curve_edit) {
+              BKE_gpencil_editcurve_recalculate_handles(gps);
+              gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+              BKE_gpencil_stroke_geometry_update(gpd, gps);
+            }
+            else if ((gps->flag & GP_STROKE_CYCLIC) && geometry) {
+              BKE_gpencil_stroke_close(gps);
+              BKE_gpencil_stroke_geometry_update(gpd, gps);
+            }
+
+            changed = true;
           }
         }
 
@@ -3034,11 +3688,29 @@ static int gpencil_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
   }
   CTX_DATA_END;
 
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
+}
+
+static bool gpencil_cyclical_set_curve_edit_poll_property(const bContext *C,
+                                                          wmOperator *UNUSED(op),
+                                                          const PropertyRNA *prop)
+{
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  if (gpd != NULL && GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    const char *prop_id = RNA_property_identifier(prop);
+    /* Only show type in curve edit mode */
+    if (!STREQ(prop_id, "type")) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -3064,6 +3736,7 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
   /* api callbacks */
   ot->exec = gpencil_stroke_cyclical_set_exec;
   ot->poll = gpencil_active_layer_poll;
+  ot->poll_property = gpencil_cyclical_set_curve_edit_poll_property;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -3088,7 +3761,6 @@ static int gpencil_stroke_caps_set_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   Object *ob = CTX_data_active_object(C);
-
   const int type = RNA_enum_get(op->ptr, "type");
 
   /* sanity checks */
@@ -3096,6 +3768,7 @@ static int gpencil_stroke_caps_set_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
+  bool changed = false;
   /* loop all selected strokes */
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     if (gpl->actframe == NULL) {
@@ -3115,6 +3788,9 @@ static int gpencil_stroke_caps_set_exec(bContext *C, wmOperator *op)
         continue;
       }
 
+      short prev_first = gps->caps[0];
+      short prev_last = gps->caps[1];
+
       if ((type == GP_STROKE_CAPS_TOGGLE_BOTH) || (type == GP_STROKE_CAPS_TOGGLE_START)) {
         ++gps->caps[0];
         if (gps->caps[0] >= GP_STROKE_CAP_MAX) {
@@ -3131,13 +3807,19 @@ static int gpencil_stroke_caps_set_exec(bContext *C, wmOperator *op)
         gps->caps[0] = GP_STROKE_CAP_ROUND;
         gps->caps[1] = GP_STROKE_CAP_ROUND;
       }
+
+      if (prev_first != gps->caps[0] || prev_last != gps->caps[1]) {
+        changed = true;
+      }
     }
   }
   CTX_DATA_END;
 
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -3349,6 +4031,11 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  if (is_curve_edit) {
+    return OPERATOR_CANCELLED;
+  }
+
   if (activegpl->flag & GP_LAYER_LOCKED) {
     return OPERATOR_CANCELLED;
   }
@@ -3388,7 +4075,7 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
 
           /* create a new stroke if was not created before (only created if something to join) */
           if (new_stroke == NULL) {
-            new_stroke = BKE_gpencil_stroke_duplicate(stroke_a, true);
+            new_stroke = BKE_gpencil_stroke_duplicate(stroke_a, true, true);
 
             /* if new, set current color */
             if (type == GP_STROKE_JOINCOPY) {
@@ -3403,7 +4090,7 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
           if (type == GP_STROKE_JOIN) {
             if (stroke_a) {
               /* Calc geometry data. */
-              BKE_gpencil_stroke_geometry_update(new_stroke);
+              BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
 
               BLI_insertlinkbefore(&gpf_a->strokes, stroke_a, new_stroke);
               BLI_remlink(&gpf->strokes, stroke_a);
@@ -3430,7 +4117,7 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
         activegpl->actframe = BKE_gpencil_frame_addnew(activegpl, gpf_a->framenum);
       }
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(new_stroke);
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
 
       BLI_addtail(&activegpl->actframe->strokes, new_stroke);
     }
@@ -3474,7 +4161,7 @@ void GPENCIL_OT_stroke_join(wmOperatorType *ot)
 
 /* ******************* Stroke flip ************************** */
 
-static int gpencil_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_flip_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   Object *ob = CTX_data_active_object(C);
@@ -3484,6 +4171,8 @@ static int gpencil_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
     return OPERATOR_CANCELLED;
   }
 
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+  bool changed = false;
   /* read all selected strokes */
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *gpf = gpl->actframe;
@@ -3502,16 +4191,25 @@ static int gpencil_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
           continue;
         }
 
-        /* flip stroke */
-        gpencil_flip_stroke(gps);
+        if (is_curve_edit) {
+          BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+        }
+        else {
+          /* flip stroke */
+          gpencil_flip_stroke(gps);
+        }
+
+        changed = true;
       }
     }
   }
   CTX_DATA_END;
 
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -3542,19 +4240,26 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
   int oldframe = (int)DEG_get_ctime(depsgraph);
   const eGP_ReprojectModes mode = RNA_enum_get(op->ptr, "type");
   const bool keep_original = RNA_boolean_get(op->ptr, "keep_original");
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
-  /* Init space conversion stuff. */
-  GP_SpaceConversion gsc = {NULL};
-  SnapObjectContext *sctx = NULL;
-  gpencil_point_conversion_init(C, &gsc);
   /* Init snap context for geometry projection. */
+  SnapObjectContext *sctx = NULL;
   sctx = ED_transform_snap_object_context_create_view3d(scene, 0, region, CTX_wm_view3d(C));
 
+  bool changed = false;
+  /* Init space conversion stuff. */
+  GP_SpaceConversion gsc = {NULL};
+  gpencil_point_conversion_init(C, &gsc);
   int cfra_prv = INT_MIN;
 
   /* Go through each editable + selected stroke, adjusting each of its points one by one... */
   GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
+    bool curve_select = false;
+    if (is_curve_edit && gps->editcurve != NULL) {
+      curve_select = gps->editcurve->flag & GP_CURVE_SELECT;
+    }
+
+    if (gps->flag & GP_STROKE_SELECT || curve_select) {
 
       /* update frame to get the new location of objects */
       if ((mode == GP_REPROJECT_SURFACE) && (cfra_prv != gpf_->framenum)) {
@@ -3564,6 +4269,17 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
       }
 
       ED_gpencil_stroke_reproject(depsgraph, &gsc, sctx, gpl, gpf_, gps, mode, keep_original);
+
+      if (is_curve_edit && gps->editcurve != NULL) {
+        BKE_gpencil_stroke_editcurve_update(gpd, gpl, gps);
+        /* Update the selection from the stroke to the curve. */
+        BKE_gpencil_editcurve_stroke_sync_selection(gps, gps->editcurve);
+
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+      }
+
+      changed = true;
     }
   }
   GP_EDITABLE_STROKES_END(gpstroke_iter);
@@ -3576,9 +4292,12 @@ static int gpencil_strokes_reproject_exec(bContext *C, wmOperator *op)
     ED_transform_snap_object_context_destroy(sctx);
   }
 
-  /* update changed data */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* update changed data */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
+
   return OPERATOR_FINISHED;
 }
 
@@ -3646,10 +4365,11 @@ static int gpencil_recalc_geometry_exec(bContext *C, wmOperator *UNUSED(op))
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     LISTBASE_FOREACH (bGPDframe *, gpf, &gpl->frames) {
       LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
-        BKE_gpencil_stroke_geometry_update(gps);
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
       }
     }
   }
+
   /* update changed data */
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
   WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -3739,132 +4459,174 @@ static int gpencil_count_subdivision_cuts(bGPDstroke *gps)
   return totnewpoints;
 }
 
+static void gpencil_stroke_subdivide(bGPDstroke *gps, const int cuts)
+{
+  bGPDspoint *temp_points;
+  int totnewpoints, oldtotpoints;
+  int i2;
+  /* loop as many times as cuts */
+  for (int s = 0; s < cuts; s++) {
+    totnewpoints = gpencil_count_subdivision_cuts(gps);
+    if (totnewpoints == 0) {
+      continue;
+    }
+    /* duplicate points in a temp area */
+    temp_points = MEM_dupallocN(gps->points);
+    oldtotpoints = gps->totpoints;
+
+    MDeformVert *temp_dverts = NULL;
+    MDeformVert *dvert_final = NULL;
+    MDeformVert *dvert = NULL;
+    MDeformVert *dvert_next = NULL;
+    if (gps->dvert != NULL) {
+      temp_dverts = MEM_dupallocN(gps->dvert);
+    }
+
+    /* resize the points arrays */
+    gps->totpoints += totnewpoints;
+    gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+    if (gps->dvert != NULL) {
+      gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+    }
+
+    /* loop and interpolate */
+    i2 = 0;
+    for (int i = 0; i < oldtotpoints; i++) {
+      bGPDspoint *pt = &temp_points[i];
+      bGPDspoint *pt_final = &gps->points[i2];
+
+      /* copy current point */
+      copy_v3_v3(&pt_final->x, &pt->x);
+      pt_final->pressure = pt->pressure;
+      pt_final->strength = pt->strength;
+      pt_final->time = pt->time;
+      pt_final->flag = pt->flag;
+      copy_v4_v4(pt_final->vert_color, pt->vert_color);
+
+      if (gps->dvert != NULL) {
+        dvert = &temp_dverts[i];
+        dvert_final = &gps->dvert[i2];
+        dvert_final->totweight = dvert->totweight;
+        dvert_final->dw = dvert->dw;
+      }
+      i2++;
+
+      /* if next point is selected add a half way point */
+      if (pt->flag & GP_SPOINT_SELECT) {
+        if (i + 1 < oldtotpoints) {
+          if (temp_points[i + 1].flag & GP_SPOINT_SELECT) {
+            pt_final = &gps->points[i2];
+            if (gps->dvert != NULL) {
+              dvert_final = &gps->dvert[i2];
+            }
+            /* Interpolate all values */
+            bGPDspoint *next = &temp_points[i + 1];
+            interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
+            pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
+            pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
+            CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
+            interp_v4_v4v4(pt_final->vert_color, pt->vert_color, next->vert_color, 0.5f);
+            pt_final->time = interpf(pt->time, next->time, 0.5f);
+            pt_final->flag |= GP_SPOINT_SELECT;
+
+            /* interpolate weights */
+            if (gps->dvert != NULL) {
+              dvert = &temp_dverts[i];
+              dvert_next = &temp_dverts[i + 1];
+              dvert_final = &gps->dvert[i2];
+
+              dvert_final->totweight = dvert->totweight;
+              dvert_final->dw = MEM_dupallocN(dvert->dw);
+
+              /* interpolate weight values */
+              for (int d = 0; d < dvert->totweight; d++) {
+                MDeformWeight *dw_a = &dvert->dw[d];
+                if (dvert_next->totweight > d) {
+                  MDeformWeight *dw_b = &dvert_next->dw[d];
+                  MDeformWeight *dw_final = &dvert_final->dw[d];
+                  dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
+                }
+              }
+            }
+
+            i2++;
+          }
+        }
+      }
+    }
+    /* free temp memory */
+    MEM_SAFE_FREE(temp_points);
+    MEM_SAFE_FREE(temp_dverts);
+  }
+}
+
 static int gpencil_stroke_subdivide_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  bGPDspoint *temp_points;
   const int cuts = RNA_int_get(op->ptr, "number_cuts");
-
-  int totnewpoints, oldtotpoints;
-  int i2;
 
   /* sanity checks */
   if (ELEM(NULL, gpd)) {
     return OPERATOR_CANCELLED;
   }
 
-  /* Go through each editable + selected stroke */
-  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      /* loop as many times as cuts */
-      for (int s = 0; s < cuts; s++) {
-        totnewpoints = gpencil_count_subdivision_cuts(gps);
-        if (totnewpoints == 0) {
-          continue;
-        }
-        /* duplicate points in a temp area */
-        temp_points = MEM_dupallocN(gps->points);
-        oldtotpoints = gps->totpoints;
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
-        MDeformVert *temp_dverts = NULL;
-        MDeformVert *dvert_final = NULL;
-        MDeformVert *dvert = NULL;
-        MDeformVert *dvert_next = NULL;
-        if (gps->dvert != NULL) {
-          temp_dverts = MEM_dupallocN(gps->dvert);
-        }
-
-        /* resize the points arrays */
-        gps->totpoints += totnewpoints;
-        gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
-        if (gps->dvert != NULL) {
-          gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
-        }
-
-        /* loop and interpolate */
-        i2 = 0;
-        for (int i = 0; i < oldtotpoints; i++) {
-          bGPDspoint *pt = &temp_points[i];
-          bGPDspoint *pt_final = &gps->points[i2];
-
-          /* copy current point */
-          copy_v3_v3(&pt_final->x, &pt->x);
-          pt_final->pressure = pt->pressure;
-          pt_final->strength = pt->strength;
-          pt_final->time = pt->time;
-          pt_final->flag = pt->flag;
-          copy_v4_v4(pt_final->vert_color, pt->vert_color);
-
-          if (gps->dvert != NULL) {
-            dvert = &temp_dverts[i];
-            dvert_final = &gps->dvert[i2];
-            dvert_final->totweight = dvert->totweight;
-            dvert_final->dw = dvert->dw;
-          }
-          i2++;
-
-          /* if next point is selected add a half way point */
-          if (pt->flag & GP_SPOINT_SELECT) {
-            if (i + 1 < oldtotpoints) {
-              if (temp_points[i + 1].flag & GP_SPOINT_SELECT) {
-                pt_final = &gps->points[i2];
-                if (gps->dvert != NULL) {
-                  dvert_final = &gps->dvert[i2];
-                }
-                /* Interpolate all values */
-                bGPDspoint *next = &temp_points[i + 1];
-                interp_v3_v3v3(&pt_final->x, &pt->x, &next->x, 0.5f);
-                pt_final->pressure = interpf(pt->pressure, next->pressure, 0.5f);
-                pt_final->strength = interpf(pt->strength, next->strength, 0.5f);
-                CLAMP(pt_final->strength, GPENCIL_STRENGTH_MIN, 1.0f);
-                interp_v4_v4v4(pt_final->vert_color, pt->vert_color, next->vert_color, 0.5f);
-                pt_final->time = interpf(pt->time, next->time, 0.5f);
-                pt_final->flag |= GP_SPOINT_SELECT;
-
-                /* interpolate weights */
-                if (gps->dvert != NULL) {
-                  dvert = &temp_dverts[i];
-                  dvert_next = &temp_dverts[i + 1];
-                  dvert_final = &gps->dvert[i2];
-
-                  dvert_final->totweight = dvert->totweight;
-                  dvert_final->dw = MEM_dupallocN(dvert->dw);
-
-                  /* interpolate weight values */
-                  for (int d = 0; d < dvert->totweight; d++) {
-                    MDeformWeight *dw_a = &dvert->dw[d];
-                    if (dvert_next->totweight > d) {
-                      MDeformWeight *dw_b = &dvert_next->dw[d];
-                      MDeformWeight *dw_final = &dvert_final->dw[d];
-                      dw_final->weight = interpf(dw_a->weight, dw_b->weight, 0.5f);
-                    }
-                  }
-                }
-
-                i2++;
-              }
-            }
-          }
-        }
-        /* free temp memory */
-        MEM_SAFE_FREE(temp_points);
-        MEM_SAFE_FREE(temp_dverts);
+  bool changed = false;
+  if (is_curve_edit) {
+    GP_EDITABLE_CURVES_BEGIN(gps_iter, C, gpl, gps, gpc)
+    {
+      if (gpc->flag & GP_CURVE_SELECT) {
+        BKE_gpencil_editcurve_subdivide(gps, cuts);
+        BKE_gpencil_editcurve_recalculate_handles(gps);
+        gps->flag |= GP_STROKE_NEEDS_CURVE_UPDATE;
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+        changed = true;
       }
+    }
+    GP_EDITABLE_CURVES_END(gps_iter);
+  }
+  else {
+    /* Go through each editable + selected stroke */
+    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        gpencil_stroke_subdivide(gps, cuts);
+        /* Calc geometry data. */
+        BKE_gpencil_stroke_geometry_update(gpd, gps);
+        changed = true;
+      }
+    }
+    GP_EDITABLE_STROKES_END(gpstroke_iter);
 
-      /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(gps);
+    if (changed) {
+      /* smooth stroke */
+      gpencil_smooth_stroke(C, op);
     }
   }
-  GP_EDITABLE_STROKES_END(gpstroke_iter);
 
-  /* smooth stroke */
-  gpencil_smooth_stroke(C, op);
-
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
+}
+
+static bool gpencil_subdivide_curve_edit_poll_property(const bContext *C,
+                                                       wmOperator *UNUSED(op),
+                                                       const PropertyRNA *prop)
+{
+  bGPdata *gpd = ED_gpencil_data_get_active(C);
+  if (gpd != NULL && GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd)) {
+    const char *prop_id = RNA_property_identifier(prop);
+    /* Only show number_cuts in curve edit mode */
+    if (!STREQ(prop_id, "number_cuts")) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 void GPENCIL_OT_stroke_subdivide(wmOperatorType *ot)
@@ -3881,6 +4643,7 @@ void GPENCIL_OT_stroke_subdivide(wmOperatorType *ot)
   /* api callbacks */
   ot->exec = gpencil_stroke_subdivide_exec;
   ot->poll = gpencil_active_layer_poll;
+  ot->poll_property = gpencil_subdivide_curve_edit_poll_property;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -3916,18 +4679,29 @@ static int gpencil_stroke_simplify_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* Go through each editable + selected stroke */
-  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      /* simplify stroke using Ramer-Douglas-Peucker algorithm */
-      BKE_gpencil_stroke_simplify_adaptive(gps, factor);
-    }
-  }
-  GP_EDITABLE_STROKES_END(gpstroke_iter);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  bool changed = false;
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+  }
+  else {
+    /* Go through each editable + selected stroke */
+    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        /* simplify stroke using Ramer-Douglas-Peucker algorithm */
+        BKE_gpencil_stroke_simplify_adaptive(gpd, gps, factor);
+        changed = true;
+      }
+    }
+    GP_EDITABLE_STROKES_END(gpstroke_iter);
+  }
+
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -3965,19 +4739,29 @@ static int gpencil_stroke_simplify_fixed_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* Go through each editable + selected stroke */
-  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      for (int i = 0; i < steps; i++) {
-        BKE_gpencil_stroke_simplify_fixed(gps);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+
+  bool changed = false;
+  if (is_curve_edit) {
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+  }
+  else {
+    /* Go through each editable + selected stroke */
+    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        for (int i = 0; i < steps; i++) {
+          BKE_gpencil_stroke_simplify_fixed(gpd, gps);
+        }
       }
     }
+    GP_EDITABLE_STROKES_END(gpstroke_iter);
   }
-  GP_EDITABLE_STROKES_END(gpstroke_iter);
 
-  /* notifiers */
-  DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  if (changed) {
+    /* notifiers */
+    DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+    WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+  }
 
   return OPERATOR_FINISHED;
 }
@@ -4019,7 +4803,7 @@ static int gpencil_stroke_sample_exec(bContext *C, wmOperator *op)
   /* Go through each editable + selected stroke */
   GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
     if (gps->flag & GP_STROKE_SELECT) {
-      BKE_gpencil_stroke_sample(gps, length, true);
+      BKE_gpencil_stroke_sample(gpd, gps, length, true);
     }
   }
   GP_EDITABLE_STROKES_END(gpstroke_iter);
@@ -4042,7 +4826,7 @@ void GPENCIL_OT_stroke_sample(wmOperatorType *ot)
 
   /* api callbacks */
   ot->exec = gpencil_stroke_sample_exec;
-  ot->poll = gpencil_active_layer_poll;
+  ot->poll = gpencil_stroke_not_in_curve_edit_mode;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -4059,7 +4843,7 @@ void GPENCIL_OT_stroke_sample(wmOperatorType *ot)
 /** \name Stroke Trim Operator
  * \{ */
 
-static int gpencil_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_trim_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
 
@@ -4070,6 +4854,7 @@ static int gpencil_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
 
   /* Go through each editable + selected stroke */
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
@@ -4089,7 +4874,12 @@ static int gpencil_stroke_trim_exec(bContext *C, wmOperator *UNUSED(op))
           }
 
           if (gps->flag & GP_STROKE_SELECT) {
-            BKE_gpencil_stroke_trim(gps);
+            if (is_curve_edit) {
+              BKE_report(op->reports, RPT_ERROR, "Not implemented!");
+            }
+            else {
+              BKE_gpencil_stroke_trim(gpd, gps);
+            }
           }
         }
         /* if not multiedit, exit loop*/
@@ -4164,6 +4954,7 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
   }
 
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_src);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd_src);
 
   /* Create a new object. */
   /* Take into account user preferences for duplicating actions. */
@@ -4225,27 +5016,32 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
 
               /* selected points mode */
               if (mode == GP_SEPARATE_POINT) {
-                /* make copy of source stroke */
-                bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true);
-
-                /* Reassign material. */
-                gps_dst->mat_nr = idx;
-
-                /* link to destination frame */
-                BLI_addtail(&gpf_dst->strokes, gps_dst);
-
-                /* Invert selection status of all points in destination stroke */
-                for (i = 0, pt = gps_dst->points; i < gps_dst->totpoints; i++, pt++) {
-                  pt->flag ^= GP_SPOINT_SELECT;
+                if (is_curve_edit) {
+                  BKE_report(op->reports, RPT_ERROR, "Not implemented!");
                 }
+                else {
+                  /* make copy of source stroke */
+                  bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true, true);
 
-                /* delete selected points from destination stroke */
-                gpencil_stroke_delete_tagged_points(
-                    gpf_dst, gps_dst, NULL, GP_SPOINT_SELECT, false, 0);
+                  /* Reassign material. */
+                  gps_dst->mat_nr = idx;
 
-                /* delete selected points from origin stroke */
-                gpencil_stroke_delete_tagged_points(
-                    gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+                  /* link to destination frame */
+                  BLI_addtail(&gpf_dst->strokes, gps_dst);
+
+                  /* Invert selection status of all points in destination stroke */
+                  for (i = 0, pt = gps_dst->points; i < gps_dst->totpoints; i++, pt++) {
+                    pt->flag ^= GP_SPOINT_SELECT;
+                  }
+
+                  /* delete selected points from destination stroke */
+                  gpencil_stroke_delete_tagged_points(
+                      gpd_dst, gpf_dst, gps_dst, NULL, GP_SPOINT_SELECT, false, 0);
+
+                  /* delete selected points from origin stroke */
+                  gpencil_stroke_delete_tagged_points(
+                      gpd_src, gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+                }
               }
               /* selected strokes mode */
               else if (mode == GP_SEPARATE_STROKE) {
@@ -4352,7 +5148,7 @@ void GPENCIL_OT_stroke_separate(wmOperatorType *ot)
 /** \name Stroke Split Operator
  * \{ */
 
-static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
+static int gpencil_stroke_split_exec(bContext *C, wmOperator *op)
 {
   Object *ob = CTX_data_active_object(C);
   bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -4364,6 +5160,7 @@ static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
     return OPERATOR_CANCELLED;
   }
   const bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   /* loop strokes and split parts */
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
@@ -4388,22 +5185,29 @@ static int gpencil_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
           }
           /* Split selected strokes. */
           if (gps->flag & GP_STROKE_SELECT) {
-            /* make copy of source stroke */
-            bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true);
-
-            /* link to same frame */
-            BLI_addtail(&gpf->strokes, gps_dst);
-
-            /* invert selection status of all points in destination stroke */
-            for (i = 0, pt = gps_dst->points; i < gps_dst->totpoints; i++, pt++) {
-              pt->flag ^= GP_SPOINT_SELECT;
+            if (is_curve_edit) {
+              BKE_report(op->reports, RPT_ERROR, "Not implemented!");
             }
+            else {
+              /* make copy of source stroke */
+              bGPDstroke *gps_dst = BKE_gpencil_stroke_duplicate(gps, true, true);
 
-            /* delete selected points from destination stroke */
-            gpencil_stroke_delete_tagged_points(gpf, gps_dst, NULL, GP_SPOINT_SELECT, true, 0);
+              /* link to same frame */
+              BLI_addtail(&gpf->strokes, gps_dst);
 
-            /* delete selected points from origin stroke */
-            gpencil_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+              /* invert selection status of all points in destination stroke */
+              for (i = 0, pt = gps_dst->points; i < gps_dst->totpoints; i++, pt++) {
+                pt->flag ^= GP_SPOINT_SELECT;
+              }
+
+              /* delete selected points from destination stroke */
+              gpencil_stroke_delete_tagged_points(
+                  gpd, gpf, gps_dst, NULL, GP_SPOINT_SELECT, true, 0);
+
+              /* delete selected points from origin stroke */
+              gpencil_stroke_delete_tagged_points(
+                  gpd, gpf, gps, gps->next, GP_SPOINT_SELECT, false, 0);
+            }
           }
         }
         /* select again tagged points */
@@ -4483,7 +5287,7 @@ void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
 
   /* api callbacks */
   ot->exec = gpencil_stroke_smooth_exec;
-  ot->poll = gpencil_active_layer_poll;
+  ot->poll = gpencil_stroke_not_in_curve_edit_mode;
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -4533,7 +5337,7 @@ typedef bool (*GPencilTestFn)(bGPDstroke *gps,
                               const float diff_mat[4][4],
                               void *user_data);
 
-static void gpencil_cutter_dissolve(bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
+static void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
 {
   bGPDspoint *pt = NULL;
   bGPDspoint *pt1 = NULL;
@@ -4578,7 +5382,7 @@ static void gpencil_cutter_dissolve(bGPDlayer *hit_layer, bGPDstroke *hit_stroke
       }
     }
     gpencil_stroke_delete_tagged_points(
-        hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
+        gpd, hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
   }
 }
 
@@ -4635,7 +5439,7 @@ static int gpencil_cutter_lasso_select(bContext *C,
         gps->flag |= GP_STROKE_SELECT;
         float r_hita[3], r_hitb[3];
         if (gps->totpoints > 1) {
-          ED_gpencil_select_stroke_segment(gpl, gps, pt, true, true, scale, r_hita, r_hitb);
+          ED_gpencil_select_stroke_segment(gpd, gpl, gps, pt, true, true, scale, r_hita, r_hitb);
         }
         /* avoid infinite loops */
         if (gps->totpoints > oldtot) {
@@ -4665,7 +5469,7 @@ static int gpencil_cutter_lasso_select(bContext *C,
     }
     LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
       if (gps->flag & GP_STROKE_SELECT) {
-        gpencil_cutter_dissolve(gpl, gps);
+        gpencil_cutter_dissolve(gpd, gpl, gps);
       }
     }
   }
@@ -4795,13 +5599,20 @@ static int gpencil_merge_by_distance_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  /* Go through each editable selected stroke */
-  GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
-    if (gps->flag & GP_STROKE_SELECT) {
-      BKE_gpencil_stroke_merge_distance(gpf_, gps, threshold, unselected);
-    }
+  const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+
+  if (is_curve_edit) {
+    /* TODO: merge curve points by distance */
   }
-  GP_EDITABLE_STROKES_END(gpstroke_iter);
+  else {
+    /* Go through each editable selected stroke */
+    GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
+      if (gps->flag & GP_STROKE_SELECT) {
+        BKE_gpencil_stroke_merge_distance(gpd, gpf_, gps, threshold, unselected);
+      }
+    }
+    GP_EDITABLE_STROKES_END(gpstroke_iter);
+  }
 
   /* notifiers */
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);

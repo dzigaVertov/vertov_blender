@@ -232,6 +232,11 @@ IDTypeInfo IDType_ID_IM = {
     .make_local = NULL,
     .foreach_id = NULL,
     .foreach_cache = image_foreach_cache,
+
+    .blend_write = NULL,
+    .blend_read_data = NULL,
+    .blend_read_lib = NULL,
+    .blend_read_expand = NULL,
 };
 
 /* prototypes */
@@ -1322,37 +1327,37 @@ bool BKE_imtype_is_movie(const char imtype)
   return false;
 }
 
-int BKE_imtype_supports_zbuf(const char imtype)
+bool BKE_imtype_supports_zbuf(const char imtype)
 {
   switch (imtype) {
     case R_IMF_IMTYPE_IRIZ:
     case R_IMF_IMTYPE_OPENEXR: /* but not R_IMF_IMTYPE_MULTILAYER */
-      return 1;
+      return true;
   }
-  return 0;
+  return false;
 }
 
-int BKE_imtype_supports_compress(const char imtype)
+bool BKE_imtype_supports_compress(const char imtype)
 {
   switch (imtype) {
     case R_IMF_IMTYPE_PNG:
-      return 1;
+      return true;
   }
-  return 0;
+  return false;
 }
 
-int BKE_imtype_supports_quality(const char imtype)
+bool BKE_imtype_supports_quality(const char imtype)
 {
   switch (imtype) {
     case R_IMF_IMTYPE_JPEG90:
     case R_IMF_IMTYPE_JP2:
     case R_IMF_IMTYPE_AVIJPEG:
-      return 1;
+      return true;
   }
-  return 0;
+  return false;
 }
 
-int BKE_imtype_requires_linear_float(const char imtype)
+bool BKE_imtype_requires_linear_float(const char imtype)
 {
   switch (imtype) {
     case R_IMF_IMTYPE_CINEON:
@@ -1362,7 +1367,7 @@ int BKE_imtype_requires_linear_float(const char imtype)
     case R_IMF_IMTYPE_MULTILAYER:
       return true;
   }
-  return 0;
+  return false;
 }
 
 char BKE_imtype_valid_channels(const char imtype, bool write_file)

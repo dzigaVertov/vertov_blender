@@ -22,6 +22,12 @@
 
 #pragma once
 
+#include "DRW_render.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef __APPLE__
 #  define USE_GEOM_SHADER_WORKAROUND 1
 #else
@@ -60,6 +66,7 @@ typedef struct OVERLAY_PassList {
   DRWPass *edit_curve_handle_ps;
   DRWPass *edit_gpencil_ps;
   DRWPass *edit_gpencil_gizmos_ps;
+  DRWPass *edit_gpencil_curve_ps;
   DRWPass *edit_lattice_ps;
   DRWPass *edit_mesh_depth_ps[2];
   DRWPass *edit_mesh_verts_ps[2];
@@ -225,6 +232,8 @@ typedef struct OVERLAY_PrivateData {
   DRWShadingGroup *edit_lattice_wires_grp;
   DRWShadingGroup *edit_gpencil_points_grp;
   DRWShadingGroup *edit_gpencil_wires_grp;
+  DRWShadingGroup *edit_gpencil_curve_handle_grp;
+  DRWShadingGroup *edit_gpencil_curve_points_grp;
   DRWShadingGroup *edit_mesh_depth_grp[2];
   DRWShadingGroup *edit_mesh_faces_grp[2];
   DRWShadingGroup *edit_mesh_faces_cage_grp[2];
@@ -627,3 +636,7 @@ GPUShader *OVERLAY_shader_xray_fade(void);
 OVERLAY_InstanceFormats *OVERLAY_shader_instance_formats_get(void);
 
 void OVERLAY_shader_free(void);
+
+#ifdef __cplusplus
+}
+#endif

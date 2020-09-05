@@ -1618,7 +1618,7 @@ void view3d_main_region_draw(const bContext *C, ARegion *region)
   GPU_pass_cache_garbage_collect();
 
   /* No depth test for drawing action zones afterwards. */
-  GPU_depth_test(false);
+  GPU_depth_test(GPU_DEPTH_NONE);
 
   v3d->flag |= V3D_INVALID_BACKBUF;
 }
@@ -2153,7 +2153,7 @@ static void view3d_opengl_read_Z_pixels(GPUViewport *viewport, rcti *rect, void 
 {
   DefaultTextureList *dtxl = (DefaultTextureList *)GPU_viewport_texture_list_get(viewport);
 
-  GPUFrameBuffer *tmp_fb = GPU_framebuffer_create();
+  GPUFrameBuffer *tmp_fb = GPU_framebuffer_create(__func__);
   GPU_framebuffer_texture_attach(tmp_fb, dtxl->depth, 0, 0);
   GPU_framebuffer_bind(tmp_fb);
 
@@ -2319,14 +2319,14 @@ void ED_view3d_draw_depth_gpencil(Depsgraph *depsgraph, Scene *scene, ARegion *r
   /* Setup view matrix. */
   ED_view3d_draw_setup_view(NULL, NULL, depsgraph, scene, region, v3d, NULL, NULL, NULL);
 
-  GPU_clear(GPU_DEPTH_BIT);
+  GPU_clear_depth(1.0f);
 
-  GPU_depth_test(true);
+  GPU_depth_test(GPU_DEPTH_LESS_EQUAL);
 
   GPUViewport *viewport = WM_draw_region_get_viewport(region);
   DRW_draw_depth_loop_gpencil(depsgraph, region, v3d, viewport);
 
-  GPU_depth_test(false);
+  GPU_depth_test(GPU_DEPTH_NONE);
 }
 
 /* *********************** customdata **************** */

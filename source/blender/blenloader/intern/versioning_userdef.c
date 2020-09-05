@@ -228,6 +228,11 @@ static void do_versions_theme(const UserDef *userdef, bTheme *btheme)
    */
   {
     /* Keep this block, even when empty. */
+
+    /* The new defaults for the file browser theme are the same as
+     * the outliner's, and it's less disruptive to just copy them. */
+    copy_v4_v4_uchar(btheme->space_file.back, btheme->space_outliner.back);
+    copy_v4_v4_uchar(btheme->space_file.row_alternate, btheme->space_outliner.row_alternate);
   }
 
 #undef FROM_DEFAULT_V4_UCHAR
@@ -758,6 +763,12 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
     userdef->statusbar_flag = STATUSBAR_SHOW_VERSION;
   }
 
+  if (!USER_VERSION_ATLEAST(291, 1)) {
+    if (userdef->collection_instance_empty_size == 0) {
+      userdef->collection_instance_empty_size = 1.0f;
+    }
+  }
+
   /**
    * Versioning code until next subversion bump goes here.
    *
@@ -769,10 +780,6 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
    */
   {
     /* Keep this block, even when empty. */
-
-    if (userdef->collection_instance_empty_size == 0) {
-      userdef->collection_instance_empty_size = 1.0f;
-    }
   }
 
   if (userdef->pixelsize == 0.0f) {

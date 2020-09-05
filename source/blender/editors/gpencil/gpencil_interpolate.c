@@ -184,7 +184,7 @@ static void gpencil_interpolate_update_strokes(bContext *C, tGPDinterpolate *tgp
 
         /* Add temp strokes. */
         if (gpf) {
-          bGPDstroke *gps_eval = BKE_gpencil_stroke_duplicate(new_stroke, true);
+          bGPDstroke *gps_eval = BKE_gpencil_stroke_duplicate(new_stroke, true, true);
           gps_eval->flag |= GP_STROKE_TAG;
           BLI_addtail(&gpf->strokes, gps_eval);
         }
@@ -322,7 +322,7 @@ static void gpencil_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
       }
 
       /* create new stroke */
-      new_stroke = BKE_gpencil_stroke_duplicate(gps_from, true);
+      new_stroke = BKE_gpencil_stroke_duplicate(gps_from, true, true);
 
       if (valid) {
         /* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
@@ -348,7 +348,7 @@ static void gpencil_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
       }
 
       /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(new_stroke);
+      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
       /* add to strokes */
       BLI_addtail(&tgpil->interFrame->strokes, new_stroke);
     }
@@ -603,11 +603,11 @@ static int gpencil_interpolate_modal(bContext *C, wmOperator *op, const wmEvent 
           }
 
           /* make copy of source stroke, then adjust pointer to points too */
-          gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true);
+          gps_dst = BKE_gpencil_stroke_duplicate(gps_src, true, true);
           gps_dst->flag &= ~GP_STROKE_TAG;
 
           /* Calc geometry data. */
-          BKE_gpencil_stroke_geometry_update(gps_dst);
+          BKE_gpencil_stroke_geometry_update(tgpi->gpd, gps_dst);
 
           BLI_addtail(&gpf_dst->strokes, gps_dst);
         }
@@ -1040,7 +1040,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
         }
 
         /* create new stroke */
-        bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps_from, true);
+        bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps_from, true, true);
 
         /* if destination stroke is smaller, resize new_stroke to size of gps_to stroke */
         if (gps_from->totpoints > gps_to->totpoints) {
@@ -1065,7 +1065,7 @@ static int gpencil_interpolate_seq_exec(bContext *C, wmOperator *op)
         gpencil_interpolate_update_points(gps_from, gps_to, new_stroke, factor);
 
         /* Calc geometry data. */
-        BKE_gpencil_stroke_geometry_update(new_stroke);
+        BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
 
         /* add to strokes */
         BLI_addtail(&interFrame->strokes, new_stroke);

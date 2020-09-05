@@ -29,6 +29,8 @@
 #include "BKE_context.h"
 #include "BKE_unit.h"
 
+#include "DNA_gpencil_types.h"
+
 #include "ED_screen.h"
 
 #include "UI_interface.h"
@@ -53,7 +55,7 @@ static void applyGPShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
 
   ratio = t->values[0];
 
-  snapGridIncrement(t, &ratio);
+  transform_snap_increment(t, &ratio);
 
   applyNumInput(&t->num, &ratio);
 
@@ -70,8 +72,16 @@ static void applyGPShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
     BLI_snprintf(str, sizeof(str), TIP_("Shrink/Fatten: %3f"), ratio);
   }
 
+  bool recalc = false;
   FOREACH_TRANS_DATA_CONTAINER (t, tc) {
     TransData *td = tc->data;
+    bGPdata *gpd = td->ob->data;
+    const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
+    /* Only recalculate data when in curve edit mode. */
+    if (is_curve_edit) {
+      recalc = true;
+    }
+
     for (i = 0; i < tc->data_len; i++, td++) {
       if (td->flag & TD_SKIP) {
         continue;
@@ -86,6 +96,10 @@ static void applyGPShrinkFatten(TransInfo *t, const int UNUSED(mval[2]))
         }
       }
     }
+  }
+
+  if (recalc) {
+    recalcData(t);
   }
 
   ED_area_status_text(t->area, str);

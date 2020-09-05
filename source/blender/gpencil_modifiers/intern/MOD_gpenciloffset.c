@@ -100,6 +100,7 @@ static void deformStroke(GpencilModifierData *md,
                                       mmd->flag & GP_OFFSET_INVERT_MATERIAL)) {
     return;
   }
+  bGPdata *gpd = ob->data;
 
   for (int i = 0; i < gps->totpoints; i++) {
     bGPDspoint *pt = &gps->points[i];
@@ -125,7 +126,7 @@ static void deformStroke(GpencilModifierData *md,
     mul_m4_v3(mat, &pt->x);
   }
   /* Calc geometry data. */
-  BKE_gpencil_stroke_geometry_update(gps);
+  BKE_gpencil_stroke_geometry_update(gpd, gps);
 }
 
 static void bakeModifier(struct Main *UNUSED(bmain),
@@ -151,25 +152,24 @@ static void foreachIDLink(GpencilModifierData *md, Object *ob, IDWalkFunc walk, 
   walk(userData, ob, (ID **)&mmd->material, IDWALK_CB_USER);
 }
 
-static void panel_draw(const bContext *C, Panel *panel)
+static void panel_draw(const bContext *UNUSED(C), Panel *panel)
 {
   uiLayout *layout = panel->layout;
 
-  PointerRNA ptr;
-  gpencil_modifier_panel_get_property_pointers(C, panel, NULL, &ptr);
+  PointerRNA *ptr = gpencil_modifier_panel_get_property_pointers(panel, NULL);
 
   uiLayoutSetPropSep(layout, true);
 
-  uiItemR(layout, &ptr, "location", 0, NULL, ICON_NONE);
-  uiItemR(layout, &ptr, "rotation", 0, NULL, ICON_NONE);
-  uiItemR(layout, &ptr, "scale", 0, NULL, ICON_NONE);
+  uiItemR(layout, ptr, "location", 0, NULL, ICON_NONE);
+  uiItemR(layout, ptr, "rotation", 0, NULL, ICON_NONE);
+  uiItemR(layout, ptr, "scale", 0, NULL, ICON_NONE);
 
-  gpencil_modifier_panel_end(layout, &ptr);
+  gpencil_modifier_panel_end(layout, ptr);
 }
 
-static void mask_panel_draw(const bContext *C, Panel *panel)
+static void mask_panel_draw(const bContext *UNUSED(C), Panel *panel)
 {
-  gpencil_modifier_masking_panel_draw(C, panel, true, true);
+  gpencil_modifier_masking_panel_draw(panel, true, true);
 }
 
 static void panelRegister(ARegionType *region_type)

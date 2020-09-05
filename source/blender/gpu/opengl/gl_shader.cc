@@ -29,6 +29,7 @@
 #include "GPU_platform.h"
 
 #include "gl_shader.hh"
+#include "gl_shader_interface.hh"
 
 using namespace blender;
 using namespace blender::gpu;
@@ -48,7 +49,7 @@ GLShader::GLShader(const char *name) : Shader(name)
 #ifndef __APPLE__
   if ((G.debug & G_DEBUG_GPU) && (GLEW_VERSION_4_3 || GLEW_KHR_debug)) {
     char sh_name[64];
-    BLI_snprintf(sh_name, sizeof(sh_name), "ShaderProgram-%s", name);
+    SNPRINTF(sh_name, "ShaderProgram-%s", name);
     glObjectLabel(GL_PROGRAM, shader_program_, -1, sh_name);
   }
 #endif
@@ -145,11 +146,22 @@ GLuint GLShader::create_shader_stage(GLenum gl_stage, MutableSpan<const char *> 
     char log[5000] = "";
     glGetShaderInfoLog(shader, sizeof(log), NULL, log);
     if (log[0] != '\0') {
-      this->print_errors(sources, log);
+      switch (gl_stage) {
+        case GL_VERTEX_SHADER:
+          this->print_errors(sources, log, "VertShader");
+          break;
+        case GL_GEOMETRY_SHADER:
+          this->print_errors(sources, log, "GeomShader");
+          break;
+        case GL_FRAGMENT_SHADER:
+          this->print_errors(sources, log, "FragShader");
+          break;
+      }
     }
   }
   if (!status) {
     glDeleteShader(shader);
+    compilation_failed_ = true;
     return 0;
   }
 
@@ -192,6 +204,10 @@ void GLShader::fragment_shader_from_glsl(MutableSpan<const char *> sources)
 
 bool GLShader::finalize(void)
 {
+  if (compilation_failed_) {
+    return false;
+  }
+
   glLinkProgram(shader_program_);
 
   GLint status;
@@ -203,10 +219,7 @@ bool GLShader::finalize(void)
     return false;
   }
 
-  /* TODO(fclem) We need this to modify the image binding points using glUniform.
-   * This could be avoided using glProgramUniform in GL 4.1. */
-  glUseProgram(shader_program_);
-  interface = GPU_shaderinterface_create(shader_program_);
+  interface = new GLShaderInterface(shader_program_);
 
   return true;
 }

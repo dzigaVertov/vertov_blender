@@ -929,7 +929,7 @@ static const char *rna_Scene_statistics_string_get(Scene *scene,
                                                    ReportList *reports,
                                                    ViewLayer *view_layer)
 {
-  if (BKE_scene_find_from_view_layer(bmain, view_layer) != scene) {
+  if (!BKE_scene_has_view_layer(scene, view_layer)) {
     BKE_reportf(reports,
                 RPT_ERROR,
                 "View Layer '%s' not found in scene '%s'",
@@ -1883,11 +1883,10 @@ static void object_simplify_update(Object *ob)
   }
 
   if (ob->instance_collection) {
-    CollectionObject *cob;
-
-    for (cob = ob->instance_collection->gobject.first; cob; cob = cob->next) {
-      object_simplify_update(cob->ob);
+    FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN (ob->instance_collection, ob_collection) {
+      object_simplify_update(ob_collection);
     }
+    FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
   }
 }
 
@@ -5936,7 +5935,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
   RNA_def_property_int_funcs(prop, "rna_RenderSettings_threads_get", NULL, NULL);
   RNA_def_property_ui_text(prop,
                            "Threads",
-                           "Number of CPU threads to use simultaneously while rendering "
+                           "Maximum number of CPU cores to use simultaneously while rendering "
                            "(for multi-core/CPU systems)");
   RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 

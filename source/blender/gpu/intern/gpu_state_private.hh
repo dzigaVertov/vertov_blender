@@ -35,13 +35,20 @@ namespace gpu {
  * Try to keep small to reduce validation time. */
 union GPUState {
   struct {
-    eGPUWriteMask write_mask : 13;
-    eGPUBlend blend : 4;
-    eGPUFaceCullTest culling_test : 2;
-    eGPUDepthTest depth_test : 3;
-    eGPUStencilTest stencil_test : 3;
-    eGPUStencilOp stencil_op : 3;
-    eGPUProvokingVertex provoking_vert : 1;
+    /** eGPUWriteMask */
+    uint32_t write_mask : 13;
+    /** eGPUBlend */
+    uint32_t blend : 4;
+    /** eGPUFaceCullTest */
+    uint32_t culling_test : 2;
+    /** eGPUDepthTest */
+    uint32_t depth_test : 3;
+    /** eGPUStencilTest */
+    uint32_t stencil_test : 3;
+    /** eGPUStencilOp */
+    uint32_t stencil_op : 3;
+    /** eGPUProvokingVertex */
+    uint32_t provoking_vert : 1;
     /** Enable bits. */
     uint32_t logic_op_xor : 1;
     uint32_t invert_facing : 1;
@@ -87,11 +94,6 @@ inline GPUState operator~(const GPUState &a)
 union GPUStateMutable {
   struct {
     /* Viewport State */
-    /** TODO put inside GPUFramebuffer. */
-    /** Offset + Extent of the drawable region inside the framebuffer. */
-    int viewport_rect[4];
-    /** Offset + Extent of the scissor region inside the framebuffer. */
-    int scissor_rect[4];
     /** TODO remove */
     float depth_range[2];
     /** TODO remove, use explicit clear calls. */
@@ -144,6 +146,10 @@ inline GPUStateMutable operator~(const GPUStateMutable &a)
   return r;
 }
 
+/**
+ * State manager keeping track of the draw state and applying it before drawing.
+ * Base class which is then specialized for each implementation (GL, VK, ...).
+ **/
 class GPUStateManager {
  public:
   GPUState state;
@@ -153,14 +159,7 @@ class GPUStateManager {
   GPUStateManager();
   virtual ~GPUStateManager(){};
 
-  virtual void set_state(const GPUState &state) = 0;
-  virtual void set_mutable_state(const GPUStateMutable &state) = 0;
-
-  inline void apply_state(void)
-  {
-    this->set_state(this->state);
-    this->set_mutable_state(this->mutable_state);
-  };
+  virtual void apply_state(void) = 0;
 };
 
 }  // namespace gpu

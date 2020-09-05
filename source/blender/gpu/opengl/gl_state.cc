@@ -26,6 +26,8 @@
 
 #include "glew-mx.h"
 
+#include "gl_context.hh"
+#include "gl_framebuffer.hh"
 #include "gl_state.hh"
 
 using namespace blender::gpu;
@@ -53,6 +55,9 @@ GLStateManager::GLStateManager(void) : GPUStateManager()
     glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
   }
 
+  /* Limits. */
+  glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, line_width_range_);
+
   /* Force update using default state. */
   current_ = ~state;
   current_mutable_ = ~mutable_state;
@@ -60,28 +65,35 @@ GLStateManager::GLStateManager(void) : GPUStateManager()
   set_mutable_state(mutable_state);
 }
 
+void GLStateManager::apply_state(void)
+{
+  this->set_state(this->state);
+  this->set_mutable_state(this->mutable_state);
+  active_fb->apply_state();
+};
+
 void GLStateManager::set_state(const GPUState &state)
 {
   GPUState changed = state ^ current_;
 
   if (changed.blend != 0) {
-    set_blend(state.blend);
+    set_blend((eGPUBlend)state.blend);
   }
   if (changed.write_mask != 0) {
-    set_write_mask(state.write_mask);
+    set_write_mask((eGPUWriteMask)state.write_mask);
   }
   if (changed.depth_test != 0) {
-    set_depth_test(state.depth_test);
+    set_depth_test((eGPUDepthTest)state.depth_test);
   }
   if (changed.stencil_test != 0 || changed.stencil_op != 0) {
-    set_stencil_test(state.stencil_test, state.stencil_op);
-    set_stencil_mask(state.stencil_test, mutable_state);
+    set_stencil_test((eGPUStencilTest)state.stencil_test, (eGPUStencilOp)state.stencil_op);
+    set_stencil_mask((eGPUStencilTest)state.stencil_test, mutable_state);
   }
   if (changed.clip_distances != 0) {
     set_clip_distances(state.clip_distances, current_.clip_distances);
   }
   if (changed.culling_test != 0) {
-    set_backface_culling(state.culling_test);
+    set_backface_culling((eGPUFaceCullTest)state.culling_test);
   }
   if (changed.logic_op_xor != 0) {
     set_logic_op(state.logic_op_xor);
@@ -90,7 +102,7 @@ void GLStateManager::set_state(const GPUState &state)
     set_facing(state.invert_facing);
   }
   if (changed.provoking_vert != 0) {
-    set_provoking_vert(state.provoking_vert);
+    set_provoking_vert((eGPUProvokingVertex)state.provoking_vert);
   }
   if (changed.shadow_bias != 0) {
     set_shadow_bias(state.shadow_bias);
@@ -121,22 +133,6 @@ void GLStateManager::set_mutable_state(const GPUStateMutable &state)
 {
   GPUStateMutable changed = state ^ current_mutable_;
 
-  if ((changed.viewport_rect[0] != 0) || (changed.viewport_rect[1] != 0) ||
-      (changed.viewport_rect[2] != 0) || (changed.viewport_rect[3] != 0)) {
-    glViewport(UNPACK4(state.viewport_rect));
-  }
-
-  if ((changed.scissor_rect[0] != 0) || (changed.scissor_rect[1] != 0) ||
-      (changed.scissor_rect[2] != 0) || (changed.scissor_rect[3] != 0)) {
-    if ((state.scissor_rect[2] > 0)) {
-      glScissor(UNPACK4(state.scissor_rect));
-      glEnable(GL_SCISSOR_TEST);
-    }
-    else {
-      glDisable(GL_SCISSOR_TEST);
-    }
-  }
-
   /* TODO remove, should be uniform. */
   if (changed.point_size != 0) {
     if (state.point_size > 0.0f) {
@@ -150,7 +146,7 @@ void GLStateManager::set_mutable_state(const GPUStateMutable &state)
 
   if (changed.line_width != 0) {
     /* TODO remove, should use wide line shader. */
-    glLineWidth(clamp_f(state.line_width, 1.0f, GPU_max_line_width()));
+    glLineWidth(clamp_f(state.line_width, line_width_range_[0], line_width_range_[1]));
   }
 
   if (changed.depth_range[0] != 0 || changed.depth_range[1] != 0) {
@@ -160,7 +156,7 @@ void GLStateManager::set_mutable_state(const GPUStateMutable &state)
 
   if (changed.stencil_compare_mask != 0 || changed.stencil_reference != 0 ||
       changed.stencil_write_mask != 0) {
-    set_stencil_mask(current_.stencil_test, state);
+    set_stencil_mask((eGPUStencilTest)current_.stencil_test, state);
   }
 
   current_mutable_ = state;
@@ -411,8 +407,10 @@ void GLStateManager::set_blend(const eGPUBlend value)
     }
   }
 
+  /* Always set the blend function. This avoid a rendering error when blending is disabled but
+   * GPU_BLEND_CUSTOM was used just before and the framebuffer is using more than 1 color targe */
+  glBlendFuncSeparate(src_rgb, dst_rgb, src_alpha, dst_alpha);
   if (value != GPU_BLEND_NONE) {
-    glBlendFuncSeparate(src_rgb, dst_rgb, src_alpha, dst_alpha);
     glEnable(GL_BLEND);
   }
   else {

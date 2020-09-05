@@ -368,10 +368,9 @@ static void image_listener(wmWindow *win, ScrArea *area, wmNotifier *wmn, Scene 
       }
       break;
     case NC_MASK: {
-      // Scene *scene = wmn->window->screen->scene;
-      /* ideally would check for: ED_space_image_check_show_maskedit(scene, sima)
-       * but we cant get the scene */
-      if (sima->mode == SI_MODE_MASK) {
+      ViewLayer *view_layer = WM_window_get_active_view_layer(win);
+      Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
+      if (ED_space_image_check_show_maskedit(sima, obedit)) {
         switch (wmn->data) {
           case ND_SELECT:
             ED_area_tag_redraw(area);
@@ -650,7 +649,6 @@ static void image_main_region_draw(const bContext *C, ARegion *region)
 
   GPU_framebuffer_bind(framebuffer_default);
   GPU_clear_color(0.0f, 0.0f, 0.0f, 0.0f);
-  GPU_clear(GPU_COLOR_BIT);
 
   GPU_framebuffer_bind(framebuffer_overlay);
 
@@ -661,8 +659,7 @@ static void image_main_region_draw(const bContext *C, ARegion *region)
   UI_GetThemeColor3fv(TH_BACK, col);
   srgb_to_linearrgb_v3_v3(col, col);
   GPU_clear_color(col[0], col[1], col[2], 1.0f);
-  GPU_clear(GPU_COLOR_BIT);
-  GPU_depth_test(false);
+  GPU_depth_test(GPU_DEPTH_NONE);
 
   image_user_refresh_scene(C, sima);
 
@@ -836,9 +833,7 @@ static void image_buttons_region_layout(const bContext *C, ARegion *region)
       break;
   }
 
-  const bool vertical = true;
-  ED_region_panels_layout_ex(
-      C, region, &region->type->paneltypes, contexts_base, -1, vertical, NULL);
+  ED_region_panels_layout_ex(C, region, &region->type->paneltypes, contexts_base, NULL);
 }
 
 static void image_buttons_region_draw(const bContext *C, ARegion *region)

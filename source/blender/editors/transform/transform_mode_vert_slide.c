@@ -390,7 +390,7 @@ void drawVertSlide(TransInfo *t)
       const int alpha_shade = -160;
       int i;
 
-      GPU_depth_test(false);
+      GPU_depth_test(GPU_DEPTH_NONE);
 
       GPU_blend(GPU_BLEND_ALPHA);
 
@@ -485,7 +485,7 @@ void drawVertSlide(TransInfo *t)
 
       GPU_matrix_pop();
 
-      GPU_depth_test(true);
+      GPU_depth_test(GPU_DEPTH_LESS_EQUAL);
     }
   }
 }
@@ -587,7 +587,9 @@ static void applyVertSlide(TransInfo *t, const int UNUSED(mval[2]))
   final = t->values[0];
 
   applySnapping(t, &final);
-  snapGridIncrement(t, &final);
+  if (!validSnap(t)) {
+    transform_snap_increment(t, &final);
+  }
 
   /* only do this so out of range values are not displayed */
   if (is_constrained) {

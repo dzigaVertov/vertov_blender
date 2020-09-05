@@ -682,7 +682,23 @@ class VIEW3D_HT_header(Header):
             # Select mode for Editing
             if gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.prop(tool_settings, "gpencil_selectmode_edit", text="", expand=True)
+                row.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='POINT')
+                row.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='STROKE')
+
+                subrow = row.row(align=True)
+                subrow.enabled = not gpd.use_curve_edit
+                subrow.prop_enum(tool_settings, "gpencil_selectmode_edit", text="", value='SEGMENT')
+
+                # Curve edit submode
+                row = layout.row(align=True)
+                row.prop(gpd, "use_curve_edit", text="",
+                         icon='IPO_BEZIER')
+                sub = row.row(align=True)
+                sub.active = gpd.use_curve_edit
+                sub.popover(
+                    panel="VIEW3D_PT_gpencil_curve_edit",
+                    text="Curve Editing",
+                )
 
             # Select mode for Sculpt
             if gpd.is_stroke_sculpt_mode:
@@ -708,7 +724,7 @@ class VIEW3D_HT_header(Header):
                 row.prop(gpd, "use_multiedit", text="", icon='GP_MULTIFRAME_EDITING')
 
                 sub = row.row(align=True)
-                sub.active = gpd.use_multiedit
+                sub.enabled = gpd.use_multiedit
                 sub.popover(
                     panel="VIEW3D_PT_gpencil_multi_frame",
                     text="Multiframe",
@@ -920,9 +936,8 @@ class ShowHideMenu:
         layout.operator("%s.hide" % self._operator_name, text="Hide Unselected").unselected = True
 
 
-# Standard transforms which apply to all cases
-# NOTE: this doesn't seem to be able to be used directly
-class VIEW3D_MT_transform_base(Menu):
+# Standard transforms which apply to all cases (mix-in class, not used directly).
+class VIEW3D_MT_transform_base:
     bl_label = "Transform"
     bl_category = "View"
 
@@ -949,7 +964,7 @@ class VIEW3D_MT_transform_base(Menu):
 
 
 # Generic transform menu - geometry types
-class VIEW3D_MT_transform(VIEW3D_MT_transform_base):
+class VIEW3D_MT_transform(VIEW3D_MT_transform_base, Menu):
     def draw(self, context):
         # base menu
         VIEW3D_MT_transform_base.draw(self, context)
@@ -969,7 +984,7 @@ class VIEW3D_MT_transform(VIEW3D_MT_transform_base):
 
 
 # Object-specific extensions to Transform menu
-class VIEW3D_MT_transform_object(VIEW3D_MT_transform_base):
+class VIEW3D_MT_transform_object(VIEW3D_MT_transform_base, Menu):
     def draw(self, context):
         layout = self.layout
 
@@ -1001,7 +1016,7 @@ class VIEW3D_MT_transform_object(VIEW3D_MT_transform_base):
 
 
 # Armature EditMode extensions to Transform menu
-class VIEW3D_MT_transform_armature(VIEW3D_MT_transform_base):
+class VIEW3D_MT_transform_armature(VIEW3D_MT_transform_base, Menu):
     def draw(self, context):
         layout = self.layout
 
@@ -2287,6 +2302,7 @@ class VIEW3D_MT_object(Menu):
         layout.separator()
 
         layout.menu("VIEW3D_MT_object_showhide")
+        layout.menu("VIEW3D_MT_object_cleanup")
 
         layout.separator()
 
@@ -2724,6 +2740,20 @@ class VIEW3D_MT_object_showhide(Menu):
 
         layout.operator("object.hide_view_set", text="Hide Selected").unselected = False
         layout.operator("object.hide_view_set", text="Hide Unselected").unselected = True
+
+
+class VIEW3D_MT_object_cleanup(Menu):
+    bl_label = "Clean Up"
+
+    def draw(self, _context):
+        layout = self.layout
+
+        layout.operator("object.vertex_group_clean", text="Clean Vertex Group Weights").group_select_mode = 'ALL'
+        layout.operator("object.vertex_group_limit_total", text="Limit Total Vertex Groups").group_select_mode = 'ALL'
+
+        layout.separator()
+
+        layout.operator("object.material_slot_remove_unused", text="Remove Unused Material Slots")
 
 
 class VIEW3D_MT_make_single_user(Menu):
@@ -5942,7 +5972,7 @@ class VIEW3D_PT_gizmo_display(Panel):
         layout.separator()
 
         col = layout.column()
-        col.active = view.show_gizmo_context
+        col.active = view.show_gizmo and view.show_gizmo_context
         col.label(text="Object Gizmos")
         col.prop(scene.transform_orientation_slots[1], "type", text="")
         col.prop(view, "show_gizmo_object_translate", text="Move")
@@ -5953,6 +5983,7 @@ class VIEW3D_PT_gizmo_display(Panel):
 
         # Match order of object type visibility
         col = layout.column()
+        col.active = view.show_gizmo
         col.label(text="Empty")
         col.prop(view, "show_gizmo_empty_image", text="Image")
         col.prop(view, "show_gizmo_empty_force_field", text="Force Field")
@@ -6111,8 +6142,12 @@ class VIEW3D_PT_overlay_motion_tracking(Panel):
     bl_label = "Motion Tracking"
 
     def draw_header(self, context):
+        layout = self.layout
         view = context.space_data
-        self.layout.prop(view, "show_reconstruction", text=self.bl_label)
+        overlay = view.overlay
+        display_all = overlay.show_overlays
+        layout.active = display_all
+        layout.prop(view, "show_reconstruction", text=self.bl_label)
 
     def draw(self, context):
         layout = self.layout
@@ -6134,6 +6169,7 @@ class VIEW3D_PT_overlay_motion_tracking(Panel):
             sub.prop(view, "show_bundle_names", text="Marker Names")
 
             col = layout.column()
+            col.active = display_all
             col.label(text="Tracks:")
             row = col.row(align=True)
             row.prop(view, "tracks_display_type", text="")
@@ -6480,7 +6516,7 @@ class VIEW3D_PT_overlay_vertex_paint(Panel):
         col = layout.column()
         col.active = display_all
 
-        col.prop(overlay, "vertex_paint_mode_opacity", text="Opacity")
+        col.prop(overlay, "vertex_paint_mode_opacity")
         col.prop(overlay, "show_paint_wire")
 
 
@@ -6569,6 +6605,8 @@ class VIEW3D_PT_proportional_edit(Panel):
         layout = self.layout
         tool_settings = context.tool_settings
         col = layout.column()
+        col.active = (tool_settings.use_proportional_edit_objects if context.mode == 'OBJECT'
+            else tool_settings.use_proportional_edit)
 
         if context.mode != 'OBJECT':
             col.prop(tool_settings, "use_proportional_connected")
@@ -6752,6 +6790,12 @@ class VIEW3D_PT_overlay_gpencil_options(Panel):
 
             layout.prop(overlay, "vertex_opacity", text="Vertex Opacity", slider=True)
 
+            # Handles for Curve Edit
+            if context.object.mode == 'EDIT_GPENCIL':
+                gpd = context.object.data
+                if gpd.use_curve_edit:
+                    layout.prop(overlay, "display_handle", text="Handles")
+
         if context.object.mode in {'PAINT_GPENCIL', 'VERTEX_GPENCIL'}:
             layout.label(text="Vertex Paint")
             row = layout.row()
@@ -6913,6 +6957,24 @@ class VIEW3D_PT_gpencil_multi_frame(Panel):
         # Falloff curve
         if gpd.use_multiedit and settings.use_multiframe_falloff:
             layout.template_curve_mapping(settings, "multiframe_falloff_curve", brush=True)
+
+
+# Grease Pencil Object - Curve Editing tools
+class VIEW3D_PT_gpencil_curve_edit(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Curve Editing"
+
+    def draw(self, context):
+        gpd = context.gpencil_data
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(gpd, "edit_curve_resolution")
+        col.prop(gpd, "curve_edit_threshold")
+        col.prop(gpd, "curve_edit_corner_angle")
+        col.prop(gpd, "use_adaptive_curve_resolution")
 
 
 class VIEW3D_MT_gpencil_edit_context_menu(Menu):
@@ -7376,7 +7438,6 @@ classes = (
     VIEW3D_HT_tool_header,
     VIEW3D_MT_editor_menus,
     VIEW3D_MT_transform,
-    VIEW3D_MT_transform_base,
     VIEW3D_MT_transform_object,
     VIEW3D_MT_transform_armature,
     VIEW3D_MT_mirror,
@@ -7439,6 +7500,7 @@ classes = (
     VIEW3D_MT_object_constraints,
     VIEW3D_MT_object_quick_effects,
     VIEW3D_MT_object_showhide,
+    VIEW3D_MT_object_cleanup,
     VIEW3D_MT_make_single_user,
     VIEW3D_MT_make_links,
     VIEW3D_MT_brush_paint_modes,
@@ -7553,6 +7615,7 @@ classes = (
     VIEW3D_PT_grease_pencil,
     VIEW3D_PT_annotation_onion,
     VIEW3D_PT_gpencil_multi_frame,
+    VIEW3D_PT_gpencil_curve_edit,
     VIEW3D_PT_quad_view,
     VIEW3D_PT_view3d_stereo,
     VIEW3D_PT_shading,

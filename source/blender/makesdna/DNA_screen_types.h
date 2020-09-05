@@ -133,8 +133,7 @@ typedef struct Panel_Runtime {
   /* Applied to Panel.ofsx, but saved separately so we can track changes between redraws. */
   int region_ofsx;
 
-  /* For instanced panels: Index of the list item the panel corresponds to. */
-  int list_index;
+  char _pad[4];
 
   /**
    * Pointer for storing which data the panel corresponds to.
@@ -534,9 +533,8 @@ typedef enum eScreen_Redraws_Flag {
 /** #Panel.flag */
 enum {
   PNL_SELECT = (1 << 0),
-  PNL_CLOSEDX = (1 << 1),
-  PNL_CLOSEDY = (1 << 2),
-  PNL_CLOSED = (PNL_CLOSEDX | PNL_CLOSEDY),
+  PNL_UNUSED_1 = (1 << 1), /* Cleared */
+  PNL_CLOSED = (1 << 2),
   /* PNL_TABBED = (1 << 3), */  /*UNUSED*/
   /* PNL_OVERLAP = (1 << 4), */ /*UNUSED*/
   PNL_PIN = (1 << 5),

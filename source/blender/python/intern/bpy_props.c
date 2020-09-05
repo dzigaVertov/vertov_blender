@@ -93,13 +93,13 @@ static const EnumPropertyItem property_flag_override_items[] = {
      "LIBRARY_OVERRIDABLE",
      0,
      "Library Overridable",
-     "Allow that property to be overridable from library linked data-blocks"},
+     "Make that property editable in library overrides of linked data-blocks"},
     {0, NULL, 0, NULL, NULL},
 };
 
 #define BPY_PROPDEF_OPTIONS_OVERRIDE_DOC \
-  "   :arg options: Enumerator in ['LIBRARY_OVERRIDE'].\n" \
-  "   :type options: set\n"
+  "   :arg override: Enumerator in ['LIBRARY_OVERRIDABLE'].\n" \
+  "   :type override: set\n"
 
 static const EnumPropertyItem property_flag_override_collection_items[] = {
     {PROPOVERRIDE_OVERRIDABLE_LIBRARY,
@@ -116,8 +116,8 @@ static const EnumPropertyItem property_flag_override_collection_items[] = {
 };
 
 #define BPY_PROPDEF_OPTIONS_OVERRIDE_COLLECTION_DOC \
-  "   :arg options: Enumerator in ['LIBRARY_OVERRIDE', 'NO_PROPERTY_NAME'].\n" \
-  "   :type options: set\n"
+  "   :arg override: Enumerator in ['LIBRARY_OVERRIDABLE', 'NO_PROPERTY_NAME'].\n" \
+  "   :type override: set\n"
 
 /* subtypes */
 /* XXX Keep in sync with rna_rna.c's rna_enum_property_subtype_items ???
@@ -351,7 +351,7 @@ static bool bpy_prop_boolean_get_cb(struct PointerRNA *ptr, struct PropertyRNA *
     value = false;
   }
   else {
-    int value_i = PyC_Long_AsBool(ret);
+    const int value_i = PyC_Long_AsBool(ret);
 
     if (value_i == -1 && PyErr_Occurred()) {
       PyC_Err_PrintWithFunc(py_func);
@@ -443,7 +443,7 @@ static bool bpy_prop_poll_cb(struct PointerRNA *self,
   PyObject *ret;
   bool result;
   const int is_write_ok = pyrna_write_check();
-  PyGILState_STATE gilstate = PyGILState_Ensure();
+  const PyGILState_STATE gilstate = PyGILState_Ensure();
 
   BLI_assert(self != NULL);
 
@@ -560,7 +560,7 @@ static void bpy_prop_boolean_array_set_cb(struct PointerRNA *ptr,
   PyGILState_STATE gilstate;
   bool use_gil;
   const bool is_write_ok = pyrna_write_check();
-  int len = RNA_property_array_length(ptr, prop);
+  const int len = RNA_property_array_length(ptr, prop);
 
   BLI_assert(py_data != NULL);
 
@@ -804,7 +804,7 @@ static void bpy_prop_int_array_set_cb(struct PointerRNA *ptr,
   PyGILState_STATE gilstate;
   bool use_gil;
   const bool is_write_ok = pyrna_write_check();
-  int len = RNA_property_array_length(ptr, prop);
+  const int len = RNA_property_array_length(ptr, prop);
 
   BLI_assert(py_data != NULL);
 
@@ -1048,7 +1048,7 @@ static void bpy_prop_float_array_set_cb(struct PointerRNA *ptr,
   PyGILState_STATE gilstate;
   bool use_gil;
   const bool is_write_ok = pyrna_write_check();
-  int len = RNA_property_array_length(ptr, prop);
+  const int len = RNA_property_array_length(ptr, prop);
 
   BLI_assert(py_data != NULL);
 
