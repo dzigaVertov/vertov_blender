@@ -31,6 +31,7 @@ struct Main;
 struct Object;
 struct Scene;
 struct bGPdata;
+struct bGPDlayer;
 struct bGPDstroke;
 struct bGPDcurve;
 
