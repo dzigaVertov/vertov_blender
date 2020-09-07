@@ -53,7 +53,7 @@ void BKE_gpencil_stroke_boundingbox_calc(struct bGPDstroke *gps);
 void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);
 void BKE_gpencil_stroke_simplify_adaptive(struct bGPdata *gpd,
                                           struct bGPDstroke *gps,
-                                          float factor);
+                                          float epsilon);
 void BKE_gpencil_stroke_simplify_fixed(struct bGPdata *gpd, struct bGPDstroke *gps);
 void BKE_gpencil_stroke_subdivide(struct bGPdata *gpd,
                                   struct bGPDstroke *gps,
