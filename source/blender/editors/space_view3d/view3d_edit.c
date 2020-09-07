@@ -46,6 +46,7 @@
 #include "BKE_camera.h"
 #include "BKE_context.h"
 #include "BKE_font.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
 #include "BKE_layer.h"
 #include "BKE_lib_id.h"
@@ -3054,8 +3055,11 @@ static int viewselected_exec(bContext *C, wmOperator *op)
     const bool is_curve_edit = GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd_eval);
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
       /* we're only interested in selected points here... */
-      if (((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) ||
-          (is_curve_edit && gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_SELECT)) {
+      if (is_curve_edit && gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_SELECT) {
+        BKE_gpencil_stroke_editcurve_sync_selection(gps, gps->editcurve);
+        ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
+      }
+      else if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
         ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
       }
     }
