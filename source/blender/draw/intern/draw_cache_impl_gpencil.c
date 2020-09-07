@@ -877,7 +877,7 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
     if (vert_len > 0) {
 
       GPU_vertbuf_data_alloc(cache->edit_curve_vbo, vert_len);
-      iter.verts = (gpEditCurveVert *)cache->edit_curve_vbo->data;
+      iter.verts = (gpEditCurveVert *)GPU_vertbuf_get_data(cache->edit_curve_vbo);
 
       /* Fill buffers with data. */
       BKE_gpencil_visible_stroke_iter(
