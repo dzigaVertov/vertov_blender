@@ -12,36 +12,35 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
+ * The Original Code is Copyright (C) 2016 by Mike Erwin.
+ * All rights reserved.
  */
 
 /** \file
  * \ingroup gpu
+ *
+ * GPU vertex buffer
  */
 
 #pragma once
 
-namespace blender {
-namespace gpu {
-namespace debug {
+#include "GPU_vertex_buffer.h"
 
-/* Enabled on MacOS by default since there is no support for debug callbacks. */
-#if defined(DEBUG) && defined(__APPLE__)
-#  define GL_CHECK_ERROR(info) debug::check_gl_error(info)
-#else
-#  define GL_CHECK_ERROR(info)
-#endif
-
-#ifdef DEBUG
-#  define GL_CHECK_RESOURCES(info) debug::check_gl_resources(info)
-#else
-#  define GL_CHECK_RESOURCES(info)
-#endif
-
-void raise_gl_error(const char *info);
-void check_gl_error(const char *info);
-void check_gl_resources(const char *info);
-void init_gl_callbacks(void);
-
-}  // namespace debug
-}  // namespace gpu
-}  // namespace blender
+struct GPUVertBuf {
+  GPUVertFormat format;
+  /** Number of verts we want to draw. */
+  uint vertex_len;
+  /** Number of verts data. */
+  uint vertex_alloc;
+  /** 0 indicates not yet allocated. */
+  uint32_t vbo_id;
+  /** Usage hint for GL optimisation. */
+  GPUUsageType usage;
+  /** Status flag. */
+  GPUVertBufStatus flag;
+  /** This counter will only avoid freeing the GPUVertBuf, not the data. */
+  char handle_refcount;
+  /** NULL indicates data in VRAM (unmapped) */
+  uchar *data;
+};
