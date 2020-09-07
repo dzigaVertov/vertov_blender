@@ -3051,9 +3051,11 @@ static int viewselected_exec(bContext *C, wmOperator *op)
   }
 
   if (is_gp_edit) {
+    const bool is_curve_edit = GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd_eval);
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
       /* we're only interested in selected points here... */
-      if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
+      if (((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) ||
+          (is_curve_edit && gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_SELECT)) {
         ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
       }
     }
