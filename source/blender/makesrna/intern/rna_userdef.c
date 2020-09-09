@@ -188,7 +188,7 @@ static const EnumPropertyItem rna_enum_userdef_viewport_aa_items[] = {
 
 #  include "DEG_depsgraph.h"
 
-#  include "GPU_extensions.h"
+#  include "GPU_capabilities.h"
 #  include "GPU_select.h"
 #  include "GPU_texture.h"
 
@@ -6117,6 +6117,10 @@ static void rna_def_userdef_experimental(BlenderRNA *brna)
   prop = RNA_def_property(srna, "use_sculpt_vertex_colors", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "use_sculpt_vertex_colors", 1);
   RNA_def_property_ui_text(prop, "Sculpt Vertex Colors", "Use the new Vertex Painting system");
+
+  prop = RNA_def_property(srna, "use_tools_missing_icons", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "use_tools_missing_icons", 1);
+  RNA_def_property_ui_text(prop, "Tools with Missing Icons", "Show tools with missing icons");
 }
 
 static void rna_def_userdef_addon_collection(BlenderRNA *brna, PropertyRNA *cprop)
