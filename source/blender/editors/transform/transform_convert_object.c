@@ -400,12 +400,14 @@ static void set_trans_object_base_flags(TransInfo *t)
 
 static bool mark_children(Object *ob)
 {
-  if (ob->flag & (SELECT | BA_TRANSFORM_CHILD)) {
+  /* printf("name: %s\tob->flag: %d\n",ob->id.name, ob->flag ); */
+  if (ob->base_flag & (BASE_SELECTED | BA_TRANSFORM_CHILD)) {
     return true;
   }
 
   if (ob->parent) {
     if (mark_children(ob->parent)) {
+      printf("marking that motherfucka...");
       ob->flag |= BA_TRANSFORM_CHILD;
       return true;
     }
@@ -427,10 +429,12 @@ static int count_proportional_objects(TransInfo *t)
   /* Rotations around local centers are allowed to propagate, so we take all objects. */
   if (!((t->around == V3D_AROUND_LOCAL_ORIGINS) &&
         (t->mode == TFM_ROTATION || t->mode == TFM_TRACKBALL))) {
+    
     /* Mark all parents. */
     LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
       if (BASE_SELECTED_EDITABLE(v3d, base) && BASE_SELECTABLE(v3d, base)) {
         Object *parent = base->object->parent;
+	
         /* flag all parents */
         while (parent != NULL) {
           parent->flag |= BA_TRANSFORM_PARENT;
@@ -440,6 +444,10 @@ static int count_proportional_objects(TransInfo *t)
     }
     /* Mark all children. */
     LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
+      printf("object_name: %s\n", base->object->id.name);
+      printf("base flag selected: %d\n", base->flag & BASE_SELECTED);
+      printf("object base_flag selected: %d\n", base->object->base_flag & BASE_SELECTED);
+      printf("object flag selected: %d\n\n", base->object->flag);
       /* all base not already selected or marked that is editable */
       if ((base->object->flag & (BA_TRANSFORM_CHILD | BA_TRANSFORM_PARENT)) == 0 &&
           (base->flag & BASE_SELECTED) == 0 &&
@@ -448,6 +456,7 @@ static int count_proportional_objects(TransInfo *t)
       }
     }
   }
+  
   /* Flush changed flags to all dependencies. */
   LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
     Object *ob = base->object;
@@ -457,6 +466,7 @@ static int count_proportional_objects(TransInfo *t)
     if ((ob->flag & (BA_TRANSFORM_CHILD | BA_TRANSFORM_PARENT)) == 0 &&
         (base->flag & BASE_SELECTED) == 0 &&
         (BASE_EDITABLE(v3d, base) && BASE_SELECTABLE(v3d, base))) {
+
       flush_trans_object_base_deps_flag(depsgraph, ob);
       total += 1;
     }

@@ -1092,6 +1092,8 @@ void createTransData(bContext *C, TransInfo *t)
     }
   }
   else if (ob && (ob->mode & OB_MODE_POSE)) {
+    /* Adding proportional editing to pose mode */
+    t->flag |= T_PROP_EDIT;
     /* XXX this is currently limited to active armature only... */
 
     /* XXX active-layer checking isn't done
@@ -1161,8 +1163,8 @@ void createTransData(bContext *C, TransInfo *t)
       break;
     case TC_POSE:
       createTransPose(t);
-      /* Disable PET, its not usable in pose mode yet [#32444] */
-      init_prop_edit = false;
+      /* Enable PET, it was disbled: its not usable in pose mode yet [#32444] */
+      init_prop_edit = true;
       break;
     case TC_ARMATURE_VERTS:
       createTransArmatureVerts(t);

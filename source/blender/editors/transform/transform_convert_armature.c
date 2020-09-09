@@ -571,7 +571,12 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
   copy_v3_v3(td->center, vec);
 
   td->ob = ob;
-  td->flag = TD_SELECTED;
+
+  /* This is to add proportional editing */
+  if((bone->flag & BONE_SELECTED) != 0 ){
+      td->flag = TD_SELECTED;    
+  }
+
   if (bone->flag & BONE_HINGE_CHILD_TRANSFORM) {
     td->flag |= TD_NOCENTER;
   }
@@ -1517,7 +1522,7 @@ int transform_convert_pose_transflags_update(Object *ob,
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     bone = pchan->bone;
     if (PBONE_VISIBLE(arm, bone)) {
-      if ((bone->flag & BONE_SELECTED)) {
+      if (true){ //((bone->flag & BONE_SELECTED)) {
         bone->flag |= BONE_TRANSFORM;
       }
       else {
