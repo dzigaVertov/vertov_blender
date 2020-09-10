@@ -1116,6 +1116,27 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
   RNA_def_property_ui_text(
       prop, "B-Bone End Handle", "Bone that serves as the end handle for the B-Bone curve");
+
+  /* gomez poser flags */
+  prop = RNA_def_property(srna, "poser_control", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_CONTROL);
+  RNA_def_property_ui_text(prop, "Poser Control Bone", "Bone controls the pose of a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+  prop = RNA_def_property(srna, "poser_handle", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_HANDLE);
+  RNA_def_property_ui_text(prop, "Poser Handle Bone", "Bezier handle for the pose of a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+  prop = RNA_def_property(srna, "poser_root", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_ROOT);
+  RNA_def_property_ui_text(prop, "Poser Root Bone", "Pose Position of a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+  prop = RNA_def_property(srna, "poser_deform", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_DEFORM);
+  RNA_def_property_ui_text(prop, "Poser Deform Bone", "Deform bone for a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
 }
 
 /* err... bones should not be directly edited (only editbones should be...) */

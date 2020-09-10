@@ -59,6 +59,7 @@ typedef struct Bone {
 
   int flag;
 
+  
   char inherit_scale_mode;
   char _pad[7];
 
@@ -99,6 +100,11 @@ typedef struct Bone {
   /** Next/prev bones to use as handle references when calculating bbones (optional). */
   struct Bone *bbone_prev;
   struct Bone *bbone_next;
+
+  /** flag for gomezposer */
+  int poser_flag;
+  char _pad2[4];
+
 } Bone;
 
 typedef struct bArmature {
@@ -198,6 +204,16 @@ typedef enum eArmature_PathFlag {
   ARM_PATH_KFNOS = (1 << 4),
 } eArmature_PathFlag;
 #endif
+
+/* bone->poser_flag */
+typedef enum eBone_Poser_flag {			       				
+				IS_CONTROL = (1<<0),
+				IS_HANDLE = (1<<1),
+				IS_ROOT = (1<<2),
+				IS_DEFORM = (1<<3),
+				
+				
+} eBone_Poser_flag;
 
 /* bone->flag */
 typedef enum eBone_Flag {

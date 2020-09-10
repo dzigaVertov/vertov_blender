@@ -116,6 +116,9 @@ typedef struct EditBone {
     void *p;
     int i;
   } temp;
+
+  /*gomez poser flag  TODO: check if this is necessary*/
+  int poser_flag;
 } EditBone;
 
 #define BONESEL_ROOT (1u << 29)

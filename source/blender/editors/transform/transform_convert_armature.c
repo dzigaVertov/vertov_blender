@@ -1539,18 +1539,19 @@ int transform_convert_pose_transflags_update(Object *ob,
 
   /* make sure no bone can be transformed when a parent is transformed */
   /* since pchans are depsgraph sorted, the parents are in beginning of list */
-  if (!ELEM(mode, TFM_BONESIZE, TFM_BONE_ENVELOPE_DIST)) {
-    for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
-      bone = pchan->bone;
-      if (bone->flag & BONE_TRANSFORM) {
-        bone_children_clear_transflag(mode, around, &bone->childbase);
-      }
-    }
-  }
+  /* if (!ELEM(mode, TFM_BONESIZE, TFM_BONE_ENVELOPE_DIST)) { */
+  /*   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) { */
+  /*     bone = pchan->bone; */
+  /*     if (bone->flag & BONE_TRANSFORM) { */
+  /*       bone_children_clear_transflag(mode, around, &bone->childbase); */
+  /*     } */
+  /*   } */
+  /* } */
   /* now count, and check if we have autoIK or have to switch from translate to rotate */
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     bone = pchan->bone;
     if (bone->flag & BONE_TRANSFORM) {
+      
       total++;
 
       if (has_translate_rotate != NULL) {
@@ -1574,6 +1575,7 @@ int transform_convert_pose_transflags_update(Object *ob,
         }
       }
     }
+    
   }
 
   return total;
