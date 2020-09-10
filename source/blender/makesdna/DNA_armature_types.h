@@ -208,9 +208,12 @@ typedef enum eArmature_PathFlag {
 /* bone->poser_flag */
 typedef enum eBone_Poser_flag {			       				
 				IS_CONTROL = (1<<0),
+				// TODO: maybe remove this one
 				IS_HANDLE = (1<<1),
 				IS_ROOT = (1<<2),
 				IS_DEFORM = (1<<3),
+				IS_HANDLE_RIGHT = (1<<4),
+				IS_HANDLE_LEFT = (1<<5),
 				
 				
 } eBone_Poser_flag;

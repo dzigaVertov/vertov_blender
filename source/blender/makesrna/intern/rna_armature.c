@@ -1124,8 +1124,18 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   RNA_def_property_update(prop, 0, "rna_Armature_update_data");
 
   prop = RNA_def_property(srna, "poser_handle", PROP_BOOLEAN, PROP_NONE);
-  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_HANDLE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_HANDLE_RIGHT | IS_HANDLE_LEFT );
   RNA_def_property_ui_text(prop, "Poser Handle Bone", "Bezier handle for the pose of a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+  prop = RNA_def_property(srna, "poser_rhandle", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_HANDLE_RIGHT );
+  RNA_def_property_ui_text(prop, "Poser Right Handle Bone", "Bezier right handle for the pose of a Grease Pencil Stroke");
+  RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+  prop = RNA_def_property(srna, "poser_lhandle", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_HANDLE_LEFT );
+  RNA_def_property_ui_text(prop, "Poser Left Handle Bone", "Bezier left handle for the pose of a Grease Pencil Stroke");
   RNA_def_property_update(prop, 0, "rna_Armature_update_data");
 
   prop = RNA_def_property(srna, "poser_root", PROP_BOOLEAN, PROP_NONE);
