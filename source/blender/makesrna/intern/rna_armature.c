@@ -20,6 +20,7 @@
 
 #include <stdlib.h>
 
+
 #include "BLI_math.h"
 
 #include "RNA_access.h"
@@ -351,6 +352,41 @@ static void rna_Bone_use_inherit_scale_set(PointerRNA *ptr, bool value)
 {
   rna_use_inherit_scale_set(&((Bone *)ptr->data)->inherit_scale_mode, value);
 }
+
+/* static bool rna_EditBone_poser_root_get(PointerRNA *ptr){ */
+/*   EditBone *ebone = (EditBone *)(ptr->data); */
+/*   printf("aquí estamos editbone get\n"); */
+/*   return ((ebone->poser_flag & IS_ROOT) != 0);   */
+/* } */
+
+/* static bool rna_Bone_poser_root_get(PointerRNA *ptr){ */
+/*   Bone *bone = (Bone *)(ptr->data); */
+/*   printf("aquí estamos bone get\n"); */
+/*   return ((bone->poser_flag & IS_ROOT) != 0);   */
+/* } */
+
+/* static void rna_EditBone_poser_root_set(PointerRNA *ptr, bool value){ */
+/*   EditBone *ebone = (EditBone *)(ptr->data); */
+  
+/*   if (value){ */
+/*     ebone->poser_flag |= IS_ROOT; */
+/*     printf("aquí estamos edit seteando positivo\n"); */
+/*   } else { */
+/*     ebone->poser_flag &= ~IS_ROOT; */
+/*     printf("aquí estamos edit seteando negativo\n"); */
+/*   } */
+/* } */
+
+/* static void rna_Bone_poser_root_set(PointerRNA *ptr, bool value){ */
+/*   Bone *bone = (Bone *)(ptr->data); */
+/*   printf("aquí estamos bone set\n"); */
+/*   if (value){ */
+/*     bone->poser_flag |= IS_ROOT;     */
+/*   } else { */
+/*     bone->poser_flag &= ~IS_ROOT; */
+/*   } */
+/* } */
+
 
 static void rna_Armature_layer_set(PointerRNA *ptr, const bool *values)
 {
@@ -1141,6 +1177,12 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
 
   prop = RNA_def_property(srna, "poser_root", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_ROOT);
+
+  /* if (editbone){ */
+  /*   RNA_def_property_boolean_funcs(prop, "rna_EditBone_poser_root_get", "rna_EditBone_poser_root_set"); */
+  /* } else { */
+  /*   RNA_def_property_boolean_funcs(prop, "rna_Bone_poser_root_get", "rna_Bone_poser_root_set"); */
+  /* }   */
   RNA_def_property_ui_text(prop, "Poser Root Bone", "Pose Position of a Grease Pencil Stroke");
   RNA_def_property_update(prop, 0, "rna_Armature_update_data");
 
