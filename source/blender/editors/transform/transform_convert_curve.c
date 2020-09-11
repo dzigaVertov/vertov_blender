@@ -111,7 +111,7 @@ void createTransCurveVerts(TransInfo *t)
       if (nu->type == CU_BEZIER) {
         for (a = 0, bezt = nu->bezt; a < nu->pntsu; a++, bezt++) {
           if (bezt->hide == 0) {
-            const int bezt_tx = bezt_select_to_transform_triple_flag(bezt, hide_handles);
+	    const int bezt_tx = bezt_select_to_transform_triple_flag(bezt, hide_handles);
             if (bezt_tx & (SEL_F1 | SEL_F2 | SEL_F3)) {
               if (bezt_tx & SEL_F1) {
                 countsel++;
@@ -147,6 +147,7 @@ void createTransCurveVerts(TransInfo *t)
       }
     }
 
+    
     /* Support other objects using PET to adjust these, unless connected is enabled. */
     if (((is_prop_edit && !is_prop_connected) ? count : countsel) == 0) {
       tc->data_len = 0;

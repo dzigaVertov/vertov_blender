@@ -722,6 +722,7 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
   td->con = pchan->constraints.first;
 }
 
+
 /**
  * When objects array is NULL, use 't->data_container' as is.
  */
@@ -749,8 +750,13 @@ void createTransPose(TransInfo *t)
     const bool mirror = ((pose->flag & POSE_MIRROR_EDIT) != 0);
 
     /* set flags and count total */
-    tc->data_len = transform_convert_pose_transflags_update(
+    if (t->flag & T_PROP_EDIT){
+      tc->data_len = set_poser_transflags(t, ob, has_translate_rotate);
+    } else {
+      tc->data_len = transform_convert_pose_transflags_update(
         ob, t->mode, t->around, has_translate_rotate);
+    }
+
 
     if (tc->data_len == 0) {
       continue;
@@ -1522,7 +1528,7 @@ int transform_convert_pose_transflags_update(Object *ob,
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     bone = pchan->bone;
     if (PBONE_VISIBLE(arm, bone)) {
-      if (true){ //((bone->flag & BONE_SELECTED)) {
+      if ((bone->flag & BONE_SELECTED)) {
         bone->flag |= BONE_TRANSFORM;
       }
       else {
@@ -1539,14 +1545,14 @@ int transform_convert_pose_transflags_update(Object *ob,
 
   /* make sure no bone can be transformed when a parent is transformed */
   /* since pchans are depsgraph sorted, the parents are in beginning of list */
-  /* if (!ELEM(mode, TFM_BONESIZE, TFM_BONE_ENVELOPE_DIST)) { */
-  /*   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) { */
-  /*     bone = pchan->bone; */
-  /*     if (bone->flag & BONE_TRANSFORM) { */
-  /*       bone_children_clear_transflag(mode, around, &bone->childbase); */
-  /*     } */
-  /*   } */
-  /* } */
+  if (!ELEM(mode, TFM_BONESIZE, TFM_BONE_ENVELOPE_DIST)) {
+    for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+      bone = pchan->bone;
+      if (bone->flag & BONE_TRANSFORM) {
+        bone_children_clear_transflag(mode, around, &bone->childbase);
+      }
+    }
+  }
   /* now count, and check if we have autoIK or have to switch from translate to rotate */
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     bone = pchan->bone;
@@ -1580,6 +1586,80 @@ int transform_convert_pose_transflags_update(Object *ob,
 
   return total;
 }
+
+
+int set_poser_transflags(TransInfo *t, Object *ob, bool has_translate_rotate[2]){
+  bArmature *arm = ob->data;
+  bPoseChannel *pchan;
+  Bone *bone;
+  int total = 0;
+  const int mode = t->mode;
+  const short around = t->around;
+  
+
+  for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+    bone = pchan->bone;
+    if (PBONE_VISIBLE(arm, bone)) {
+      if ((bone->flag & BONE_SELECTED) || (bone->poser_flag & IS_CONTROL)) {
+        bone->flag |= BONE_TRANSFORM;
+      }
+      else {
+        bone->flag &= ~BONE_TRANSFORM;
+      }
+
+      bone->flag &= ~BONE_HINGE_CHILD_TRANSFORM;
+      bone->flag &= ~BONE_TRANSFORM_CHILD;
+    }
+    else {
+      bone->flag &= ~BONE_TRANSFORM;
+    }
+  }
+
+  /* make sure no bone can be transformed when a parent is transformed */
+  /* since pchans are depsgraph sorted, the parents are in beginning of list */
+  if (!ELEM(mode, TFM_BONESIZE, TFM_BONE_ENVELOPE_DIST)) {
+    for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+      bone = pchan->bone;
+      if (bone->flag & BONE_TRANSFORM) {
+	bone_children_clear_transflag(mode, around, &bone->childbase);
+      }
+    }
+  }
+  /* now count, and check if we have autoIK or have to switch from translate to rotate */
+  for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
+    bone = pchan->bone;
+    if (bone->flag & BONE_TRANSFORM) {
+      
+      total++;
+
+      if (has_translate_rotate != NULL) {
+        if (has_targetless_ik(pchan) == NULL) {
+          if (pchan->parent && (pchan->bone->flag & BONE_CONNECTED)) {
+            if (pchan->bone->flag & BONE_HINGE_CHILD_TRANSFORM) {
+              has_translate_rotate[0] = true;
+            }
+          }
+          else {
+            if ((pchan->protectflag & OB_LOCK_LOC) != OB_LOCK_LOC) {
+              has_translate_rotate[0] = true;
+            }
+          }
+          if ((pchan->protectflag & OB_LOCK_ROT) != OB_LOCK_ROT) {
+            has_translate_rotate[1] = true;
+          }
+        }
+        else {
+          has_translate_rotate[0] = true;
+        }
+      }
+    }
+    
+  }
+
+  return total;
+}
+
+
 
 static short apply_targetless_ik(Object *ob)
 {

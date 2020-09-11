@@ -103,6 +103,8 @@ int transform_convert_pose_transflags_update(Object *ob,
                                              const int mode,
                                              const short around,
                                              bool has_translate_rotate[2]);
+int set_poser_transflags(TransInfo *t, Object *ob, bool has_translate_rotate[2]);
+
 void createTransPose(TransInfo *t);
 void createTransArmatureVerts(TransInfo *t);
 void recalcData_edit_armature(TransInfo *t);
