@@ -1600,11 +1600,16 @@ int set_poser_transflags(TransInfo *t, Object *ob, bool has_translate_rotate[2])
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     bone = pchan->bone;
     if (PBONE_VISIBLE(arm, bone)) {
-      if ((bone->flag & BONE_SELECTED) || (bone->poser_flag & IS_CONTROL)) {
+      /* TODO make sure poser_flag is updated so we can use IS_HANDLE  */
+      bool is_poser_control = (bone->poser_flag & (IS_CONTROL
+						   | IS_HANDLE_RIGHT
+						   | IS_HANDLE_LEFT )) != 0;
+      if ((bone->flag & BONE_SELECTED) || is_poser_control) { 
         bone->flag |= BONE_TRANSFORM;
       }
       else {
         bone->flag &= ~BONE_TRANSFORM;
+	printf("bone->name: %s\n", bone->name);
       }
 
       bone->flag &= ~BONE_HINGE_CHILD_TRANSFORM;
