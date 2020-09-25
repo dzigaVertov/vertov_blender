@@ -171,6 +171,7 @@ typedef enum eArmature_Flag {
   ARM_DS_EXPAND = (1 << 13),
   /** other objects are used for visualizing various states (hack for efficient updates) */
   ARM_HAS_VIZ_DEPS = (1 << 14),
+  IS_GPOSER_ARM = (1 << 15),
 } eArmature_Flag;
 
 /* armature->drawtype */

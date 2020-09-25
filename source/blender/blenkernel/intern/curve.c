@@ -3301,7 +3301,7 @@ static void calchandlesNurb_intern(Nurb *nu, eBezTriple_Flag handle_sel_flag, bo
     prev = NULL;
   }
   next = bezt + 1;
-
+  printf("ahora acá en calchandle\n");
   while (a--) {
     calchandleNurb_intern(bezt, prev, next, handle_sel_flag, 0, skip_align, 0);
     prev = bezt;
