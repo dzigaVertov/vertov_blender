@@ -1624,6 +1624,12 @@ static void rna_def_armature(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Display Bone Group Colors", "Display bone group colors");
   RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
 
+  /*GPoser flag*/
+  prop = RNA_def_property(srna, "is_gposer_armature", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "flag", IS_GPOSER_ARM);
+  RNA_def_property_ui_text(prop, "Gposer armature", "Set as Gposer armature");
+  RNA_def_property_update(prop, 0, "rna_Armature_redraw_data");
+
   prop = RNA_def_property(srna, "is_editmode", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_funcs(prop, "rna_Armature_is_editmode_get", NULL);
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);

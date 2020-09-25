@@ -101,7 +101,7 @@ typedef struct Bone {
   struct Bone *bbone_prev;
   struct Bone *bbone_next;
 
-  /** flag for gomezposer */
+  /** flag for Gposer */
   int poser_flag;
   char _pad2[4];
 
