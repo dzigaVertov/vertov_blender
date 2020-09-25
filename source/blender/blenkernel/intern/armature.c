@@ -2353,6 +2353,7 @@ void BKE_pchan_rebuild_bbone_handles(bPose *pose, bPoseChannel *pchan)
   pchan->bbone_next = pose_channel_find_bone(pose, pchan->bone->bbone_next);
 }
 
+
 /**
  * Only after leave editmode, duplicating, validating older files, library syncing.
  *

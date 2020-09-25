@@ -541,6 +541,7 @@ static void rna_Bone_bbone_handle_update(Main *bmain, Scene *scene, PointerRNA *
   rna_Armature_dependency_update(bmain, scene, ptr);
 }
 
+
 static PointerRNA rna_EditBone_bbone_prev_get(PointerRNA *ptr)
 {
   EditBone *data = (EditBone *)(ptr->data);
@@ -605,7 +606,34 @@ static void rna_Bone_bbone_next_set(PointerRNA *ptr,
   }
 }
 
-/*   */
+/* Gposer handles  */
+static PointerRNA rna_EditBone_gposer_lhandle_get(PointerRNA *ptr)
+{
+  EditBone * data = (EditBone *)(ptr->data);
+  return rna_pointer_inherit_refine(ptr, &RNA_EditBone, data->gp_lhandle);
+}
+
+static void rna_Bone_gposer_lhandle_set(PointerRNA *ptr,
+					PointerRNA value,
+					struct ReportList *UNUSED(reports))
+{
+  Bone *bone = (Bone *)ptr->data;
+  Bone *lhandle = (Bone *)value.data;
+
+  bone->gp_lhandle = lhandle;  
+}
+
+
+static void rna_EditBone_gposer_lhandle_set(PointerRNA *ptr,
+						  PointerRNA value,
+						  struct ReportList *UNUSED(reports))
+{
+  EditBone *bone = (EditBone *)ptr->data;
+  EditBone *lhandle = (EditBone *)value.data;
+
+  bone->gp_lhandle = lhandle;
+
+}
 
 static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
@@ -1122,8 +1150,8 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
       prop, "B-Bone End Handle", "Bone that serves as the end handle for the B-Bone curve");
 
   /* Gposer handles */
-  prop = RNA_def_property(srna, "gposer_lhandle", PROP_POINTER, PROP_NONE);
-  RNA_def_property_pointer_sdna(prop, NULL, "gposer_lhandle");
+  prop = RNA_def_property(srna, "gp_lhandle", PROP_POINTER, PROP_NONE);
+  RNA_def_property_pointer_sdna(prop, NULL, "gp_lhandle");
   RNA_def_property_struct_type(prop, editbone ? "EditBone" : "Bone");
   if (editbone) {
     RNA_def_property_pointer_funcs(				   
@@ -1132,8 +1160,12 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   }
   else {
     RNA_def_property_pointer_funcs(prop, NULL,  "rna_Bone_gposer_lhandle_set", NULL, NULL);
-    RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update");
+    /* RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update"); */
   }
+  RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
+  RNA_def_property_ui_text(
+      prop, "Gposer Handle", "Bone that serves as bezier handle for gposer");
+
   
   
   /* Gposer flags */
@@ -1161,11 +1193,6 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   prop = RNA_def_property(srna, "poser_root", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_ROOT);
 
-  /* if (editbone){ */
-  /*   RNA_def_property_boolean_funcs(prop, "rna_EditBone_poser_root_get", "rna_EditBone_poser_root_set"); */
-  /* } else { */
-  /*   RNA_def_property_boolean_funcs(prop, "rna_Bone_poser_root_get", "rna_Bone_poser_root_set"); */
-  /* }   */
   RNA_def_property_ui_text(prop, "Poser Root Bone", "Pose Position of a Grease Pencil Stroke");
   RNA_def_property_update(prop, 0, "rna_Armature_update_data");
 

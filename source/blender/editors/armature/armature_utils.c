@@ -603,6 +603,10 @@ EditBone *make_boneList(ListBase *edbo, ListBase *bones, struct Bone *actBone)
     /* Convert custom B-Bone handle links. */
     ebone->bbone_prev = find_ebone_link(edbo, bone->bbone_prev);
     ebone->bbone_next = find_ebone_link(edbo, bone->bbone_next);
+
+    /* Convert Gposer handle links. */
+    ebone->gp_lhandle = find_ebone_link(edbo, bone->gp_lhandle);
+    ebone->gp_rhandle = find_ebone_link(edbo, bone->gp_rhandle);
   }
 
   return active;
@@ -734,6 +738,7 @@ void ED_armature_from_edit(Main *bmain, bArmature *arm)
     newBone->flag = eBone->flag;
     newBone->inherit_scale_mode = eBone->inherit_scale_mode;
     newBone->poser_flag = eBone->poser_flag;
+    
 
     if (eBone == arm->act_edbone) {
       /* don't change active selection, this messes up separate which uses
@@ -799,6 +804,16 @@ void ED_armature_from_edit(Main *bmain, bArmature *arm)
     if (eBone->bbone_next) {
       newBone->bbone_next = eBone->bbone_next->temp.bone;
     }
+
+    /* Also transfer Gposer handles. */
+    if (eBone->gp_lhandle) {
+      newBone->gp_lhandle = eBone->gp_lhandle->temp.bone;
+    }
+    if (eBone->gp_rhandle) {
+      newBone->gp_rhandle = eBone->gp_rhandle->temp.bone;
+    }
+
+    
   }
 
   /* Finalize definition of restpose data (roll, bone_mat, arm_mat, head/tail...). */

@@ -117,8 +117,12 @@ typedef struct EditBone {
     int i;
   } temp;
 
-  /*gomez poser flag  TODO: check if this is necessary*/
+  /*gomez poser flag */
   int poser_flag;
+  /** handle bones for Gposer */
+  /* char _pad2[4]; */
+  struct EditBone *gp_lhandle;
+  struct EditBone *gp_rhandle;
 } EditBone;
 
 #define BONESEL_ROOT (1u << 29)

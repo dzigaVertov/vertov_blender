@@ -356,7 +356,7 @@ static void applyTranslation(TransInfo *t, const int UNUSED(mval[2]))
 {
   char str[UI_MAX_DRAW_STR];
   float global_dir[3];
-  printf("ahora acá en apply\n");
+
   if (t->flag & T_INPUT_IS_VALUES_FINAL) {
     mul_v3_m3v3(global_dir, t->spacemtx, t->values);
   }
