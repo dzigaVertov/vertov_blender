@@ -103,7 +103,11 @@ typedef struct Bone {
 
   /** flag for Gposer */
   int poser_flag;
+  /** handle bones for Gposer */
   char _pad2[4];
+  struct Bone *gp_lhandle;
+  struct Bone *gp_rhandle;
+  
 
 } Bone;
 

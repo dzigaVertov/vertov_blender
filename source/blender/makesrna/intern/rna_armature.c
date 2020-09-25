@@ -353,40 +353,6 @@ static void rna_Bone_use_inherit_scale_set(PointerRNA *ptr, bool value)
   rna_use_inherit_scale_set(&((Bone *)ptr->data)->inherit_scale_mode, value);
 }
 
-/* static bool rna_EditBone_poser_root_get(PointerRNA *ptr){ */
-/*   EditBone *ebone = (EditBone *)(ptr->data); */
-/*   printf("aquí estamos editbone get\n"); */
-/*   return ((ebone->poser_flag & IS_ROOT) != 0);   */
-/* } */
-
-/* static bool rna_Bone_poser_root_get(PointerRNA *ptr){ */
-/*   Bone *bone = (Bone *)(ptr->data); */
-/*   printf("aquí estamos bone get\n"); */
-/*   return ((bone->poser_flag & IS_ROOT) != 0);   */
-/* } */
-
-/* static void rna_EditBone_poser_root_set(PointerRNA *ptr, bool value){ */
-/*   EditBone *ebone = (EditBone *)(ptr->data); */
-  
-/*   if (value){ */
-/*     ebone->poser_flag |= IS_ROOT; */
-/*     printf("aquí estamos edit seteando positivo\n"); */
-/*   } else { */
-/*     ebone->poser_flag &= ~IS_ROOT; */
-/*     printf("aquí estamos edit seteando negativo\n"); */
-/*   } */
-/* } */
-
-/* static void rna_Bone_poser_root_set(PointerRNA *ptr, bool value){ */
-/*   Bone *bone = (Bone *)(ptr->data); */
-/*   printf("aquí estamos bone set\n"); */
-/*   if (value){ */
-/*     bone->poser_flag |= IS_ROOT;     */
-/*   } else { */
-/*     bone->poser_flag &= ~IS_ROOT; */
-/*   } */
-/* } */
-
 
 static void rna_Armature_layer_set(PointerRNA *ptr, const bool *values)
 {
@@ -638,6 +604,8 @@ static void rna_Bone_bbone_next_set(PointerRNA *ptr,
     bone->bbone_next = hbone;
   }
 }
+
+/*   */
 
 static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
@@ -1153,7 +1121,22 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   RNA_def_property_ui_text(
       prop, "B-Bone End Handle", "Bone that serves as the end handle for the B-Bone curve");
 
-  /* gomez poser flags */
+  /* Gposer handles */
+  prop = RNA_def_property(srna, "gposer_lhandle", PROP_POINTER, PROP_NONE);
+  RNA_def_property_pointer_sdna(prop, NULL, "gposer_lhandle");
+  RNA_def_property_struct_type(prop, editbone ? "EditBone" : "Bone");
+  if (editbone) {
+    RNA_def_property_pointer_funcs(				   
+       prop, "rna_EditBone_gposer_lhandle_get", "rna_EditBone_gposer_lhandle_set", NULL, NULL);
+    RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+  }
+  else {
+    RNA_def_property_pointer_funcs(prop, NULL,  "rna_Bone_gposer_lhandle_set", NULL, NULL);
+    RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update");
+  }
+  
+  
+  /* Gposer flags */
   prop = RNA_def_property(srna, "poser_control", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "poser_flag", IS_CONTROL);
   RNA_def_property_ui_text(prop, "Poser Control Bone", "Bone controls the pose of a Grease Pencil Stroke");
