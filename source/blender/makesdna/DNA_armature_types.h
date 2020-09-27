@@ -26,6 +26,7 @@
 #include "DNA_ID.h"
 #include "DNA_defs.h"
 #include "DNA_listBase.h"
+#include "DNA_curve_types.h"
 
 struct AnimData;
 
@@ -107,6 +108,7 @@ typedef struct Bone {
   char _pad2[4];
   struct Bone *gp_lhandle;
   struct Bone *gp_rhandle;
+  struct BezTriple bezt;
   
 
 } Bone;
