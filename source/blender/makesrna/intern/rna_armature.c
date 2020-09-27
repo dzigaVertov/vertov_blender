@@ -607,6 +607,21 @@ static void rna_Bone_bbone_next_set(PointerRNA *ptr,
 }
 
 /* Gposer handles  */
+static void rna_BezTriple_ctrlpoint_get(PointerRNA *ptr, float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &(bone->bezt);
+  copy_v3_v3(values, bezti->vec[1]);
+}
+
+static void rna_BezTriple_ctrlpoint_set(PointerRNA *ptr, const float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &bone->bezt;
+  /* BezTriple *bezti = (BezTriple *)ptr->data->bezt; */
+  copy_v3_v3(bezti->vec[1], values);
+}
+
 static PointerRNA rna_EditBone_gposer_lhandle_get(PointerRNA *ptr)
 {
   EditBone * data = (EditBone *)(ptr->data);
@@ -1358,6 +1373,15 @@ static void rna_def_bone(BlenderRNA *brna)
   RNA_def_property_float_sdna(prop, NULL, "length");
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
   RNA_def_property_ui_text(prop, "Length", "Length of the bone");
+
+  prop = RNA_def_property(srna, "ctrl_position", PROP_FLOAT, PROP_TRANSLATION);
+  RNA_def_property_array(prop, 3);
+  RNA_def_property_float_funcs(
+			       prop, "rna_BezTriple_ctrlpoint_get", "rna_BezTriple_ctrlpoint_set", NULL);
+  RNA_def_property_ui_text(
+      prop, "Ctrl Position", "Location of control bone");
+  RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+  
 
   RNA_api_bone(srna);
 }

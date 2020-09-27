@@ -1477,6 +1477,28 @@ void recalcData_pose(TransInfo *t)
       DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
     }
 
+    /* Gposer update of the handles */
+    FOREACH_TRANS_DATA_CONTAINER(t, tc){
+      bArmature* arm = (bArmature *)tc->poseobj->data;
+      if ((arm->flag & IS_GPOSER_ARM) != 0){
+	TransData *td = tc->data;
+	for (int i = tc->data_len; i--;td++){
+	  bPoseChannel *pchan = td->extra;
+	  Bone *bone = pchan->bone;
+
+	  if (bone->poser_flag & IS_CONTROL){
+	    float *pos_control = bone->bezt.vec[1];
+	    copy_v3_v3(pos_control, pchan->pose_head);
+	    pos_control++;
+	    printf("este es el valor de y: %f,\n", *pos_control);
+	  }
+	}
+
+      }
+    }
+    
+    
+
     /* Update motion paths once for all transformed bones in an object. */
     GSetIterator gs_iter;
     GSET_ITER (gs_iter, motionpath_updates) {
