@@ -635,6 +635,35 @@ static void rna_EditBone_gposer_lhandle_set(PointerRNA *ptr,
 
 }
 
+static PointerRNA rna_EditBone_gposer_rhandle_get(PointerRNA *ptr)
+{
+  EditBone * data = (EditBone *)(ptr->data);
+  return rna_pointer_inherit_refine(ptr, &RNA_EditBone, data->gp_rhandle);
+
+}
+
+static void rna_Bone_gposer_rhandle_set(PointerRNA *ptr,
+					PointerRNA value,
+					struct ReportList *UNUSED(reports))
+{
+  Bone *bone = (Bone *)ptr->data;
+  Bone *rhandle = (Bone *)value.data;
+
+  bone->gp_rhandle = rhandle;  
+}
+
+
+static void rna_EditBone_gposer_rhandle_set(PointerRNA *ptr,
+						  PointerRNA value,
+						  struct ReportList *UNUSED(reports))
+{
+  EditBone *bone = (EditBone *)ptr->data;
+  EditBone *rhandle = (EditBone *)value.data;
+
+  bone->gp_rhandle = rhandle;
+
+}
+
 static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
   bArmature *arm = (bArmature *)ptr->owner_id;
@@ -1164,8 +1193,23 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   }
   RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
   RNA_def_property_ui_text(
-      prop, "Gposer Handle", "Bone that serves as bezier handle for gposer");
+      prop, "Gposer Left Handle", "Bone that serves as bezier handle for gposer");
 
+  prop = RNA_def_property(srna, "gp_rhandle", PROP_POINTER, PROP_NONE);
+  RNA_def_property_pointer_sdna(prop, NULL, "gp_rhandle");
+  RNA_def_property_struct_type(prop, editbone ? "EditBone" : "Bone");
+  if (editbone) {
+    RNA_def_property_pointer_funcs(				   
+       prop, "rna_EditBone_gposer_rhandle_get", "rna_EditBone_gposer_rhandle_set", NULL, NULL);
+    RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+  }
+  else {
+    RNA_def_property_pointer_funcs(prop, NULL,  "rna_Bone_gposer_rhandle_set", NULL, NULL);
+    /* RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update"); */
+  }
+  RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
+  RNA_def_property_ui_text(
+      prop, "Gposer Right Handle", "Bone that serves as bezier handle for gposer");
   
   
   /* Gposer flags */
