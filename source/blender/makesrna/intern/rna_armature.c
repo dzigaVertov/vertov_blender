@@ -51,6 +51,27 @@
 #  include "DEG_depsgraph.h"
 #  include "DEG_depsgraph_build.h"
 
+/* Gposer handle type funcs */
+static void rna_lhandle_type_set(PointerRNA *ptr, int value){
+  Bone *bone = (Bone *)ptr->data;
+  bone->bezt.h1 = value; 
+}
+
+static int rna_lhandle_type_get(PointerRNA *ptr){
+  Bone *bone = (Bone *)ptr->data;
+  return bone->bezt.h1;
+}
+
+static void rna_rhandle_type_set(PointerRNA *ptr, int value){
+  Bone *bone = (Bone *)ptr->data;
+  bone->bezt.h2 = value; 
+}
+
+static int rna_rhandle_type_get(PointerRNA *ptr){
+  Bone *bone = (Bone *)ptr->data;
+  return bone->bezt.h2;
+}
+
 static void rna_Armature_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
   ID *id = ptr->owner_id;
@@ -621,6 +642,35 @@ static void rna_BezTriple_ctrlpoint_set(PointerRNA *ptr, const float *values)
   /* BezTriple *bezti = (BezTriple *)ptr->data->bezt; */
   copy_v3_v3(bezti->vec[1], values);
 }
+static void rna_BezTriple_lhandle_get(PointerRNA *ptr, float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &(bone->bezt);
+  copy_v3_v3(values, bezti->vec[0]);
+}
+
+static void rna_BezTriple_lhandle_set(PointerRNA *ptr, const float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &bone->bezt;
+  /* BezTriple *bezti = (BezTriple *)ptr->data->bezt; */
+  copy_v3_v3(bezti->vec[0], values);
+}
+
+static void rna_BezTriple_rhandle_get(PointerRNA *ptr, float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &(bone->bezt);
+  copy_v3_v3(values, bezti->vec[2]);
+}
+
+static void rna_BezTriple_rhandle_set(PointerRNA *ptr, const float *values)
+{
+  Bone *bone = (Bone *)ptr->data;
+  BezTriple *bezti = &bone->bezt;
+  /* BezTriple *bezti = (BezTriple *)ptr->data->bezt; */
+  copy_v3_v3(bezti->vec[2], values);
+}
 
 static PointerRNA rna_EditBone_gposer_lhandle_get(PointerRNA *ptr)
 {
@@ -895,6 +945,14 @@ void rna_def_bone_curved_common(StructRNA *srna, bool is_posebone, bool is_editb
 
 static void rna_def_bone_common(StructRNA *srna, int editbone)
 {
+  static const EnumPropertyItem beztriple_handle_type_items[] = {
+    {HD_FREE, "FREE", 0, "Free", ""},
+    {HD_VECT, "VECTOR", 0, "Vector", ""},
+    {HD_ALIGN, "ALIGNED", 0, "Aligned", ""},
+    {HD_AUTO, "AUTO", 0, "Auto", ""},
+    {0, NULL, 0, NULL, NULL},
+    };
+  
   static const EnumPropertyItem prop_bbone_handle_type[] = {
       {BBONE_HANDLE_AUTO,
        "AUTO",
@@ -1145,6 +1203,22 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   RNA_def_property_ui_range(prop, 0.0f, 1000.0f, 1, RNA_TRANSLATION_PREC_DEFAULT);
   RNA_def_property_ui_text(prop, "B-Bone Display Z Width", "B-Bone Z size");
 
+  /* Gposer handle types*/
+  prop = RNA_def_property(srna, "gposer_lhandle_type", PROP_ENUM, PROP_NONE);
+  RNA_def_property_enum_funcs(prop, "rna_lhandle_type_get", "rna_lhandle_type_set", NULL);
+  RNA_def_property_enum_items(prop, beztriple_handle_type_items);
+  RNA_def_property_ui_text(
+			   prop, "Gposer Handle Type", "Selects how the handles are computed");
+  RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+
+  prop = RNA_def_property(srna, "gposer_rhandle_type", PROP_ENUM, PROP_NONE);
+  RNA_def_property_enum_funcs(prop, "rna_rhandle_type_get", "rna_rhandle_type_set", NULL);
+  RNA_def_property_enum_items(prop, beztriple_handle_type_items);
+  RNA_def_property_ui_text(
+      prop, "Gposer Handle Type", "Selects how the handles are computed");
+  RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+
+  
   prop = RNA_def_property(srna, "bbone_handle_type_start", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_sdna(prop, NULL, "bbone_prev_type");
   RNA_def_property_enum_items(prop, prop_bbone_handle_type);
@@ -1380,6 +1454,22 @@ static void rna_def_bone(BlenderRNA *brna)
 			       prop, "rna_BezTriple_ctrlpoint_get", "rna_BezTriple_ctrlpoint_set", NULL);
   RNA_def_property_ui_text(
       prop, "Ctrl Position", "Location of control bone");
+  RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+
+  prop = RNA_def_property(srna, "lhandle_position", PROP_FLOAT, PROP_TRANSLATION);
+  RNA_def_property_array(prop, 3);
+  RNA_def_property_float_funcs(
+			       prop, "rna_BezTriple_lhandle_get", "rna_BezTriple_lhandle_set", NULL);
+  RNA_def_property_ui_text(
+      prop, "Handle Position", "Location of Left Handle");
+  RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
+
+  prop = RNA_def_property(srna, "rhandle_position", PROP_FLOAT, PROP_TRANSLATION);
+  RNA_def_property_array(prop, 3);
+  RNA_def_property_float_funcs(
+			       prop, "rna_BezTriple_rhandle_get", "rna_BezTriple_rhandle_set", NULL);
+  RNA_def_property_ui_text(
+      prop, "Handle Position", "Location of Right Handle");
   RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
   
 

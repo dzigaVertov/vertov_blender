@@ -1479,9 +1479,13 @@ void recalcData_pose(TransInfo *t)
 
     /* Gposer update of the handles */
     FOREACH_TRANS_DATA_CONTAINER(t, tc){
-      bArmature* arm = (bArmature *)tc->poseobj->data;
+      Object *ob = tc->poseobj;
+      bPose *pose = ob->pose;
+      bArmature* arm = (bArmature *)ob->data;
+      
       if ((arm->flag & IS_GPOSER_ARM) != 0){
 	TransData *td = tc->data;
+
 	for (int i = tc->data_len; i--;td++){
 	  bPoseChannel *pchan = td->extra;
 	  Bone *bone = pchan->bone;
@@ -1489,8 +1493,24 @@ void recalcData_pose(TransInfo *t)
 	  if (bone->poser_flag & IS_CONTROL){
 	    float *pos_control = bone->bezt.vec[1];
 	    copy_v3_v3(pos_control, pchan->pose_head);
-	    pos_control++;
-	    printf("este es el valor de y: %f,\n", *pos_control);
+
+	    if (bone->gp_lhandle){
+	      char *lhandle_name = bone->gp_lhandle->name;
+	      
+	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
+	      float *pos_lhandle = bone->bezt.vec[0];
+	      copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);
+	    }
+
+	    if (bone->gp_rhandle){
+	      char *rhandle_name = bone->gp_rhandle->name;
+	      
+	      bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
+	      float *pos_rhandle = bone->bezt.vec[2];
+	      copy_v3_v3(pos_rhandle, rhandle_pchan->pose_head);
+	    }
+
+	    
 	  }
 	}
 
