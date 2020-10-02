@@ -1338,6 +1338,7 @@ static void pose_transform_mirror_update(TransInfo *t, TransDataContainer *tc, O
 
     float pchan_mtx_final[4][4];
     BKE_pchan_to_mat4(pchan_orig, pchan_mtx_final);
+
     mul_m4_m4m4(pchan_mtx_final, pchan_mtx_final, flip_mtx);
     mul_m4_m4m4(pchan_mtx_final, flip_mtx, pchan_mtx_final);
     if (pid) {
@@ -1750,7 +1751,7 @@ void recalcData_pose(TransInfo *t)
 	      
 	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
 	      float *pos_lhandle = bone->bezt.vec[0];
-	      copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);
+	      copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);	  
 	    }
 
 	    if (bone->gp_rhandle){
@@ -1762,8 +1763,9 @@ void recalcData_pose(TransInfo *t)
 	    }
 
 	    /* Construir los argumentos para calchandlenurb  */
-	    BezTriple *prev = &bone->bbone_prev->bezt;
-	    BezTriple *next = &bone->bbone_next->bezt;
+	    BezTriple *prev = bone->bbone_prev ? &bone->bbone_prev->bezt : NULL;
+	    BezTriple *next = bone->bbone_next ? &bone->bbone_next->bezt : NULL;
+
 
 	    calchandleNurb_intern(&bone->bezt, prev, next, 1, false, false, 0);
 
@@ -1773,7 +1775,14 @@ void recalcData_pose(TransInfo *t)
 	      
 	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
 	      float *pos_lhandle = bone->bezt.vec[0];
-	      copy_v3_v3(lhandle_pchan->pose_head, pos_lhandle);
+
+	      float pchan_mtx_in[4][4];
+	      float pchan_mtx_out[4][4];
+	      BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
+	      BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+	      copy_v3_v3(pchan_mtx_out[3], pos_lhandle);
+	      BKE_armature_mat_pose_to_bone(lhandle_pchan, pchan_mtx_out, pchan_mtx_in);
+	      BKE_pchan_apply_mat4(lhandle_pchan, pchan_mtx_in, false);
 	    }
 
 	    if (bone->gp_rhandle){
@@ -1781,14 +1790,19 @@ void recalcData_pose(TransInfo *t)
 	      
 	      bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
 	      float *pos_rhandle = bone->bezt.vec[2];
-	      copy_v3_v3(rhandle_pchan->pose_head, pos_rhandle);
-	    }
-
-	    
+	      float pchan_mtx_in[4][4];
+	      float pchan_mtx_out[4][4];
+	      BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
+	      BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+	      copy_v3_v3(pchan_mtx_out[3], pos_rhandle);
+	      BKE_armature_mat_pose_to_bone(rhandle_pchan, pchan_mtx_out, pchan_mtx_in);
+	      BKE_pchan_apply_mat4(rhandle_pchan, pchan_mtx_in, false);
+	    }	    
 	  }
 	}
 
       }
+      DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
     }
     
     
@@ -1925,7 +1939,6 @@ int set_poser_transflags(TransInfo *t, Object *ob, bool has_translate_rotate[2])
       }
       else {
         bone->flag &= ~BONE_TRANSFORM;
-	printf("bone->name: %s\n", bone->name);
       }
 
       bone->flag &= ~BONE_HINGE_CHILD_TRANSFORM;
