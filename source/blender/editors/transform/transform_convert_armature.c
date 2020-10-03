@@ -1889,10 +1889,15 @@ int transform_convert_pose_transflags_update(Object *ob,
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next){
     bone = pchan->bone;
     if (((bone->poser_flag & IS_CONTROL) !=0) && ((bone->flag & BONE_SELECTED) != 0)){
-      bone->gp_lhandle->flag |= BONE_TRANSFORM;
-      bone->gp_rhandle->flag |= BONE_TRANSFORM;
-      bone->gp_lhandle->flag |= BONE_SELECTED;
-      bone->gp_rhandle->flag |= BONE_SELECTED;
+      if (bone->gp_lhandle){
+	bone->gp_lhandle->flag |= BONE_TRANSFORM;
+	bone->gp_lhandle->flag |= BONE_SELECTED;
+      }
+      if (bone->gp_rhandle){	
+	bone->gp_rhandle->flag |= BONE_TRANSFORM;
+	bone->gp_rhandle->flag |= BONE_SELECTED;	
+      }
+      
     }
   }
 
