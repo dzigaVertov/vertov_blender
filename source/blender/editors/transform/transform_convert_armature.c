@@ -1751,7 +1751,14 @@ void recalcData_pose(TransInfo *t)
 	      
 	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
 	      float *pos_lhandle = bone->bezt.vec[0];
-	      copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);	  
+
+	      
+	      float pchan_mtx_in[4][4];
+	      float pchan_mtx_out[4][4];
+	      BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
+	      BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+	      copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
+	      /* copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);	   */
 	    }
 
 	    if (bone->gp_rhandle){
@@ -1759,7 +1766,12 @@ void recalcData_pose(TransInfo *t)
 	      
 	      bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
 	      float *pos_rhandle = bone->bezt.vec[2];
-	      copy_v3_v3(pos_rhandle, rhandle_pchan->pose_head);
+	      float pchan_mtx_in[4][4];
+	      float pchan_mtx_out[4][4];
+	      BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
+	      BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+	      copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
+	      /* copy_v3_v3(pos_rhandle, rhandle_pchan->pose_head); */
 	    }
 
 	    /* Construir los argumentos para calchandlenurb  */
@@ -1870,6 +1882,17 @@ int transform_convert_pose_transflags_update(Object *ob,
     }
     else {
       bone->flag &= ~BONE_TRANSFORM;
+    }
+  }
+
+  // Gposer if the control is selected, transform also the handles
+  for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next){
+    bone = pchan->bone;
+    if (((bone->poser_flag & IS_CONTROL) !=0) && ((bone->flag & BONE_SELECTED) != 0)){
+      bone->gp_lhandle->flag |= BONE_TRANSFORM;
+      bone->gp_rhandle->flag |= BONE_TRANSFORM;
+      bone->gp_lhandle->flag |= BONE_SELECTED;
+      bone->gp_rhandle->flag |= BONE_SELECTED;
     }
   }
 
