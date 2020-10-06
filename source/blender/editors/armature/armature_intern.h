@@ -131,6 +131,9 @@ void POSE_OT_quaternions_flip(struct wmOperatorType *ot);
 
 void POSE_OT_bone_layers(struct wmOperatorType *ot);
 
+/* Gposer handle type select */
+void POSE_OT_handle_type_set(struct wmOperatorType *ot);
+
 /* ******************************************************* */
 /* Pose Tool Utilities (for PoseLib, Pose Sliding, etc.) */
 /* pose_utils.c */

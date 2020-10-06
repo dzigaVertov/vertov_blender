@@ -1200,3 +1200,77 @@ void POSE_OT_quaternions_flip(wmOperatorType *ot)
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
+
+
+/*----------------------------------------------------------------------*/
+/* Gposer set handle type */
+/* ---------------------------------------------------------------------*/
+
+
+/* -------------------------------------------------------------------- */
+/** \name Set Handle Type Operator
+ * \{ */
+
+static int set_handle_type_exec(bContext *C, wmOperator *op)
+{
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+  View3D *v3d = CTX_wm_view3d(C);
+  const int handle_type = RNA_enum_get(op->ptr, "type");
+
+  /*iterar sobre los huesos control seleccionados y cambiar los tipos de handles*/
+  CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones){
+    Bone *bone = pchan->bone;
+    
+    if ((bone->poser_flag & IS_CONTROL) != 0){
+      bone->bezt.h1 = handle_type;
+      bone->bezt.h2 = handle_type;      
+    }    
+  }
+  CTX_DATA_END;
+  
+  return OPERATOR_FINISHED;
+}
+
+/** Armature must be a poser armature and be in pose mode */
+static bool poser_armature_poll(bContext *C)
+{
+  if (!ED_operator_posemode(C)){
+    return false;
+  }
+
+  Object *ob = CTX_data_active_object(C);
+  bArmature *arm = ob->data;
+  return (arm->flag & IS_GPOSER_ARM) != 0; 
+}
+
+
+void POSE_OT_handle_type_set(wmOperatorType *ot)
+{
+  /* keep in sync with graphkeys_handle_type_items */
+  static const EnumPropertyItem editcurve_handle_type_items[] = {
+      {HD_AUTO, "AUTOMATIC", 0, "Automatic", ""},
+      {HD_VECT, "VECTOR", 0, "Vector", ""},
+      {5, "ALIGNED", 0, "Aligned", ""},
+      {6, "FREE_ALIGN", 0, "Free", ""},
+      {3, "TOGGLE_FREE_ALIGN", 0, "Toggle Free/Align", ""},
+      {0, NULL, 0, NULL, NULL},
+  };
+
+  /* identifiers */
+  ot->name = "Set Handle Type";
+  ot->description = "Set type of handles for selected control points";
+  ot->idname = "POSE_OT_handle_type_set";
+
+  /* api callbacks */
+  ot->invoke = WM_menu_invoke;
+  ot->exec = set_handle_type_exec;
+  ot->poll = poser_armature_poll;
+
+  /* flags */
+  ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+  /* properties */
+  ot->prop = RNA_def_enum(ot->srna, "type", editcurve_handle_type_items, 1, "Type", "Spline type");
+}
+
+/** \} */
