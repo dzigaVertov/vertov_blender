@@ -1205,7 +1205,54 @@ void POSE_OT_quaternions_flip(wmOperatorType *ot)
 /*----------------------------------------------------------------------*/
 /* Gposer set handle type */
 /* ---------------------------------------------------------------------*/
+static void update_bone_beztriple(Bone *bone, bPoseChannel *pchan, bPose *pose){
+  float *pos_control = bone->bezt.vec[1];
+  float pchan_mtx_in[4][4];
+  float pchan_mtx_out[4][4];
+  BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+  BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+  copy_v3_v3(pos_control, pchan_mtx_out[3]);
+  
+  if (bone->gp_lhandle){
+    char *lhandle_name = bone->gp_lhandle->name;
+    
+    bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
+    float *pos_lhandle = bone->bezt.vec[0];
+    
+    
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
+  }
 
+  if (bone->gp_rhandle){
+    char *rhandle_name = bone->gp_rhandle->name;
+    
+    bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
+    float *pos_rhandle = bone->bezt.vec[2];
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
+  }
+}
+
+
+static void update_bones_beztriples(bContext *C){
+  Object *ob = CTX_data_active_object(C);
+  bPose *pose = ob->pose;
+  
+  CTX_DATA_BEGIN(C, bPoseChannel *, pchan, visible_pose_bones){
+    Bone *bone = pchan->bone;
+    if ((bone->poser_flag & IS_CONTROL) != 0){
+      update_bone_beztriple(bone, pchan, pose);      
+    }
+  }
+  CTX_DATA_END;
+}
 
 /* -------------------------------------------------------------------- */
 /** \name Set Handle Type Operator
@@ -1216,6 +1263,8 @@ static int set_handle_type_exec(bContext *C, wmOperator *op)
   ViewLayer *view_layer = CTX_data_view_layer(C);
   View3D *v3d = CTX_wm_view3d(C);
   const int handle_type = RNA_enum_get(op->ptr, "type");
+
+  update_bones_beztriples(C);
 
   /*iterar sobre los huesos control seleccionados y cambiar los tipos de handles*/
   CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones){

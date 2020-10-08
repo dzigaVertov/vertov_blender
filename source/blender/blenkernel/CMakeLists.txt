@@ -127,6 +127,7 @@ set(SRC
   intern/gpencil_curve.c
   intern/gpencil_geom.c
   intern/gpencil_modifier.c
+  intern/gposer.c
   intern/hair.c
   intern/icons.c
   intern/icons_rasterize.c

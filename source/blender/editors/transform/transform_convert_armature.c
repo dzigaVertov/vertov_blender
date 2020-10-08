@@ -1410,255 +1410,7 @@ static void restoreMirrorPoseBones(TransDataContainer *tc)
 }
 
 
-/* ****************** Gposer Handle calculation ************** */
-/* Duplicated code from curve.c  */
-/* TODO: Figure out what to do with this */
 
-static void calchandleNurb_intern(BezTriple *bezt,
-                                  const BezTriple *prev,
-                                  const BezTriple *next,
-                                  eBezTriple_Flag handle_sel_flag,
-                                  bool is_fcurve,
-                                  bool skip_align,
-                                  char fcurve_smoothing)
-{
-  /* defines to avoid confusion */
-#define p2_h1 ((p2)-3)
-#define p2_h2 ((p2) + 3)
-
-  const float *p1, *p3;
-  float *p2;
-  float pt[3];
-  float dvec_a[3], dvec_b[3];
-  float len, len_a, len_b;
-  float len_ratio;
-  const float eps = 1e-5;
-
-  /* assume normal handle until we check */
-  bezt->f5 = HD_AUTOTYPE_NORMAL;
-
-  if (bezt->h1 == 0 && bezt->h2 == 0) {
-    return;
-  }
-
-  p2 = bezt->vec[1];
-
-  if (prev == NULL) {
-    p3 = next->vec[1];
-    pt[0] = 2.0f * p2[0] - p3[0];
-    pt[1] = 2.0f * p2[1] - p3[1];
-    pt[2] = 2.0f * p2[2] - p3[2];
-    p1 = pt;
-  }
-  else {
-    p1 = prev->vec[1];
-  }
-
-  if (next == NULL) {
-    pt[0] = 2.0f * p2[0] - p1[0];
-    pt[1] = 2.0f * p2[1] - p1[1];
-    pt[2] = 2.0f * p2[2] - p1[2];
-    p3 = pt;
-  }
-  else {
-    p3 = next->vec[1];
-  }
-
-  sub_v3_v3v3(dvec_a, p2, p1);
-  sub_v3_v3v3(dvec_b, p3, p2);
-
-  if (is_fcurve) {
-    len_a = dvec_a[0];
-    len_b = dvec_b[0];
-  }
-  else {
-    len_a = len_v3(dvec_a);
-    len_b = len_v3(dvec_b);
-  }
-
-  if (len_a == 0.0f) {
-    len_a = 1.0f;
-  }
-  if (len_b == 0.0f) {
-    len_b = 1.0f;
-  }
-
-  len_ratio = len_a / len_b;
-
-  if (ELEM(bezt->h1, HD_AUTO, HD_AUTO_ANIM) || ELEM(bezt->h2, HD_AUTO, HD_AUTO_ANIM)) { /* auto */
-    float tvec[3];
-    tvec[0] = dvec_b[0] / len_b + dvec_a[0] / len_a;
-    tvec[1] = dvec_b[1] / len_b + dvec_a[1] / len_a;
-    tvec[2] = dvec_b[2] / len_b + dvec_a[2] / len_a;
-
-    if (is_fcurve) {
-      if (fcurve_smoothing != FCURVE_SMOOTH_NONE) {
-        /* force the horizontal handle size to be 1/3 of the key interval so that
-         * the X component of the parametric bezier curve is a linear spline */
-        len = 6.0f / 2.5614f;
-      }
-      else {
-        len = tvec[0];
-      }
-    }
-    else {
-      len = len_v3(tvec);
-    }
-    len *= 2.5614f;
-
-    if (len != 0.0f) {
-      /* only for fcurves */
-      bool leftviolate = false, rightviolate = false;
-
-      if (!is_fcurve || fcurve_smoothing == FCURVE_SMOOTH_NONE) {
-        if (len_a > 5.0f * len_b) {
-          len_a = 5.0f * len_b;
-        }
-        if (len_b > 5.0f * len_a) {
-          len_b = 5.0f * len_a;
-        }
-      }
-
-      if (ELEM(bezt->h1, HD_AUTO, HD_AUTO_ANIM)) {
-        len_a /= len;
-        madd_v3_v3v3fl(p2_h1, p2, tvec, -len_a);
-
-        if ((bezt->h1 == HD_AUTO_ANIM) && next && prev) { /* keep horizontal if extrema */
-          float ydiff1 = prev->vec[1][1] - bezt->vec[1][1];
-          float ydiff2 = next->vec[1][1] - bezt->vec[1][1];
-          if ((ydiff1 <= 0.0f && ydiff2 <= 0.0f) || (ydiff1 >= 0.0f && ydiff2 >= 0.0f)) {
-            bezt->vec[0][1] = bezt->vec[1][1];
-            bezt->f5 = HD_AUTOTYPE_SPECIAL;
-          }
-          else { /* handles should not be beyond y coord of two others */
-            if (ydiff1 <= 0.0f) {
-              if (prev->vec[1][1] > bezt->vec[0][1]) {
-                bezt->vec[0][1] = prev->vec[1][1];
-                leftviolate = 1;
-              }
-            }
-            else {
-              if (prev->vec[1][1] < bezt->vec[0][1]) {
-                bezt->vec[0][1] = prev->vec[1][1];
-                leftviolate = 1;
-              }
-            }
-          }
-        }
-      }
-      if (ELEM(bezt->h2, HD_AUTO, HD_AUTO_ANIM)) {
-        len_b /= len;
-        madd_v3_v3v3fl(p2_h2, p2, tvec, len_b);
-
-        if ((bezt->h2 == HD_AUTO_ANIM) && next && prev) { /* keep horizontal if extrema */
-          float ydiff1 = prev->vec[1][1] - bezt->vec[1][1];
-          float ydiff2 = next->vec[1][1] - bezt->vec[1][1];
-          if ((ydiff1 <= 0.0f && ydiff2 <= 0.0f) || (ydiff1 >= 0.0f && ydiff2 >= 0.0f)) {
-            bezt->vec[2][1] = bezt->vec[1][1];
-            bezt->f5 = HD_AUTOTYPE_SPECIAL;
-          }
-          else { /* handles should not be beyond y coord of two others */
-            if (ydiff1 <= 0.0f) {
-              if (next->vec[1][1] < bezt->vec[2][1]) {
-                bezt->vec[2][1] = next->vec[1][1];
-                rightviolate = 1;
-              }
-            }
-            else {
-              if (next->vec[1][1] > bezt->vec[2][1]) {
-                bezt->vec[2][1] = next->vec[1][1];
-                rightviolate = 1;
-              }
-            }
-          }
-        }
-      }
-      if (leftviolate || rightviolate) { /* align left handle */
-        BLI_assert(is_fcurve);
-        /* simple 2d calculation */
-        float h1_x = p2_h1[0] - p2[0];
-        float h2_x = p2[0] - p2_h2[0];
-
-        if (leftviolate) {
-          p2_h2[1] = p2[1] + ((p2[1] - p2_h1[1]) / h1_x) * h2_x;
-        }
-        else {
-          p2_h1[1] = p2[1] + ((p2[1] - p2_h2[1]) / h2_x) * h1_x;
-        }
-      }
-    }
-  }
-
-  if (bezt->h1 == HD_VECT) { /* vector */
-    madd_v3_v3v3fl(p2_h1, p2, dvec_a, -1.0f / 3.0f);
-  }
-  if (bezt->h2 == HD_VECT) {
-    madd_v3_v3v3fl(p2_h2, p2, dvec_b, 1.0f / 3.0f);
-  }
-
-  if (skip_align ||
-      /* when one handle is free, alignming makes no sense, see: T35952 */
-      (ELEM(HD_FREE, bezt->h1, bezt->h2)) ||
-      /* also when no handles are aligned, skip this step */
-      (!ELEM(HD_ALIGN, bezt->h1, bezt->h2) && !ELEM(HD_ALIGN_DOUBLESIDE, bezt->h1, bezt->h2))) {
-    /* handles need to be updated during animation and applying stuff like hooks,
-     * but in such situations it's quite difficult to distinguish in which order
-     * align handles should be aligned so skip them for now */
-    return;
-  }
-
-  len_a = len_v3v3(p2, p2_h1);
-  len_b = len_v3v3(p2, p2_h2);
-
-  if (len_a == 0.0f) {
-    len_a = 1.0f;
-  }
-  if (len_b == 0.0f) {
-    len_b = 1.0f;
-  }
-
-  len_ratio = len_a / len_b;
-
-  if (bezt->f1 & handle_sel_flag) {                      /* order of calculation */
-    if (ELEM(bezt->h2, HD_ALIGN, HD_ALIGN_DOUBLESIDE)) { /* aligned */
-      if (len_a > eps) {
-        len = 1.0f / len_ratio;
-        p2_h2[0] = p2[0] + len * (p2[0] - p2_h1[0]);
-        p2_h2[1] = p2[1] + len * (p2[1] - p2_h1[1]);
-        p2_h2[2] = p2[2] + len * (p2[2] - p2_h1[2]);
-      }
-    }
-    if (ELEM(bezt->h1, HD_ALIGN, HD_ALIGN_DOUBLESIDE)) {
-      if (len_b > eps) {
-        len = len_ratio;
-        p2_h1[0] = p2[0] + len * (p2[0] - p2_h2[0]);
-        p2_h1[1] = p2[1] + len * (p2[1] - p2_h2[1]);
-        p2_h1[2] = p2[2] + len * (p2[2] - p2_h2[2]);
-      }
-    }
-  }
-  else {
-    if (ELEM(bezt->h1, HD_ALIGN, HD_ALIGN_DOUBLESIDE)) {
-      if (len_b > eps) {
-        len = len_ratio;
-        p2_h1[0] = p2[0] + len * (p2[0] - p2_h2[0]);
-        p2_h1[1] = p2[1] + len * (p2[1] - p2_h2[1]);
-        p2_h1[2] = p2[2] + len * (p2[2] - p2_h2[2]);
-      }
-    }
-    if (ELEM(bezt->h2, HD_ALIGN, HD_ALIGN_DOUBLESIDE)) { /* aligned */
-      if (len_a > eps) {
-        len = 1.0f / len_ratio;
-        p2_h2[0] = p2[0] + len * (p2[0] - p2_h1[0]);
-        p2_h2[1] = p2[1] + len * (p2[1] - p2_h1[1]);
-        p2_h2[2] = p2[2] + len * (p2[2] - p2_h1[2]);
-      }
-    }
-  }
-
-#undef p2_h1
-#undef p2_h2
-}
 
 void recalcData_pose(TransInfo *t)
 {
@@ -1758,7 +1510,6 @@ void recalcData_pose(TransInfo *t)
 	      BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
 	      BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
 	      copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
-	      /* copy_v3_v3(pos_lhandle, lhandle_pchan->pose_head);	   */
 	    }
 
 	    if (bone->gp_rhandle){
@@ -1771,15 +1522,13 @@ void recalcData_pose(TransInfo *t)
 	      BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
 	      BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
 	      copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
-	      /* copy_v3_v3(pos_rhandle, rhandle_pchan->pose_head); */
 	    }
 
 	    /* Construir los argumentos para calchandlenurb  */
 	    BezTriple *prev = bone->bbone_prev ? &bone->bbone_prev->bezt : NULL;
 	    BezTriple *next = bone->bbone_next ? &bone->bbone_next->bezt : NULL;
 
-
-	    calchandleNurb_intern(&bone->bezt, prev, next, 1, false, false, 0);
+	    BKE_gposer_calchandleNurb_intern(&bone->bezt, prev, next, 1, false, false, 0);
 
 	    /* Copiar los valores al hueso */
 	    if (bone->gp_lhandle){
