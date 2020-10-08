@@ -403,7 +403,7 @@ void BKE_gposer_update_bone_beztriple(struct Bone *bone,
 				      struct bPoseChannel *pchan,
 				      struct bPose *pose);
 
-void BKE_gposer_update_bonez_beztriples(struct bContext *C);
+void BKE_gposer_update_bones_beztriples(struct bContext *C);
 
 void BKE_gposer_update_handles(struct bContext *C);
   
