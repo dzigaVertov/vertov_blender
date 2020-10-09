@@ -391,9 +391,7 @@ void BKE_armature_deform_coords_with_editmesh(const struct Object *ob_arm,
 /** \} */
 
 /* gposer.c handle calculation functions */
-void BKE_gposer_calchandleNurb_intern(struct BezTriple *bezt,
-				      const struct  BezTriple *prev,
-				      const struct BezTriple *next,
+void BKE_gposer_calchandleNurb_intern(struct Bone *bone,
 				      const eBezTriple_Flag__Alias handle_sel_flag,
 				      const bool is_fcurve,
 				      const bool skip_align,
@@ -405,7 +403,13 @@ void BKE_gposer_update_bone_beztriple(struct Bone *bone,
 
 void BKE_gposer_update_bones_beztriples(struct bContext *C);
 
+void BKE_gposer_update_handle(struct Bone *bone,
+			      struct bPoseChannel *pchan,
+			      struct bPose *pose);
+  
 void BKE_gposer_update_handles(struct bContext *C);
+
+  
   
 #ifdef __cplusplus
 }

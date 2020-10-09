@@ -1495,70 +1495,13 @@ void recalcData_pose(TransInfo *t)
 	  Bone *bone = pchan->bone;
 
 	  if (bone->poser_flag & IS_CONTROL){
-	    float *pos_control = bone->bezt.vec[1];
-	    copy_v3_v3(pos_control, pchan->pose_head);
+	    
+	    BKE_gposer_update_bone_beztriple(bone, pchan, pose);
 
-	    if (bone->gp_lhandle){
-	      char *lhandle_name = bone->gp_lhandle->name;
-	      
-	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
-	      float *pos_lhandle = bone->bezt.vec[0];
-
-	      
-	      float pchan_mtx_in[4][4];
-	      float pchan_mtx_out[4][4];
-	      BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
-	      BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
-	      copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
-	    }
-
-	    if (bone->gp_rhandle){
-	      char *rhandle_name = bone->gp_rhandle->name;
-	      
-	      bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
-	      float *pos_rhandle = bone->bezt.vec[2];
-	      float pchan_mtx_in[4][4];
-	      float pchan_mtx_out[4][4];
-	      BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
-	      BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
-	      copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
-	    }
-
-	    /* Construir los argumentos para calchandlenurb  */
-	    BezTriple *prev = bone->bbone_prev ? &bone->bbone_prev->bezt : NULL;
-	    BezTriple *next = bone->bbone_next ? &bone->bbone_next->bezt : NULL;
-
-	    BKE_gposer_calchandleNurb_intern(&bone->bezt, prev, next, 1, false, false, 0);
+	    BKE_gposer_calchandleNurb_intern(bone, 1, false, false, 0);
 
 	    /* Copiar los valores al hueso */
-	    if (bone->gp_lhandle){
-	      char *lhandle_name = bone->gp_lhandle->name;
-	      
-	      bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
-	      float *pos_lhandle = bone->bezt.vec[0];
-
-	      float pchan_mtx_in[4][4];
-	      float pchan_mtx_out[4][4];
-	      BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
-	      BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
-	      copy_v3_v3(pchan_mtx_out[3], pos_lhandle);
-	      BKE_armature_mat_pose_to_bone(lhandle_pchan, pchan_mtx_out, pchan_mtx_in);
-	      BKE_pchan_apply_mat4(lhandle_pchan, pchan_mtx_in, false);
-	    }
-
-	    if (bone->gp_rhandle){
-	      char *rhandle_name = bone->gp_rhandle->name;
-	      
-	      bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
-	      float *pos_rhandle = bone->bezt.vec[2];
-	      float pchan_mtx_in[4][4];
-	      float pchan_mtx_out[4][4];
-	      BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
-	      BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
-	      copy_v3_v3(pchan_mtx_out[3], pos_rhandle);
-	      BKE_armature_mat_pose_to_bone(rhandle_pchan, pchan_mtx_out, pchan_mtx_in);
-	      BKE_pchan_apply_mat4(rhandle_pchan, pchan_mtx_in, false);
-	    }	    
+	    BKE_gposer_update_handle(bone, pchan, pose);
 	  }
 	}
 

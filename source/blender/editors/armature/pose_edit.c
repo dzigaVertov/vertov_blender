@@ -1214,20 +1214,27 @@ static int set_handle_type_exec(bContext *C, wmOperator *op)
 {
   ViewLayer *view_layer = CTX_data_view_layer(C);
   View3D *v3d = CTX_wm_view3d(C);
+  Object *ob = CTX_data_active_object(C);
   const int handle_type = RNA_enum_get(op->ptr, "type");
 
   BKE_gposer_update_bones_beztriples(C);
   
-  /*iterar sobre los huesos control seleccionados y cambiar los tipos de handles*/
+  /* Change handles in selected controls */
   CTX_DATA_BEGIN (C, bPoseChannel *, pchan, selected_pose_bones){
     Bone *bone = pchan->bone;
     
     if ((bone->poser_flag & IS_CONTROL) != 0){
       bone->bezt.h1 = handle_type;
-      bone->bezt.h2 = handle_type;      
+      bone->bezt.h2 = handle_type;
+      BKE_gposer_calchandleNurb_intern(bone, 1, false, false, 0);
     }    
   }
   CTX_DATA_END;
+
+  BKE_gposer_update_handles(C);
+  DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
+
+
   
   return OPERATOR_FINISHED;
 }

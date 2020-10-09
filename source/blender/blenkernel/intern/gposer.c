@@ -68,17 +68,20 @@
 /* ****************** Gposer Handle calculation ************** */
 /* Duplicated code from curve.c  */
 /* TODO: Figure out what to do with this */
-void BKE_gposer_calchandleNurb_intern(BezTriple *bezt,
-				      const BezTriple *prev,
-				      const BezTriple *next,
+void BKE_gposer_calchandleNurb_intern(Bone *bone,
 				      const eBezTriple_Flag__Alias handle_sel_flag,
 				      const bool is_fcurve,
 				      const bool skip_align,
 				      const char fcurve_smoothing)
 {
-    /* defines to avoid confusion */
-#define p2_h1 ((p2)-3)
-#define p2_h2 ((p2) + 3)
+  BezTriple *bezt = &bone->bezt;
+  /* defines to avoid confusion */
+  #define p2_h1 ((p2)-3)
+  #define p2_h2 ((p2) + 3)
+    
+  BezTriple *prev = bone->bbone_prev ? &bone->bbone_prev->bezt : NULL;
+  BezTriple *next = bone->bbone_next ? &bone->bbone_next->bezt : NULL;
+
 
   const float *p1, *p3;
   float *p2;
@@ -308,7 +311,7 @@ void BKE_gposer_update_bone_beztriple(struct Bone *bone,
 				      struct bPoseChannel *pchan,
 				      struct bPose *pose)
 {
-    float *pos_control = bone->bezt.vec[1];
+  float *pos_control = bone->bezt.vec[1];
   float pchan_mtx_in[4][4];
   float pchan_mtx_out[4][4];
   BKE_pchan_to_mat4(pchan, pchan_mtx_in);
@@ -363,4 +366,71 @@ void BKE_gposer_update_bones_beztriples(struct bContext *C)
     }
   }
   CTX_DATA_END;  
+}
+
+
+/**
+ * @brief      Copies position from control bone beztriple to handle bones
+ *
+ * @param      Bone *bone
+ * @param      bPoseChannel *pchan
+ * @param      bPose *pose
+ *
+ * @return     void
+ */
+void BKE_gposer_update_handle(struct Bone *bone,
+			      struct bPoseChannel *pchan,
+			      struct bPose *pose)
+{
+  if (bone->gp_lhandle){
+    char *lhandle_name = bone->gp_lhandle->name;
+    
+    bPoseChannel *lhandle_pchan = BKE_pose_channel_find_name(pose, lhandle_name);
+    float *pos_lhandle = bone->bezt.vec[0];
+    
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(lhandle_pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(lhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pchan_mtx_out[3], pos_lhandle);
+    BKE_armature_mat_pose_to_bone(lhandle_pchan, pchan_mtx_out, pchan_mtx_in);
+    BKE_pchan_apply_mat4(lhandle_pchan, pchan_mtx_in, false);
+  }
+  
+  if (bone->gp_rhandle){
+    char *rhandle_name = bone->gp_rhandle->name;
+    
+    bPoseChannel *rhandle_pchan = BKE_pose_channel_find_name(pose, rhandle_name);
+    float *pos_rhandle = bone->bezt.vec[2];
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(rhandle_pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(rhandle_pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pchan_mtx_out[3], pos_rhandle);
+    BKE_armature_mat_pose_to_bone(rhandle_pchan, pchan_mtx_out, pchan_mtx_in);
+    BKE_pchan_apply_mat4(rhandle_pchan, pchan_mtx_in, false);
+  }	    
+}  
+
+
+/**
+ * @brief      Copies positions of the handles from the control's bones beztriples to the handle bones
+ *
+ *
+ * @param      bContext *C
+ *
+ * @return     void
+ */
+void BKE_gposer_update_handles(struct bContext *C)
+{
+  Object *ob = CTX_data_active_object(C);
+  bPose *pose = ob->pose;
+
+  CTX_DATA_BEGIN(C, bPoseChannel *, pchan, visible_pose_bones){
+    Bone *bone = pchan->bone;
+    if ((bone->poser_flag & IS_CONTROL) != 0){
+      BKE_gposer_update_handle(bone, pchan, pose);      
+    }
+  }
+  CTX_DATA_END;
 }
