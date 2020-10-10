@@ -53,7 +53,7 @@ void BKE_gpencil_stroke_boundingbox_calc(struct bGPDstroke *gps);
 void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);
 void BKE_gpencil_stroke_simplify_adaptive(struct bGPdata *gpd,
                                           struct bGPDstroke *gps,
-                                          float factor);
+                                          float epsilon);
 void BKE_gpencil_stroke_simplify_fixed(struct bGPdata *gpd, struct bGPDstroke *gps);
 void BKE_gpencil_stroke_subdivide(struct bGPdata *gpd,
                                   struct bGPDstroke *gps,
@@ -126,7 +126,7 @@ float BKE_gpencil_stroke_length(const struct bGPDstroke *gps, bool use_3d);
 
 void BKE_gpencil_stroke_set_random_color(struct bGPDstroke *gps);
 
-void BKE_gpencil_convert_mesh(struct Main *bmain,
+bool BKE_gpencil_convert_mesh(struct Main *bmain,
                               struct Depsgraph *depsgraph,
                               struct Scene *scene,
                               struct Object *ob_gp,
@@ -137,8 +137,7 @@ void BKE_gpencil_convert_mesh(struct Main *bmain,
                               const float matrix[4][4],
                               const int frame_offset,
                               const bool use_seams,
-                              const bool use_faces,
-                              const bool simple_material);
+                              const bool use_faces);
 
 #ifdef __cplusplus
 }

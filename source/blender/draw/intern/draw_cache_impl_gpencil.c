@@ -426,8 +426,8 @@ static void gpencil_batches_ensure(Object *ob, GpencilBatchCache *cache, int cfr
     /* Add extra space at the end of the buffer because of quad load. */
     GPU_vertbuf_data_alloc(cache->vbo, iter.vert_len + 2);
     GPU_vertbuf_data_alloc(cache->vbo_col, iter.vert_len + 2);
-    iter.verts = (gpStrokeVert *)cache->vbo->data;
-    iter.cols = (gpColorVert *)cache->vbo_col->data;
+    iter.verts = (gpStrokeVert *)GPU_vertbuf_get_data(cache->vbo);
+    iter.cols = (gpColorVert *)GPU_vertbuf_get_data(cache->vbo_col);
     /* Create IBO. */
     GPU_indexbuf_init(&iter.ibo, GPU_PRIM_TRIS, iter.tri_len, iter.vert_len);
 
@@ -502,7 +502,8 @@ GPUBatch *DRW_cache_gpencil_face_wireframe_get(Object *ob)
         .ibo = {0},
     };
 
-    GPU_indexbuf_init_ex(&iter.ibo, GPU_PRIM_LINE_STRIP, vbo->vertex_len, vbo->vertex_len);
+    uint vert_len = GPU_vertbuf_get_vertex_len(vbo);
+    GPU_indexbuf_init_ex(&iter.ibo, GPU_PRIM_LINE_STRIP, vert_len, vert_len);
 
     /* IMPORTANT: Keep in sync with gpencil_edit_batches_ensure() */
     bool do_onion = true;
@@ -589,8 +590,8 @@ static void gpencil_sbuffer_stroke_ensure(bGPdata *gpd, bool do_stroke, bool do_
     /* Add extra space at the end (and start) of the buffer because of quad load and cyclic. */
     GPU_vertbuf_data_alloc(vbo, 1 + vert_len + 1 + 2);
     GPU_vertbuf_data_alloc(vbo_col, 1 + vert_len + 1 + 2);
-    gpStrokeVert *verts = (gpStrokeVert *)vbo->data;
-    gpColorVert *cols = (gpColorVert *)vbo_col->data;
+    gpStrokeVert *verts = (gpStrokeVert *)GPU_vertbuf_get_data(vbo);
+    gpColorVert *cols = (gpColorVert *)GPU_vertbuf_get_data(vbo_col);
 
     /* Fill buffers with data. */
     gpencil_buffer_add_stroke(verts, cols, gps);
@@ -825,7 +826,7 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
 
     /* Vertex counting has already been done for cache->vbo. */
     BLI_assert(cache->vbo);
-    int vert_len = cache->vbo->vertex_len;
+    int vert_len = GPU_vertbuf_get_vertex_len(cache->vbo);
 
     gpEditIterData iter;
     iter.vgindex = ob->actdef - 1;
@@ -838,7 +839,7 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
     cache->edit_vbo = GPU_vertbuf_create_with_format(format);
     /* Add extra space at the end of the buffer because of quad load. */
     GPU_vertbuf_data_alloc(cache->edit_vbo, vert_len);
-    iter.verts = (gpEditVert *)cache->edit_vbo->data;
+    iter.verts = (gpEditVert *)GPU_vertbuf_get_data(cache->edit_vbo);
 
     /* Fill buffers with data. */
     BKE_gpencil_visible_stroke_iter(
@@ -876,7 +877,7 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
     if (vert_len > 0) {
 
       GPU_vertbuf_data_alloc(cache->edit_curve_vbo, vert_len);
-      iter.verts = (gpEditCurveVert *)cache->edit_curve_vbo->data;
+      iter.verts = (gpEditCurveVert *)GPU_vertbuf_get_data(cache->edit_curve_vbo);
 
       /* Fill buffers with data. */
       BKE_gpencil_visible_stroke_iter(

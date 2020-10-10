@@ -46,6 +46,7 @@
 #include "BKE_camera.h"
 #include "BKE_context.h"
 #include "BKE_font.h"
+#include "BKE_gpencil_curve.h"
 #include "BKE_gpencil_geom.h"
 #include "BKE_layer.h"
 #include "BKE_lib_id.h"
@@ -284,7 +285,7 @@ static void viewops_data_alloc(bContext *C, wmOperator *op)
 }
 
 void view3d_orbit_apply_dyn_ofs(float r_ofs[3],
-                                const float ofs_init[3],
+                                const float ofs_old[3],
                                 const float viewquat_old[4],
                                 const float viewquat_new[4],
                                 const float dyn_ofs[3])
@@ -295,7 +296,7 @@ void view3d_orbit_apply_dyn_ofs(float r_ofs[3],
 
   invert_qt_normalized(q);
 
-  sub_v3_v3v3(r_ofs, ofs_init, dyn_ofs);
+  sub_v3_v3v3(r_ofs, ofs_old, dyn_ofs);
   mul_qt_v3(q, r_ofs);
   add_v3_v3(r_ofs, dyn_ofs);
 }
@@ -333,10 +334,9 @@ static bool view3d_orbit_calc_center(bContext *C, float r_dyn_ofs[3])
   else if (ob_act && (ob_act->mode & OB_MODE_EDIT) && (ob_act->type == OB_FONT)) {
     Curve *cu = ob_act_eval->data;
     EditFont *ef = cu->editfont;
-    int i;
 
     zero_v3(lastofs);
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
       add_v2_v2(lastofs, ef->textcurs[i]);
     }
     mul_v2_fl(lastofs, 1.0f / 4.0f);
@@ -3051,9 +3051,14 @@ static int viewselected_exec(bContext *C, wmOperator *op)
   }
 
   if (is_gp_edit) {
+    const bool is_curve_edit = GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd_eval);
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
       /* we're only interested in selected points here... */
-      if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
+      if (is_curve_edit && gps->editcurve != NULL && gps->editcurve->flag & GP_CURVE_SELECT) {
+        BKE_gpencil_stroke_editcurve_sync_selection(gps, gps->editcurve);
+        ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
+      }
+      else if ((gps->flag & GP_STROKE_SELECT) && (gps->flag & GP_STROKE_3DSPACE)) {
         ok |= BKE_gpencil_stroke_minmax(gps, true, min, max);
       }
     }
@@ -4877,11 +4882,10 @@ static void calc_local_clipping(float clip_local[6][4],
 {
   BoundBox clipbb_local;
   float imat[4][4];
-  int i;
 
   invert_m4_m4(imat, mat);
 
-  for (i = 0; i < 8; i++) {
+  for (int i = 0; i < 8; i++) {
     mul_v3_m4v3(clipbb_local.vec[i], imat, clipbb->vec[i]);
   }
 
