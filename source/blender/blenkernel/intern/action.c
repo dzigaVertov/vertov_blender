@@ -968,6 +968,12 @@ static void pose_channels_remove_internal_links(Object *ob, bPoseChannel *unlink
     if (pchan->bbone_next == unlinked_pchan) {
       pchan->bbone_next = NULL;
     }
+    if (pchan->gp_lhandle == unlinked_pchan) {
+      pchan->gp_lhandle = NULL;
+    }
+    if (pchan->gp_rhandle == unlinked_pchan) {
+      pchan->gp_rhandle = NULL;
+    }
     if (pchan->custom_tx == unlinked_pchan) {
       pchan->custom_tx = NULL;
     }
