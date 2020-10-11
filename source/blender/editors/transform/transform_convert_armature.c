@@ -1495,6 +1495,7 @@ void recalcData_pose(TransInfo *t)
 	  Bone *bone = pchan->bone;
 
 	  if (bone->poser_flag & IS_CONTROL){
+	    /* printf("bone: %s\t lhandle: %s\n", bone->name, bone->gp_lhandle->name ); */
 	    
 	    BKE_gposer_update_bone_beztriple(bone, pchan, pose);
 
