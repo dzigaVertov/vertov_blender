@@ -830,6 +830,12 @@ void BKE_pose_copy_data_ex(bPose **dst,
     if (pchan->bbone_next) {
       pchan->bbone_next = BKE_pose_channel_find_name(outPose, pchan->bbone_next->name);
     }
+    if (pchan->gp_lhandle) {
+      pchan->gp_lhandle = BKE_pose_channel_find_name(outPose, pchan->gp_lhandle->name);
+    }
+    if (pchan->gp_rhandle) {
+      pchan->gp_rhandle = BKE_pose_channel_find_name(outPose, pchan->gp_rhandle->name);
+    }
 
     if (copy_constraints) {
       BKE_constraints_copy_ex(
