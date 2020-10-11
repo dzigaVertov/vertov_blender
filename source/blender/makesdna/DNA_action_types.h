@@ -334,6 +334,10 @@ typedef struct bPoseChannel {
   struct bPoseChannel *bbone_prev;
   struct bPoseChannel *bbone_next;
 
+  /** Gposer handles; set on read file or rebuild pose based on pchan->bone data. */
+  struct bPoseChannel *gp_lhandle;
+  struct bPoseChannel *gp_rhandle;
+
   /** Use for outliner. */
   void *temp;
   /** Runtime data for color and bbone segment matrix. */
