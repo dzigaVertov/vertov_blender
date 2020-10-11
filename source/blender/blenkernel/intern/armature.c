@@ -2332,6 +2332,8 @@ static void pose_proxy_sync(Object *ob, Object *from, int layer_protected)
       pchanw.custom_tx = pchan->custom_tx;
       pchanw.bbone_prev = pchan->bbone_prev;
       pchanw.bbone_next = pchan->bbone_next;
+      pchanw.gp_lhandle = pchan->gp_lhandle;
+      pchanw.gp_rhandle = pchan->gp_rhandle;
 
       pchanw.mpath = pchan->mpath;
       pchan->mpath = NULL;
