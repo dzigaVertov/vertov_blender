@@ -594,6 +594,12 @@ static void separate_armature_bones(Main *bmain, Object *ob, const bool is_selec
         if (pchn->bbone_prev == pchan) {
           pchn->bbone_prev = NULL;
         }
+	if (pchn->gp_rhandle == pchan) {
+          pchn->gp_rhandle = NULL;
+        }
+        if (pchn->gp_lhandle == pchan) {
+          pchn->gp_lhandle = NULL;
+        }
       }
 
       /* Free any of the extra-data this pchan might have. */
