@@ -221,6 +221,8 @@ static void direct_link_bones(BlendDataReader *reader, Bone *bone)
 
   BLO_read_data_address(reader, &bone->bbone_next);
   BLO_read_data_address(reader, &bone->bbone_prev);
+  BLO_read_data_address(reader, &bone->gp_lhandle);
+  BLO_read_data_address(reader, &bone->gp_rhandle);
 
   bone->flag &= ~(BONE_DRAW_ACTIVE | BONE_DRAW_LOCKED_WEIGHT);
 
