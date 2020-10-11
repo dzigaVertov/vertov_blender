@@ -1226,6 +1226,9 @@ void BKE_pose_channel_copy_data(bPoseChannel *pchan, const bPoseChannel *pchan_f
   /* bbone settings (typically not animated) */
   pchan->bbone_next = pchan_from->bbone_next;
   pchan->bbone_prev = pchan_from->bbone_prev;
+  /* gposer handle settings ( not animated) */
+  pchan->gp_lhandle = pchan_from->gp_lhandle;
+  pchan->gp_rhandle = pchan_from->gp_rhandle;
 
   /* constraints */
   BKE_constraints_copy(&pchan->constraints, &pchan_from->constraints, true);
