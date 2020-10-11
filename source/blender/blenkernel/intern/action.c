@@ -1041,6 +1041,16 @@ void BKE_pose_channels_remove(Object *ob,
             pchan->bbone_next = NULL;
           }
         }
+	if (pchan->gp_lhandle) {
+          if (filter_fn(pchan->gp_lhandle->name, user_data)) {
+            pchan->gp_lhandle = NULL;
+          }
+        }
+        if (pchan->gp_rhandle) {
+          if (filter_fn(pchan->gp_rhandle->name, user_data)) {
+            pchan->gp_rhandle = NULL;
+          }
+        }
 
         if (pchan->custom_tx) {
           if (filter_fn(pchan->custom_tx->name, user_data)) {
