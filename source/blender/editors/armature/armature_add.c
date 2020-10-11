@@ -372,6 +372,12 @@ void postEditBoneDuplicate(struct ListBase *editbones, Object *ob)
           if (pchan_src->bbone_next) {
             pchan_dst->bbone_next = pchan_duplicate_map(ob->pose, name_map, pchan_src->bbone_next);
           }
+	  if (pchan_src->gp_lhandle) {
+            pchan_dst->gp_lhandle = pchan_duplicate_map(ob->pose, name_map, pchan_src->gp_lhandle);
+          }
+          if (pchan_src->gp_rhandle) {
+            pchan_dst->gp_rhandle = pchan_duplicate_map(ob->pose, name_map, pchan_src->gp_rhandle);
+          }
         }
       }
     }
