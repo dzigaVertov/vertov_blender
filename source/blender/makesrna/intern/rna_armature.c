@@ -52,6 +52,7 @@
 #  include "DEG_depsgraph_build.h"
 
 /* Gposer handle type funcs */
+
 static void rna_lhandle_type_set(PointerRNA *ptr, int value){
   Bone *bone = (Bone *)ptr->data;
   bone->bezt.h1 = value; 
@@ -562,6 +563,25 @@ static void rna_Bone_bbone_handle_update(Main *bmain, Scene *scene, PointerRNA *
   rna_Armature_dependency_update(bmain, scene, ptr);
 }
 
+static void rna_Bone_gposer_handle_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+  bArmature *arm = (bArmature *)ptr->owner_id;
+  Bone *bone = (Bone *)ptr->data;
+
+  /* Update all users of this armature after changing gposer handles. */
+  for (Object *obt = bmain->objects.first; obt; obt = obt->id.next) {
+    if (obt->data == arm && obt->pose) {
+      bPoseChannel *pchan = BKE_pose_channel_find_name(obt->pose, bone->name);
+
+      if (pchan && pchan->bone == bone) {
+        BKE_pchan_rebuild_gposer_handles(obt->pose, pchan);
+        DEG_id_tag_update(&obt->id, ID_RECALC_COPY_ON_WRITE);
+      }
+    }
+  }
+
+  rna_Armature_dependency_update(bmain, scene, ptr);
+}
 
 static PointerRNA rna_EditBone_bbone_prev_get(PointerRNA *ptr)
 {
@@ -1278,7 +1298,7 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   }
   else {
     RNA_def_property_pointer_funcs(prop, NULL,  "rna_Bone_gposer_lhandle_set", NULL, NULL);
-    /* RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update"); */
+    RNA_def_property_update(prop, 0, "rna_Bone_gposer_handle_update");
   }
   RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
   RNA_def_property_ui_text(
@@ -1294,7 +1314,7 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
   }
   else {
     RNA_def_property_pointer_funcs(prop, NULL,  "rna_Bone_gposer_rhandle_set", NULL, NULL);
-    /* RNA_def_property_update(prop, 0, "rna_Bone_gposer_lhandle_update"); */
+    RNA_def_property_update(prop, 0, "rna_Bone_gposer_handle_update");
   }
   RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
   RNA_def_property_ui_text(

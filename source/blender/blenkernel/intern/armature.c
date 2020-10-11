@@ -2477,6 +2477,13 @@ void BKE_pchan_rebuild_bbone_handles(bPose *pose, bPoseChannel *pchan)
   pchan->bbone_next = pose_channel_find_bone(pose, pchan->bone->bbone_next);
 }
 
+/** Update the links for gposer handles from Bone data. */
+void BKE_pchan_rebuild_gposer_handles(bPose *pose, bPoseChannel *pchan)
+{
+  pchan->gp_lhandle = pose_channel_find_bone(pose, pchan->bone->gp_lhandle);
+  pchan->gp_rhandle = pose_channel_find_bone(pose, pchan->bone->gp_rhandle);
+}
+
 
 /**
  * Only after leave editmode, duplicating, validating older files, library syncing.
