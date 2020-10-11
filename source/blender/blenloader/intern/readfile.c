@@ -3384,6 +3384,10 @@ static void direct_link_pose(BlendDataReader *reader, bPose *pose)
     BLO_read_data_address(reader, &pchan->bbone_prev);
     BLO_read_data_address(reader, &pchan->bbone_next);
 
+    BLO_read_data_address(reader, &pchan->gp_lhandle);
+    BLO_read_data_address(reader, &pchan->gp_rhandle);
+
+
     direct_link_constraints(reader, &pchan->constraints);
 
     BLO_read_data_address(reader, &pchan->prop);
