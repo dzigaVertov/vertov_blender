@@ -56,11 +56,11 @@ BlenderSync::BlenderSync(BL::RenderEngine &b_engine,
     : b_engine(b_engine),
       b_data(b_data),
       b_scene(b_scene),
-      shader_map(),
-      object_map(),
-      geometry_map(),
-      light_map(),
-      particle_system_map(),
+      shader_map(scene),
+      object_map(scene),
+      geometry_map(scene),
+      light_map(scene),
+      particle_system_map(scene),
       world_map(NULL),
       world_recalc(false),
       scene(scene),
@@ -150,6 +150,11 @@ void BlenderSync::sync_recalc(BL::Depsgraph &b_depsgraph, BL::SpaceView3D &b_v3d
       BL::Object b_ob(b_id);
       const bool is_geometry = object_is_geometry(b_ob);
       const bool is_light = !is_geometry && object_is_light(b_ob);
+
+      if (b_ob.is_instancer() && b_update->is_updated_shading()) {
+        /* Needed for e.g. object color updates on instancer. */
+        object_map.set_recalc(b_ob);
+      }
 
       if (is_geometry || is_light) {
         const bool updated_geometry = b_update->is_updated_geometry();
@@ -242,7 +247,7 @@ void BlenderSync::sync_data(BL::RenderSettings &b_render,
 
   /* Shader sync done at the end, since object sync uses it.
    * false = don't delete unused shaders, not supported. */
-  shader_map.post_sync(scene, false);
+  shader_map.post_sync(false);
 
   free_data_after_sync(b_depsgraph);
 

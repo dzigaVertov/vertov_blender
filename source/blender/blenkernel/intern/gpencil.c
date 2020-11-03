@@ -288,6 +288,8 @@ IDTypeInfo IDType_ID_GD = {
     .blend_read_data = greasepencil_blend_read_data,
     .blend_read_lib = greasepencil_blend_read_lib,
     .blend_read_expand = greasepencil_blend_read_expand,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 /* ************************************************** */
@@ -2549,15 +2551,15 @@ void BKE_gpencil_visible_stroke_iter(ViewLayer *view_layer,
     /* Use evaluated frame (with modifiers for active stroke)/ */
     act_gpf = gpl->actframe;
     if (act_gpf) {
+      act_gpf->runtime.onion_id = 0;
+      if (layer_cb) {
+        layer_cb(gpl, act_gpf, NULL, thunk);
+      }
+
       /* If layer solo mode and Paint mode, only keyframes with data are displayed. */
       if (GPENCIL_PAINT_MODE(gpd) && (gpl->flag & GP_LAYER_SOLO_MODE) &&
           (act_gpf->framenum != cfra)) {
         continue;
-      }
-
-      act_gpf->runtime.onion_id = 0;
-      if (layer_cb) {
-        layer_cb(gpl, act_gpf, NULL, thunk);
       }
 
       LISTBASE_FOREACH (bGPDstroke *, gps, &act_gpf->strokes) {

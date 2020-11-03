@@ -589,6 +589,7 @@ typedef struct WalkNavigation {
 } WalkNavigation;
 
 typedef struct UserDef_Runtime {
+  /** Mark as changed so the preferences are saved on exit. */
   char is_dirty;
   char _pad0[7];
 } UserDef_Runtime;
@@ -626,16 +627,17 @@ typedef struct UserDef_Experimental {
   /* Debug options, always available. */
   char use_undo_legacy;
   char use_cycles_debug;
-  char use_image_editor_legacy_drawing;
   char SANITIZE_AFTER_HERE;
   /* The following options are automatically sanitized (set to 0)
    * when the release cycle is not alpha. */
-  char use_new_particle_system;
+  char use_new_geometry_nodes;
   char use_new_hair_type;
+  char use_new_point_cloud_type;
   char use_sculpt_vertex_colors;
-  char use_tools_missing_icons;
   char use_switch_object_operator;
+  char use_sculpt_tools_tilt;
   char _pad[7];
+  /** `makesdna` does not allow empty structs. */
 } UserDef_Experimental;
 
 #define USER_EXPERIMENTAL_TEST(userdef, member) \

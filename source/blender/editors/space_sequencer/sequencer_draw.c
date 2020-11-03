@@ -44,7 +44,6 @@
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_scene.h"
-#include "BKE_sequencer.h"
 #include "BKE_sound.h"
 
 #include "IMB_colormanagement.h"
@@ -68,6 +67,8 @@
 #include "ED_time_scrub_ui.h"
 
 #include "BIF_glutil.h"
+
+#include "SEQ_sequencer.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -1609,7 +1610,7 @@ static void sequencer_draw_display_buffer(const bContext *C,
   }
 
   /* Format needs to be created prior to any #immBindShader call.
-   * Do it here because OCIO binds it's own shader. */
+   * Do it here because OCIO binds its own shader. */
   eGPUTextureFormat format;
   eGPUDataFormat data;
   bool glsl_used = false;

@@ -500,7 +500,7 @@ static int rna_find_sdna_member(SDNA *sdna,
 
       return 1;
     }
-    else if (cmp == 2) {
+    if (cmp == 2) {
       smember->type = "";
       smember->name = dnaname;
       smember->offset = *offset;
@@ -1843,6 +1843,10 @@ void RNA_def_property_struct_runtime(PropertyRNA *prop, StructRNA *type)
       DefRNA.error = true;
       break;
   }
+
+  if ((type->flag & STRUCT_ID) != 0) {
+    prop->flag |= PROP_PTR_NO_OWNERSHIP;
+  }
 }
 
 void RNA_def_property_enum_native_type(PropertyRNA *prop, const char *native_enum_type)
@@ -1885,7 +1889,7 @@ void RNA_def_property_enum_items(PropertyRNA *prop, const EnumPropertyItem *item
             DefRNA.error = true;
             break;
           }
-          else if (item[i].value == eprop->defaultvalue) {
+          if (item[i].value == eprop->defaultvalue) {
             defaultfound = 1;
           }
         }
@@ -2182,7 +2186,7 @@ static PropertyDefRNA *rna_def_property_sdna(PropertyRNA *prop,
     if (DefRNA.silent) {
       return NULL;
     }
-    else if (!DefRNA.verify) {
+    if (!DefRNA.verify) {
       /* some basic values to survive even with sdna info */
       dp->dnastructname = structname;
       dp->dnaname = propname;
@@ -4269,7 +4273,7 @@ void RNA_def_function_return(FunctionRNA *func, PropertyRNA *ret)
                ret->identifier);
     return;
   }
-  else if (ret->arraydimension) {
+  if (ret->arraydimension) {
     CLOG_ERROR(&LOG,
                "\"%s.%s\", arrays are not allowed as strict returns, "
                "use RNA_def_function_output instead.",
@@ -4357,9 +4361,7 @@ int rna_parameter_size(PropertyRNA *parm)
           if (parm->flag & PROP_THICK_WRAP) {
             return sizeof(PointerRNA);
           }
-          else {
-            return sizeof(PointerRNA *);
-          }
+          return sizeof(PointerRNA *);
         }
         else {
           return sizeof(void *);

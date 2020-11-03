@@ -505,11 +505,20 @@ typedef struct SculptSession {
   int active_face_index;
   int active_grid_index;
 
+  /* When active, the cursor draws with faded colors, indicating that there is an action enabled.
+   */
+  bool draw_faded_cursor;
   float cursor_radius;
   float cursor_location[3];
   float cursor_normal[3];
   float cursor_sampled_normal[3];
   float cursor_view_normal[3];
+
+  /* For Sculpt trimming gesture tools, initial raycast data from the position of the mouse when
+   * the gesture starts (intersection with the surface and if they ray hit the surface or not). */
+  float gesture_initial_location[3];
+  float gesture_initial_normal[3];
+  bool gesture_initial_hit;
 
   /* TODO(jbakker): Replace rv3d adn v3d with ViewContext */
   struct RegionView3D *rv3d;
@@ -606,6 +615,11 @@ void BKE_sculpt_bvh_update_from_ccg(struct PBVH *pbvh, struct SubdivCCG *subdiv_
 /* This ensure that all elements in the mesh (both vertices and grids) have their visibility
  * updated according to the face sets. */
 void BKE_sculpt_sync_face_set_visibility(struct Mesh *mesh, struct SubdivCCG *subdiv_ccg);
+
+/* Individual function to sync the Face Set visibility to mesh and grids. */
+void BKE_sculpt_sync_face_sets_visibility_to_base_mesh(struct Mesh *mesh);
+void BKE_sculpt_sync_face_sets_visibility_to_grids(struct Mesh *mesh,
+                                                   struct SubdivCCG *subdiv_ccg);
 
 /* Ensures that a Face Set data-layers exists. If it does not, it creates one respecting the
  * visibility stored in the vertices of the mesh. If it does, it copies the visibility from the

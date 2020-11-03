@@ -32,6 +32,7 @@
 #include "util/util_foreach.h"
 #include "util/util_hash.h"
 #include "util/util_logging.h"
+#include "util/util_task.h"
 
 CCL_NAMESPACE_BEGIN
 
@@ -103,7 +104,8 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
                                  bool use_particle_hair,
                                  bool show_lights,
                                  BlenderObjectCulling &culling,
-                                 bool *use_portal)
+                                 bool *use_portal,
+                                 TaskPool *geom_task_pool)
 {
   const bool is_instance = b_instance.is_instance();
   BL::Object b_ob = b_instance.object();
@@ -181,6 +183,10 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
     return NULL;
   }
 
+  /* Use task pool only for non-instances, since sync_dupli_particle accesses
+   * geometry. This restriction should be removed for better performance. */
+  TaskPool *object_geom_task_pool = (is_instance) ? NULL : geom_task_pool;
+
   /* key to lookup object */
   ObjectKey key(b_parent, persistent_id, b_ob_instance, use_particle_hair);
   Object *object;
@@ -198,7 +204,12 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
 
       /* mesh deformation */
       if (object->geometry)
-        sync_geometry_motion(b_depsgraph, b_ob, object, motion_time, use_particle_hair);
+        sync_geometry_motion(b_depsgraph,
+                             b_ob_instance,
+                             object,
+                             motion_time,
+                             use_particle_hair,
+                             object_geom_task_pool);
     }
 
     return object;
@@ -207,14 +218,25 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
   /* test if we need to sync */
   bool object_updated = false;
 
-  if (object_map.add_or_update(scene, &object, b_ob, b_parent, key))
+  if (object_map.add_or_update(&object, b_ob, b_parent, key))
     object_updated = true;
 
   /* mesh sync */
-  object->geometry = sync_geometry(
-      b_depsgraph, b_ob, b_ob_instance, object_updated, use_particle_hair);
+  /* b_ob is owned by the iterator and will go out of scope at the end of the block.
+   * b_ob_instance is the original object and will remain valid for deferred geometry
+   * sync. */
+  object->geometry = sync_geometry(b_depsgraph,
+                                   b_ob_instance,
+                                   b_ob_instance,
+                                   object_updated,
+                                   use_particle_hair,
+                                   object_geom_task_pool);
 
   /* special case not tracked by object update flags */
+
+  if (sync_object_attributes(b_instance, object)) {
+    object_updated = true;
+  }
 
   /* holdout */
   if (use_holdout != object->use_holdout) {
@@ -325,12 +347,141 @@ Object *BlenderSync::sync_object(BL::Depsgraph &b_depsgraph,
   return object;
 }
 
+/* This function mirrors drw_uniform_property_lookup in draw_instance_data.cpp */
+static bool lookup_property(BL::ID b_id, const string &name, float4 *r_value)
+{
+  PointerRNA ptr;
+  PropertyRNA *prop;
+
+  if (!RNA_path_resolve(&b_id.ptr, name.c_str(), &ptr, &prop)) {
+    return false;
+  }
+
+  PropertyType type = RNA_property_type(prop);
+  int arraylen = RNA_property_array_length(&ptr, prop);
+
+  if (arraylen == 0) {
+    float value;
+
+    if (type == PROP_FLOAT)
+      value = RNA_property_float_get(&ptr, prop);
+    else if (type == PROP_INT)
+      value = RNA_property_int_get(&ptr, prop);
+    else
+      return false;
+
+    *r_value = make_float4(value, value, value, 1.0f);
+    return true;
+  }
+  else if (type == PROP_FLOAT && arraylen <= 4) {
+    *r_value = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+    RNA_property_float_get_array(&ptr, prop, &r_value->x);
+    return true;
+  }
+
+  return false;
+}
+
+/* This function mirrors drw_uniform_attribute_lookup in draw_instance_data.cpp */
+static float4 lookup_instance_property(BL::DepsgraphObjectInstance &b_instance,
+                                       const string &name,
+                                       bool use_instancer)
+{
+  string idprop_name = string_printf("[\"%s\"]", name.c_str());
+  float4 value;
+
+  /* If requesting instance data, check the parent particle system and object. */
+  if (use_instancer && b_instance.is_instance()) {
+    BL::ParticleSystem b_psys = b_instance.particle_system();
+
+    if (b_psys) {
+      if (lookup_property(b_psys.settings(), idprop_name, &value) ||
+          lookup_property(b_psys.settings(), name, &value)) {
+        return value;
+      }
+    }
+    if (lookup_property(b_instance.parent(), idprop_name, &value) ||
+        lookup_property(b_instance.parent(), name, &value)) {
+      return value;
+    }
+  }
+
+  /* Check the object and mesh. */
+  BL::Object b_ob = b_instance.object();
+  BL::ID b_data = b_ob.data();
+
+  if (lookup_property(b_ob, idprop_name, &value) || lookup_property(b_ob, name, &value) ||
+      lookup_property(b_data, idprop_name, &value) || lookup_property(b_data, name, &value)) {
+    return value;
+  }
+
+  return make_float4(0.0f);
+}
+
+bool BlenderSync::sync_object_attributes(BL::DepsgraphObjectInstance &b_instance, Object *object)
+{
+  /* Find which attributes are needed. */
+  AttributeRequestSet requests = object->geometry->needed_attributes();
+
+  /* Delete attributes that became unnecessary. */
+  vector<ParamValue> &attributes = object->attributes;
+  bool changed = false;
+
+  for (int i = attributes.size() - 1; i >= 0; i--) {
+    if (!requests.find(attributes[i].name())) {
+      attributes.erase(attributes.begin() + i);
+      changed = true;
+    }
+  }
+
+  /* Update attribute values. */
+  foreach (AttributeRequest &req, requests.requests) {
+    ustring name = req.name;
+
+    std::string real_name;
+    BlenderAttributeType type = blender_attribute_name_split_type(name, &real_name);
+
+    if (type != BL::ShaderNodeAttribute::attribute_type_GEOMETRY) {
+      bool use_instancer = (type == BL::ShaderNodeAttribute::attribute_type_INSTANCER);
+      float4 value = lookup_instance_property(b_instance, real_name, use_instancer);
+
+      /* Try finding the existing attribute value. */
+      ParamValue *param = NULL;
+
+      for (size_t i = 0; i < attributes.size(); i++) {
+        if (attributes[i].name() == name) {
+          param = &attributes[i];
+          break;
+        }
+      }
+
+      /* Replace or add the value. */
+      ParamValue new_param(name, TypeDesc::TypeFloat4, 1, &value);
+      assert(new_param.datasize() == sizeof(value));
+
+      if (!param) {
+        changed = true;
+        attributes.push_back(new_param);
+      }
+      else if (memcmp(param->data(), &value, sizeof(value)) != 0) {
+        changed = true;
+        *param = new_param;
+      }
+    }
+  }
+
+  return changed;
+}
+
 /* Object Loop */
 
 void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
                                BL::SpaceView3D &b_v3d,
                                float motion_time)
 {
+  /* Task pool for multithreaded geometry sync. */
+  TaskPool geom_task_pool;
+
   /* layer data */
   bool motion = motion_time != 0.0f;
 
@@ -355,8 +506,8 @@ void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
   const bool show_lights = BlenderViewportParameters(b_v3d).use_scene_lights;
 
   BL::ViewLayer b_view_layer = b_depsgraph.view_layer_eval();
-
   BL::Depsgraph::object_instances_iterator b_instance_iter;
+
   for (b_depsgraph.object_instances.begin(b_instance_iter);
        b_instance_iter != b_depsgraph.object_instances.end() && !cancel;
        ++b_instance_iter) {
@@ -372,6 +523,11 @@ void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
     /* Load per-object culling data. */
     culling.init_object(scene, b_ob);
 
+    /* Ensure the object geom supporting the hair is processed before adding
+     * the hair processing task to the task pool, calling .to_mesh() on the
+     * same object in parallel does not work. */
+    const bool sync_hair = b_instance.show_particles() && object_has_particle_hair(b_ob);
+
     /* Object itself. */
     if (b_instance.show_self()) {
       sync_object(b_depsgraph,
@@ -381,11 +537,12 @@ void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
                   false,
                   show_lights,
                   culling,
-                  &use_portal);
+                  &use_portal,
+                  sync_hair ? NULL : &geom_task_pool);
     }
 
     /* Particle hair as separate object. */
-    if (b_instance.show_particles() && object_has_particle_hair(b_ob)) {
+    if (sync_hair) {
       sync_object(b_depsgraph,
                   b_view_layer,
                   b_instance,
@@ -393,11 +550,14 @@ void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
                   true,
                   show_lights,
                   culling,
-                  &use_portal);
+                  &use_portal,
+                  &geom_task_pool);
     }
 
     cancel = progress.get_cancel();
   }
+
+  geom_task_pool.wait_work();
 
   progress.set_sync_status("");
 
@@ -405,10 +565,10 @@ void BlenderSync::sync_objects(BL::Depsgraph &b_depsgraph,
     sync_background_light(b_v3d, use_portal);
 
     /* handle removed data and modified pointers */
-    light_map.post_sync(scene);
-    geometry_map.post_sync(scene);
-    object_map.post_sync(scene);
-    particle_system_map.post_sync(scene);
+    light_map.post_sync();
+    geometry_map.post_sync();
+    object_map.post_sync();
+    particle_system_map.post_sync();
   }
 
   if (motion)

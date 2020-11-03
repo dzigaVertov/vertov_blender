@@ -295,6 +295,8 @@ IDTypeInfo IDType_ID_AC = {
     .blend_read_data = action_blend_read_data,
     .blend_read_lib = action_blend_read_lib,
     .blend_read_expand = action_blend_read_expand,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 /* ***************** Library data level operations on action ************** */
@@ -768,7 +770,7 @@ const char *BKE_pose_ikparam_get_name(bPose *pose)
 }
 
 /**
- * Allocate a new pose on the heap, and copy the src pose and it's channels
+ * Allocate a new pose on the heap, and copy the src pose and its channels
  * into the new pose. *dst is set to the newly allocated structure, and assumed to be NULL.
  *
  * \param dst: Should be freed already, makes entire duplicate.
@@ -1813,7 +1815,7 @@ void what_does_obaction(Object *ob,
     adt.action = act;
     BKE_animdata_action_ensure_idroot(&workob->id, act);
 
-    /* execute effects of Action on to workob (or it's PoseChannels) */
+    /* execute effects of Action on to workob (or its PoseChannels) */
     BKE_animsys_evaluate_animdata(&workob->id, &adt, anim_eval_context, ADT_RECALC_ANIM, false);
   }
 }

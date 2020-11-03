@@ -531,7 +531,7 @@ struct uiBlock {
   void *evil_C;
 
   /** unit system, used a lot for numeric buttons so include here
-   * rather then fetching through the scene every time. */
+   * rather than fetching through the scene every time. */
   struct UnitSettings *unit;
   /** \note only accessed by color picker templates. */
   ColorPickerData color_pickers;
@@ -618,8 +618,6 @@ extern uiBut *ui_but_drag_multi_edit_get(uiBut *but);
 
 void ui_def_but_icon(uiBut *but, const int icon, const int flag);
 void ui_def_but_icon_clear(uiBut *but);
-
-extern void ui_but_default_set(struct bContext *C, const bool all, const bool use_afterfunc);
 
 void ui_but_extra_operator_icons_free(uiBut *but);
 
@@ -997,8 +995,9 @@ void ui_draw_preview_item(
 
 #define UI_TEXT_MARGIN_X 0.4f
 #define UI_POPUP_MARGIN (UI_DPI_FAC * 12)
-/* margin at top of screen for popups */
-#define UI_POPUP_MENU_TOP (int)(8 * UI_DPI_FAC)
+/* Margin at top of screen for popups. Note this value must be sufficient
+   to draw a popover arrow to avoid cropping it. */
+#define UI_POPUP_MENU_TOP (int)(10 * UI_DPI_FAC)
 
 #define UI_PIXEL_AA_JITTER 8
 extern const float ui_pixel_jitter[UI_PIXEL_AA_JITTER][2];

@@ -101,6 +101,15 @@ IDTypeInfo IDType_ID_LINK_PLACEHOLDER = {
     .copy_data = NULL,
     .free_data = NULL,
     .make_local = NULL,
+    .foreach_id = NULL,
+    .foreach_cache = NULL,
+
+    .blend_write = NULL,
+    .blend_read_data = NULL,
+    .blend_read_lib = NULL,
+    .blend_read_expand = NULL,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 /* GS reads the memory pointed at in a specific ordering.
@@ -1884,6 +1893,9 @@ void BKE_library_make_local(Main *bmain,
       if (id->lib == NULL) {
         id->tag &= ~(LIB_TAG_EXTERN | LIB_TAG_INDIRECT | LIB_TAG_NEW);
         id->flag &= ~LIB_INDIRECT_WEAK_LINK;
+        if (ID_IS_OVERRIDE_LIBRARY_REAL(id)) {
+          BKE_lib_override_library_free(&id->override_library, true);
+        }
       }
       /* The check on the fourth line (LIB_TAG_PRE_EXISTING) is done so it's possible to tag data
        * you don't want to be made local, used for appending data,
@@ -2050,7 +2062,7 @@ void BKE_library_make_local(Main *bmain,
       /* Proxies only work when the proxified object is linked-in from a library. */
       if (ob->proxy->id.lib == NULL) {
         CLOG_WARN(&LOG,
-                  "proxy object %s will loose its link to %s, because the "
+                  "proxy object %s will lose its link to %s, because the "
                   "proxified object is local.",
                   id->newid->name,
                   ob->proxy->id.name);
@@ -2064,7 +2076,7 @@ void BKE_library_make_local(Main *bmain,
        * was not used locally would be a nasty bug! */
       if (is_local || is_lib) {
         CLOG_WARN(&LOG,
-                  "made-local proxy object %s will loose its link to %s, "
+                  "made-local proxy object %s will lose its link to %s, "
                   "because the linked-in proxy is referenced (is_local=%i, is_lib=%i).",
                   id->newid->name,
                   ob->proxy->id.name,

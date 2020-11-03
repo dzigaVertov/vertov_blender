@@ -123,7 +123,6 @@
 #include "BKE_pointcloud.h"
 #include "BKE_rigidbody.h"
 #include "BKE_scene.h"
-#include "BKE_sequencer.h"
 #include "BKE_shader_fx.h"
 #include "BKE_softbody.h"
 #include "BKE_speaker.h"
@@ -135,6 +134,8 @@
 #include "DEG_depsgraph_query.h"
 
 #include "DRW_engine.h"
+
+#include "SEQ_sequencer.h"
 
 #ifdef WITH_PYTHON
 #  include "BPY_extern.h"
@@ -537,6 +538,8 @@ IDTypeInfo IDType_ID_OB = {
     .blend_read_data = NULL,
     .blend_read_lib = NULL,
     .blend_read_expand = NULL,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 void BKE_object_workob_clear(Object *workob)
@@ -975,7 +978,7 @@ void BKE_object_free_caches(Object *object)
   }
 
   /* Tag object for update, so once memory critical operation is over and
-   * scene update routines are back to it's business the object will be
+   * scene update routines are back to its business the object will be
    * guaranteed to be in a known state.
    */
   if (update_flag != 0) {
@@ -2800,7 +2803,7 @@ void BKE_object_where_is_calc_time(Depsgraph *depsgraph, Scene *scene, Object *o
 /**
  * Calculate object transformation matrix without recalculating dependencies and
  * constraints -- assume dependencies are already solved by depsgraph.
- * No changes to object and it's parent would be done.
+ * No changes to object and its parent would be done.
  * Used for bundles orientation in 3d space relative to parented blender camera.
  */
 void BKE_object_where_is_calc_mat4(Object *ob, float r_obmat[4][4])
@@ -4375,7 +4378,7 @@ LinkNode *BKE_object_relational_superset(struct ViewLayer *view_layer,
 }
 
 /**
- * return all groups this object is apart of, caller must free.
+ * return all groups this object is a part of, caller must free.
  */
 struct LinkNode *BKE_object_groups(Main *bmain, Scene *scene, Object *ob)
 {

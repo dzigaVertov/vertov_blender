@@ -52,7 +52,6 @@
 #  include "BKE_linestyle.h"
 #  include "BKE_movieclip.h"
 #  include "BKE_node.h"
-#  include "BKE_sequencer.h"
 
 #  include "DEG_depsgraph.h"
 
@@ -60,6 +59,8 @@
 
 #  include "IMB_colormanagement.h"
 #  include "IMB_imbuf.h"
+
+#  include "SEQ_sequencer.h"
 
 static int rna_CurveMapping_curves_length(PointerRNA *ptr)
 {
@@ -796,7 +797,7 @@ static void rna_def_curvemapping(BlenderRNA *brna)
 
   static const EnumPropertyItem tone_items[] = {
       {CURVE_TONE_STANDARD, "STANDARD", 0, "Standard", ""},
-      {CURVE_TONE_FILMLIKE, "FILMLIKE", 0, "Film like", ""},
+      {CURVE_TONE_FILMLIKE, "FILMLIKE", 0, "Filmlike", ""},
       {0, NULL, 0, NULL, NULL},
   };
 

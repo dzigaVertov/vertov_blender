@@ -203,6 +203,8 @@ IDTypeInfo IDType_ID_LT = {
     .blend_read_data = lattice_blend_read_data,
     .blend_read_lib = lattice_blend_read_lib,
     .blend_read_expand = lattice_blend_read_expand,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 int BKE_lattice_index_from_uvw(Lattice *lt, const int u, const int v, const int w)
@@ -311,7 +313,7 @@ void BKE_lattice_resize(Lattice *lt, int uNew, int vNew, int wNew, Object *ltOb)
   calc_lat_fudu(lt->flag, vNew, &fv, &dv);
   calc_lat_fudu(lt->flag, wNew, &fw, &dw);
 
-  /* If old size is different then resolution changed in interface,
+  /* If old size is different than resolution changed in interface,
    * try to do clever reinit of points. Pretty simply idea, we just
    * deform new verts by old lattice, but scaling them to match old
    * size first.

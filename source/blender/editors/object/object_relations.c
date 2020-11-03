@@ -696,7 +696,7 @@ bool ED_object_parent_set(ReportList *reports,
   /* Preconditions. */
   if (ob == par) {
     /* Parenting an object to itself is impossible. */
-    return true;
+    return false;
   }
 
   if (BKE_object_parent_loop_check(par, ob)) {
@@ -981,6 +981,12 @@ struct ParentingContext {
 static bool parent_set_nonvertex_parent(bContext *C, struct ParentingContext *parenting_context)
 {
   CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects) {
+    if (ob == parenting_context->par) {
+      /* ED_object_parent_set() will fail (and thus return false), but this case shouldn't break
+       * this loop. It's expected that the active object is also selected. */
+      continue;
+    }
+
     if (!ED_object_parent_set(parenting_context->reports,
                               C,
                               parenting_context->scene,
@@ -1005,6 +1011,12 @@ static bool parent_set_vertex_parent_with_kdtree(bContext *C,
   int vert_par[3] = {0, 0, 0};
 
   CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects) {
+    if (ob == parenting_context->par) {
+      /* ED_object_parent_set() will fail (and thus return false), but this case shouldn't break
+       * this loop. It's expected that the active object is also selected. */
+      continue;
+    }
+
     parent_set_vert_find(tree, ob, vert_par, parenting_context->is_vertex_tri);
     if (!ED_object_parent_set(parenting_context->reports,
                               C,
@@ -1244,6 +1256,7 @@ static int parent_noinv_set_exec(bContext *C, wmOperator *op)
 
   DEG_relations_tag_update(bmain);
   WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
+  WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
 
   return OPERATOR_FINISHED;
 }
@@ -1358,7 +1371,7 @@ enum {
 
 static const EnumPropertyItem prop_make_track_types[] = {
     {CREATE_TRACK_DAMPTRACK, "DAMPTRACK", 0, "Damped Track Constraint", ""},
-    {CREATE_TRACK_TRACKTO, "TRACKTO", 0, "Track To Constraint", ""},
+    {CREATE_TRACK_TRACKTO, "TRACKTO", 0, "Track to Constraint", ""},
     {CREATE_TRACK_LOCKTRACK, "LOCKTRACK", 0, "Lock Track Constraint", ""},
     {0, NULL, 0, NULL, NULL},
 };

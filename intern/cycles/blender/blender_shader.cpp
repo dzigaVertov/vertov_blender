@@ -97,6 +97,53 @@ static ImageAlphaType get_image_alpha_type(BL::Image &b_image)
   return (ImageAlphaType)validate_enum_value(value, IMAGE_ALPHA_NUM_TYPES, IMAGE_ALPHA_AUTO);
 }
 
+/* Attribute name translation utilities */
+
+/* Since Eevee needs to know whether the attribute is uniform or varying
+ * at the time it compiles the shader for the material, Blender had to
+ * introduce different namespaces (types) in its attribute node. However,
+ * Cycles already has object attributes that form a uniform namespace with
+ * the more common varying attributes. Without completely reworking the
+ * attribute handling in Cycles to introduce separate namespaces (this could
+ * be especially hard for OSL which directly uses the name string), the
+ * space identifier has to be added to the attribute name as a prefix.
+ *
+ * The prefixes include a control character to ensure the user specified
+ * name can't accidentally include a special prefix.
+ */
+
+static const string_view object_attr_prefix("\x01object:");
+static const string_view instancer_attr_prefix("\x01instancer:");
+
+static ustring blender_attribute_name_add_type(const string &name, BlenderAttributeType type)
+{
+  switch (type) {
+    case BL::ShaderNodeAttribute::attribute_type_OBJECT:
+      return ustring::concat(object_attr_prefix, name);
+    case BL::ShaderNodeAttribute::attribute_type_INSTANCER:
+      return ustring::concat(instancer_attr_prefix, name);
+    default:
+      return ustring(name);
+  }
+}
+
+BlenderAttributeType blender_attribute_name_split_type(ustring name, string *r_real_name)
+{
+  string_view sname(name);
+
+  if (sname.substr(0, object_attr_prefix.size()) == object_attr_prefix) {
+    *r_real_name = sname.substr(object_attr_prefix.size());
+    return BL::ShaderNodeAttribute::attribute_type_OBJECT;
+  }
+
+  if (sname.substr(0, instancer_attr_prefix.size()) == instancer_attr_prefix) {
+    *r_real_name = sname.substr(instancer_attr_prefix.size());
+    return BL::ShaderNodeAttribute::attribute_type_INSTANCER;
+  }
+
+  return BL::ShaderNodeAttribute::attribute_type_GEOMETRY;
+}
+
 /* Graph */
 
 static BL::NodeSocket get_node_output(BL::Node &b_node, const string &name)
@@ -369,7 +416,8 @@ static ShaderNode *add_node(Scene *scene,
   else if (b_node.is_a(&RNA_ShaderNodeAttribute)) {
     BL::ShaderNodeAttribute b_attr_node(b_node);
     AttributeNode *attr = graph->create_node<AttributeNode>();
-    attr->attribute = b_attr_node.attribute_name();
+    attr->attribute = blender_attribute_name_add_type(b_attr_node.attribute_name(),
+                                                      b_attr_node.attribute_type());
     node = attr;
   }
   else if (b_node.is_a(&RNA_ShaderNodeBackground)) {
@@ -1241,7 +1289,7 @@ void BlenderSync::sync_materials(BL::Depsgraph &b_depsgraph, bool update_all)
     Shader *shader;
 
     /* test if we need to sync */
-    if (shader_map.add_or_update(scene, &shader, b_mat) || update_all) {
+    if (shader_map.add_or_update(&shader, b_mat) || update_all) {
       ShaderGraph *graph = new ShaderGraph();
 
       shader->name = b_mat.name().c_str();
@@ -1467,7 +1515,7 @@ void BlenderSync::sync_lights(BL::Depsgraph &b_depsgraph, bool update_all)
     Shader *shader;
 
     /* test if we need to sync */
-    if (shader_map.add_or_update(scene, &shader, b_light) || update_all) {
+    if (shader_map.add_or_update(&shader, b_light) || update_all) {
       ShaderGraph *graph = new ShaderGraph();
 
       /* create nodes */

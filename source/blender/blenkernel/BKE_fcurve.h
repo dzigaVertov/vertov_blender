@@ -285,7 +285,7 @@ void testhandles_fcurve(struct FCurve *fcu, eBezTriple_Flag sel_flag, const bool
 void sort_time_fcurve(struct FCurve *fcu);
 bool test_time_fcurve(struct FCurve *fcu);
 
-void correct_bezpart(const float v1[2], float v2[2], float v3[2], const float v4[2]);
+void BKE_fcurve_correct_bezpart(const float v1[2], float v2[2], float v3[2], const float v4[2]);
 
 /* -------- Evaluation --------  */
 
@@ -324,6 +324,9 @@ float fcurve_samplingcb_evalcurve(struct FCurve *fcu, void *data, float evaltime
  */
 void fcurve_store_samples(
     struct FCurve *fcu, void *data, int start, int end, FcuSampleFunc sample_cb);
+
+/* Convert baked/sampled fcurves into bezt/regular fcurves. */
+void fcurve_samples_to_keyframes(struct FCurve *fcu, const int start, const int end);
 
 /* ************* F-Curve .blend file API ******************** */
 

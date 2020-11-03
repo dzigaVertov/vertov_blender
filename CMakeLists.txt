@@ -43,8 +43,8 @@ endif()
 
 cmake_minimum_required(VERSION 3.10)
 
-# Prever LEGACY OpenGL to eb compatible with all the existing releases and
-# platforms which don't hare GLVND yet. Only do it if preference was not set
+# Prefer LEGACY OpenGL to be compatible with all the existing releases and
+# platforms which don't have GLVND yet. Only do it if preference was not set
 # externally.
 if(NOT DEFINED OpenGL_GL_PREFERENCE)
   set(OpenGL_GL_PREFERENCE "LEGACY")
@@ -568,6 +568,11 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
 
     mark_as_advanced(COMPILER_ASAN_LIBRARY)
   endif()
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+  option(WITH_COMPILER_SHORT_FILE_MACRO "Make paths in macros like __FILE__ relative to top level source and build directories." ON)
+  mark_as_advanced(WITH_COMPILER_SHORT_FILE_MACRO)
 endif()
 
 if(WIN32)
@@ -1652,6 +1657,38 @@ endif()
 if(UNIX AND NOT APPLE)
   if(NOT WITH_CXX11_ABI)
     set(PLATFORM_CFLAGS "${PLATFORM_CFLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+  endif()
+endif()
+
+if(WITH_COMPILER_SHORT_FILE_MACRO)
+  # Use '-fmacro-prefix-map' for Clang and GCC (MSVC doesn't support this).
+  if((CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.4) OR
+     (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0) OR
+     (CMAKE_C_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+  )
+
+    if(APPLE)
+      if(XCODE AND ${XCODE_VERSION} VERSION_LESS 12.0)
+      # Developers may have say LLVM Clang-10.0.1 toolchain with Xcode-11.
+        message_first_run(WARNING
+          "-fmacro-prefix-map flag is NOT supported by Clang shipped with Xcode-${XCODE_VERSION}."
+          " Some Xcode functionality in Product menu may not work. Disabling WITH_COMPILER_SHORT_FILE_MACRO."
+        )
+        set(WITH_COMPILER_SHORT_FILE_MACRO OFF)
+      endif()
+    endif()
+    if(WITH_COMPILER_SHORT_FILE_MACRO)
+      set(PLATFORM_CFLAGS "${PLATFORM_CFLAGS} \
+-fmacro-prefix-map='${CMAKE_SOURCE_DIR}/'='' \
+-fmacro-prefix-map='${CMAKE_BINARY_DIR}/'=''"
+      )
+    endif()
+  else()
+    message_first_run(WARNING
+      "-fmacro-prefix-map flag is NOT supported by ${CMAKE_C_COMPILER_ID} version-${CMAKE_C_COMPILER_VERSION}."
+      " Disabling WITH_COMPILER_SHORT_FILE_MACRO."
+    )
+    set(WITH_COMPILER_SHORT_FILE_MACRO OFF)
   endif()
 endif()
 

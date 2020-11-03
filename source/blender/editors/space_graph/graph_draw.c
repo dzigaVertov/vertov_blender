@@ -321,10 +321,12 @@ static void draw_fcurve_active_handle_vertices(const FCurve *fcu,
   immUniformColor3fvAlpha(active_col, 0.01f); /* Almost invisible - only keep for smoothness. */
   immBeginAtMost(GPU_PRIM_POINTS, 2);
 
-  if ((bezt->f1 & SELECT)) {
+  const BezTriple *left_bezt = active_keyframe_index > 0 ? &fcu->bezt[active_keyframe_index - 1] :
+                                                           bezt;
+  if (left_bezt->ipo == BEZT_IPO_BEZ && (bezt->f1 & SELECT)) {
     immVertex2fv(pos, bezt->vec[0]);
   }
-  if ((bezt->f3 & SELECT)) {
+  if (bezt->ipo == BEZT_IPO_BEZ && (bezt->f3 & SELECT)) {
     immVertex2fv(pos, bezt->vec[2]);
   }
   immEnd();
@@ -880,7 +882,7 @@ static void draw_fcurve_curve_bezts(bAnimContext *ac, ID *id, FCurve *fcu, View2
         v4[0] = bezt->vec[1][0];
         v4[1] = bezt->vec[1][1];
 
-        correct_bezpart(v1, v2, v3, v4);
+        BKE_fcurve_correct_bezpart(v1, v2, v3, v4);
 
         BKE_curve_forward_diff_bezier(v1[0], v2[0], v3[0], v4[0], data, resol, sizeof(float[3]));
         BKE_curve_forward_diff_bezier(

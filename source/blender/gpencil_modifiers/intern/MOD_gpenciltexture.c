@@ -29,6 +29,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_defaults.h"
 #include "DNA_gpencil_modifier_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_meshdata_types.h"
@@ -60,15 +61,10 @@
 static void initData(GpencilModifierData *md)
 {
   TextureGpencilModifierData *gpmd = (TextureGpencilModifierData *)md;
-  gpmd->fit_method = GP_TEX_CONSTANT_LENGTH;
-  gpmd->fill_rotation = 0.0f;
-  gpmd->fill_scale = 1.0f;
-  gpmd->fill_offset[0] = 0.0f;
-  gpmd->fill_offset[1] = 0.0f;
-  gpmd->uv_offset = 0.0f;
-  gpmd->uv_scale = 1.0f;
-  gpmd->pass_index = 0;
-  gpmd->material = NULL;
+
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(gpmd, modifier));
+
+  MEMCPY_STRUCT_AFTER(gpmd, DNA_struct_default_get(TextureGpencilModifierData), modifier);
 }
 
 static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
@@ -131,6 +127,7 @@ static void deformStroke(GpencilModifierData *md,
       pt->uv_fac /= totlen;
       pt->uv_fac *= mmd->uv_scale;
       pt->uv_fac += mmd->uv_offset;
+      pt->uv_rot += mmd->alignment_rotation;
     }
   }
 }
@@ -175,6 +172,7 @@ static void panel_draw(const bContext *UNUSED(C), Panel *panel)
     col = uiLayoutColumn(layout, false);
     uiItemR(col, ptr, "fit_method", 0, IFACE_("Stroke Fit Method"), ICON_NONE);
     uiItemR(col, ptr, "uv_offset", 0, NULL, ICON_NONE);
+    uiItemR(col, ptr, "alignment_rotation", 0, NULL, ICON_NONE);
     uiItemR(col, ptr, "uv_scale", 0, IFACE_("Scale"), ICON_NONE);
   }
 

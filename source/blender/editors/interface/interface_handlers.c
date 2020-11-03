@@ -1433,7 +1433,7 @@ static int ui_drag_toggle_but_pushed_state(bContext *C, uiBut *but)
       return but->pushed_state_func(C, but->pushed_state_arg);
     }
     /* Assume icon identifies a unique state, for buttons that
-     * work though functions callbacks and don't have an boolean
+     * work through functions callbacks and don't have an boolean
      * value that indicates the state. */
     return but->icon + but->iconadd;
   }
@@ -4550,10 +4550,22 @@ static int ui_do_but_TOG(bContext *C, uiBut *but, uiHandleButtonData *data, cons
       button_activate_state(C, but, BUTTON_STATE_EXIT);
       return WM_UI_HANDLER_BREAK;
     }
-    if (ELEM(event->type, WHEELDOWNMOUSE, WHEELUPMOUSE) && event->ctrl) {
-      /* Support alt+wheel on expanded enum rows */
+    if (ELEM(event->type, MOUSEPAN, WHEELDOWNMOUSE, WHEELUPMOUSE) && event->ctrl) {
+      /* Support ctrl-wheel to cycle values on expanded enum rows. */
       if (but->type == UI_BTYPE_ROW) {
-        const int direction = (event->type == WHEELDOWNMOUSE) ? -1 : 1;
+        int type = event->type;
+        int val = event->val;
+
+        /* Convert pan to scroll-wheel. */
+        if (type == MOUSEPAN) {
+          ui_pan_to_scroll(event, &type, &val);
+
+          if (type == MOUSEPAN) {
+            return WM_UI_HANDLER_BREAK;
+          }
+        }
+
+        const int direction = (type == WHEELDOWNMOUSE) ? -1 : 1;
         uiBut *but_select = ui_but_find_select_in_enum(but, direction);
         if (but_select) {
           uiBut *but_other = (direction == -1) ? but_select->next : but_select->prev;
@@ -5648,8 +5660,20 @@ static int ui_do_but_BLOCK(bContext *C, uiBut *but, uiHandleButtonData *data, co
       return WM_UI_HANDLER_BREAK;
     }
     if (ui_but_supports_cycling(but)) {
-      if (ELEM(event->type, WHEELDOWNMOUSE, WHEELUPMOUSE) && event->ctrl) {
-        const int direction = (event->type == WHEELDOWNMOUSE) ? 1 : -1;
+      if (ELEM(event->type, MOUSEPAN, WHEELDOWNMOUSE, WHEELUPMOUSE) && event->ctrl) {
+        int type = event->type;
+        int val = event->val;
+
+        /* Convert pan to scroll-wheel. */
+        if (type == MOUSEPAN) {
+          ui_pan_to_scroll(event, &type, &val);
+
+          if (type == MOUSEPAN) {
+            return WM_UI_HANDLER_BREAK;
+          }
+        }
+
+        const int direction = (type == WHEELDOWNMOUSE) ? 1 : -1;
 
         data->value = ui_but_menu_step(but, direction);
 
@@ -7692,20 +7716,8 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
       break;
   }
 
-  /* reset to default (generic function, only use if not handled by switch above) */
-  /* XXX hardcoded keymap check.... */
-  data = but->active;
-  if (data && data->state == BUTTON_STATE_HIGHLIGHT) {
-    if ((retval == WM_UI_HANDLER_CONTINUE) &&
-        (event->type == EVT_BACKSPACEKEY && event->val == KM_PRESS)) {
-      /* ctrl+backspace = reset active button; backspace = reset a whole array*/
-      ui_but_default_set(C, !event->ctrl, true);
-      ED_region_tag_redraw(data->region);
-      retval = WM_UI_HANDLER_BREAK;
-    }
-  }
-
 #ifdef USE_DRAG_MULTINUM
+  data = but->active;
   if (data) {
     if (ELEM(event->type, MOUSEMOVE, INBETWEEN_MOUSEMOVE) ||
         /* if we started dragging, progress on any event */
@@ -8559,6 +8571,7 @@ void ui_but_activate_event(bContext *C, ARegion *region, uiBut *but)
   wm_event_init_from_window(win, &event);
   event.type = EVT_BUT_OPEN;
   event.val = KM_PRESS;
+  event.is_repeat = false;
   event.customdata = but;
   event.customdatafree = false;
 
