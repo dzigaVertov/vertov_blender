@@ -2884,7 +2884,7 @@ static int graphkeys_framejump_exec(bContext *C, wmOperator *UNUSED(op))
   else {
     /* Animation Mode - Affects current frame (int) */
     CFRA = round_fl_to_int(sum_time / num_keyframes);
-    SUBFRA = 0.f;
+    SUBFRA = 0.0f;
   }
   sipo->cursorVal = sum_value / (float)num_keyframes;
 
@@ -3576,7 +3576,7 @@ void GRAPH_OT_fmodifier_paste(wmOperatorType *ot)
 
   /* Properties */
   RNA_def_boolean(
-      ot->srna, "only_active", true, "Only Active", "Only paste F-Modifiers on active F-Curve");
+      ot->srna, "only_active", false, "Only Active", "Only paste F-Modifiers on active F-Curve");
   RNA_def_boolean(
       ot->srna,
       "replace",
