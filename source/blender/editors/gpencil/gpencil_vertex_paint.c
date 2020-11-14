@@ -231,8 +231,8 @@ static float brush_influence_calc(tGP_BrushVertexpaintData *gso, const int radiu
   float distance = (float)len_v2v2_int(mval_i, co);
 
   /* Apply Brush curve. */
-  float brush_fallof = BKE_brush_curve_strength(brush, distance, (float)radius);
-  influence *= brush_fallof;
+  float brush_falloff = BKE_brush_curve_strength(brush, distance, (float)radius);
+  influence *= brush_falloff;
 
   /* apply multiframe falloff */
   influence *= gso->mf_falloff;
@@ -646,7 +646,7 @@ static bool brush_smear_apply(tGP_BrushVertexpaintData *gso,
     inf *= gso->pressure;
   }
 
-  /* Calc distance from initial sample location and add a fallof effect. */
+  /* Calc distance from initial sample location and add a falloff effect. */
   int mval_i[2];
   round_v2i_v2fl(mval_i, gso->mval);
   float distance = (float)len_v2v2_int(mval_i, gso->grid_sample);
@@ -1019,7 +1019,7 @@ static bool gpencil_vertexpaint_brush_do_frame(bContext *C,
     /* Check points below the brush. */
     bool hit = gpencil_vertexpaint_select_stroke(gso, gps, tool, diff_mat);
 
-    /* If stroke was hit and has an editcurve the curve needs an update */
+    /* If stroke was hit and has an editcurve the curve needs an update. */
     bGPDstroke *gps_active = (gps->runtime.gps_orig) ? gps->runtime.gps_orig : gps;
     if (gps_active->editcurve != NULL && hit) {
       gps_active->editcurve->flag |= GP_CURVE_NEEDS_STROKE_UPDATE;

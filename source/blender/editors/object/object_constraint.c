@@ -111,9 +111,9 @@ ListBase *ED_object_constraint_active_list(Object *ob)
  */
 ListBase *ED_object_pose_constraint_list(const bContext *C)
 {
-  bPoseChannel *pose_bone = CTX_data_pointer_get(C, "active_pose_bone").data;
+  bPoseChannel *pose_bone = CTX_data_pointer_get(C, "pose_bone").data;
   if (pose_bone == NULL) {
-    pose_bone = CTX_data_pointer_get(C, "pose_bone").data;
+    pose_bone = CTX_data_pointer_get(C, "active_pose_bone").data;
     if (pose_bone == NULL) {
       return NULL;
     }
@@ -242,7 +242,7 @@ static char *buildmenu_pyconstraints(Main *bmain, Text *con_text, int *pyconinde
 }
 #endif /* WITH_PYTHON */
 
-#if 0  // UNUSED, until pyconstraints are added back.
+#if 0 /* UNUSED, until pyconstraints are added back. */
 /* this callback gets called when the 'refresh' button of a pyconstraint gets pressed */
 static void update_pyconstraint_cb(void *arg1, void *arg2)
 {
@@ -257,7 +257,7 @@ static void update_pyconstraint_cb(void *arg1, void *arg2)
   }
 #  endif
 }
-#endif  // UNUSED
+#endif /* UNUSED */
 
 /** \} */
 
@@ -386,6 +386,11 @@ static void test_constraint(
       /* only object-rooted actions can be used */
       data->act = NULL;
       con->flag |= CONSTRAINT_DISABLE;
+    }
+
+    /* Skip target checking if we're not using it */
+    if (data->flag & ACTCON_USE_EVAL_TIME) {
+      check_targets = false;
     }
   }
   else if (con->type == CONSTRAINT_TYPE_FOLLOWPATH) {
@@ -813,7 +818,7 @@ static bConstraint *edit_constraint_property_get(bContext *C, wmOperator *op, Ob
     list = ED_object_pose_constraint_list(C);
   }
   else {
-    list = ED_object_constraint_active_list(ob);
+    list = &ob->constraints;
   }
 
   con = BKE_constraints_find_name(list, constraint_name);
@@ -1421,6 +1426,49 @@ void ED_object_constraint_dependency_tag_update(Main *bmain, Object *ob, bConstr
   DEG_relations_tag_update(bmain);
 }
 
+bool ED_object_constraint_move_to_index(Object *ob, bConstraint *con, const int index)
+{
+  BLI_assert(con != NULL);
+  BLI_assert(index >= 0);
+
+  ListBase *conlist = ED_object_constraint_list_from_constraint(ob, con, NULL);
+  int current_index = BLI_findindex(conlist, con);
+  BLI_assert(current_index >= 0);
+
+  BLI_listbase_link_move(conlist, con, index - current_index);
+
+  WM_main_add_notifier(NC_OBJECT | ND_CONSTRAINT, ob);
+
+  return true;
+}
+
+void ED_object_constraint_link(Main *bmain, Object *ob_dst, ListBase *dst, ListBase *src)
+{
+  BKE_constraints_free(dst);
+  BKE_constraints_copy(dst, src, true);
+  LISTBASE_FOREACH (bConstraint *, con, dst) {
+    ED_object_constraint_dependency_tag_update(bmain, ob_dst, con);
+  }
+  WM_main_add_notifier(NC_OBJECT | ND_CONSTRAINT | NA_ADDED, NULL);
+}
+
+void ED_object_constraint_copy_for_object(Main *bmain, Object *ob_dst, bConstraint *con)
+{
+  BKE_constraint_copy_for_object(ob_dst, con);
+  ED_object_constraint_dependency_tag_update(bmain, ob_dst, con);
+  WM_main_add_notifier(NC_OBJECT | ND_CONSTRAINT | NA_ADDED, ob_dst);
+}
+
+void ED_object_constraint_copy_for_pose(Main *bmain,
+                                        Object *ob_dst,
+                                        bPoseChannel *pchan,
+                                        bConstraint *con)
+{
+  BKE_constraint_copy_for_pose(ob_dst, pchan, con);
+  ED_object_constraint_dependency_tag_update(bmain, ob_dst, con);
+  WM_main_add_notifier(NC_OBJECT | ND_CONSTRAINT | NA_ADDED, ob_dst);
+}
+
 /** \} */
 
 /* ------------------------------------------------------------------- */
@@ -1613,13 +1661,7 @@ static int constraint_move_to_index_exec(bContext *C, wmOperator *op)
   }
 
   if (con) {
-    ListBase *conlist = ED_object_constraint_list_from_constraint(ob, con, NULL);
-    int current_index = BLI_findindex(conlist, con);
-    BLI_assert(current_index >= 0);
-
-    BLI_listbase_link_move(conlist, con, new_index - current_index);
-
-    WM_event_add_notifier(C, NC_OBJECT | ND_CONSTRAINT, ob);
+    ED_object_constraint_move_to_index(ob, con, new_index);
 
     return OPERATOR_FINISHED;
   }
@@ -1705,8 +1747,8 @@ void POSE_OT_constraints_clear(wmOperatorType *ot)
 
   /* callbacks */
   ot->exec = pose_constraints_clear_exec;
-  ot->poll = ED_operator_posemode_exclusive;  // XXX - do we want to ensure there are selected
-                                              // bones too?
+  ot->poll = ED_operator_posemode_exclusive; /* XXX - do we want to ensure there are selected
+                                              * bones too? */
 }
 
 static int object_constraints_clear_exec(bContext *C, wmOperator *UNUSED(op))
@@ -2177,7 +2219,7 @@ static const EnumPropertyItem *object_constraint_add_itemf(bContext *UNUSED(C),
   int totitem = 0;
 
   while (item->identifier) {
-    if ((item->value != CONSTRAINT_TYPE_KINEMATIC) && (item->value != CONSTRAINT_TYPE_SPLINEIK)) {
+    if (!ELEM(item->value, CONSTRAINT_TYPE_KINEMATIC, CONSTRAINT_TYPE_SPLINEIK)) {
       RNA_enum_item_add(&object_constraint_items, &totitem, item);
     }
     item++;
@@ -2291,7 +2333,7 @@ void POSE_OT_constraint_add_with_targets(wmOperatorType *ot)
  * \note Only for pose-channels.
  * \{ */
 
-// TODO: should these be here, or back in editors/armature/poseobject.c again?
+/* TODO: should these be here, or back in editors/armature/poseobject.c again? */
 
 /* present menu with options + validation for targets to use */
 static int pose_ik_add_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))

@@ -77,6 +77,7 @@ class ImageMetaData {
   /* Set by ImageLoader.load_metadata(). */
   int channels;
   size_t width, height, depth;
+  size_t byte_size;
   ImageDataType type;
 
   /* Optional color space, defaults to raw. */
@@ -173,7 +174,7 @@ class ImageManager {
   ImageHandle add_image(const string &filename, const ImageParams &params);
   ImageHandle add_image(const string &filename,
                         const ImageParams &params,
-                        const vector<int> &tiles);
+                        const array<int> &tiles);
   ImageHandle add_image(ImageLoader *loader, const ImageParams &params, const bool builtin = true);
 
   void device_update(Device *device, Scene *scene, Progress &progress);

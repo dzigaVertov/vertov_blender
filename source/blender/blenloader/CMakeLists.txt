@@ -30,8 +30,10 @@ set(INC
   ../makesdna
   ../makesrna
   ../nodes
-  ../render/extern/include
+  ../render
+  ../sequencer
   ../windowmanager
+  ../../../intern/clog
   ../../../intern/guardedalloc
 
   # for writefile.c: dna_type_offsets.h

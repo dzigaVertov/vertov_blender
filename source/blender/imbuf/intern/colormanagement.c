@@ -54,13 +54,16 @@
 #include "BKE_context.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
-#include "BKE_sequencer.h"
 
 #include "RNA_define.h"
 
+#include "SEQ_sequencer.h"
+
 #include <ocio_capi.h>
 
-/*********************** Global declarations *************************/
+/* -------------------------------------------------------------------- */
+/** \name Global declarations
+ * \{ */
 
 #define DISPLAY_BUFFER_CHANNELS 4
 
@@ -135,9 +138,14 @@ static struct global_color_picking_state {
   bool failed;
 } global_color_picking_state = {NULL};
 
-/*********************** Color managed cache *************************/
+/** \} */
 
-/* Cache Implementation Notes
+/* -------------------------------------------------------------------- */
+/** \name Color Managed Cache
+ * \{ */
+
+/**
+ * Cache Implementation Notes
  * ==========================
  *
  * All color management cache stuff is stored in two properties of
@@ -459,7 +467,11 @@ static void colormanage_cache_handle_release(void *cache_handle)
   IMB_freeImBuf(cache_ibuf);
 }
 
-/*********************** Initialization / De-initialization *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Initialization / De-initialization
+ * \{ */
 
 static void colormanage_role_color_space_name_get(OCIO_ConstConfigRcPtr *config,
                                                   char *colorspace_name,
@@ -749,7 +761,11 @@ void colormanagement_exit(void)
   colormanage_free_config();
 }
 
-/*********************** Internal functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Internal functions
+ * \{ */
 
 static bool colormanage_compatible_look(ColorManagedLook *look, const char *view_name)
 {
@@ -1119,7 +1135,11 @@ void colormanage_imbuf_make_linear(ImBuf *ibuf, const char *from_colorspace)
   }
 }
 
-/*********************** Generic functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Generic Functions
+ * \{ */
 
 static void colormanage_check_display_settings(ColorManagedDisplaySettings *display_settings,
                                                const char *what,
@@ -1459,7 +1479,11 @@ const float *IMB_colormangement_get_xyz_to_rgb()
   return &imbuf_xyz_to_rgb[0][0];
 }
 
-/*********************** Threaded display buffer transform routines *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Threaded Display Buffer Transform Routines
+ * \{ */
 
 typedef struct DisplayBufferThread {
   ColormanageProcessor *cm_processor;
@@ -1597,7 +1621,7 @@ static void display_buffer_apply_get_linear_buffer(DisplayBufferThread *handle,
   }
   else if (handle->float_colorspace) {
     /* currently float is non-linear only in sequencer, which is working
-     * in it's own color space even to handle float buffers.
+     * in its own color space even to handle float buffers.
      * This color space is the same for byte and float images.
      * Need to convert float buffer to linear space before applying display transform
      */
@@ -1827,7 +1851,11 @@ static void colormanage_display_buffer_process(ImBuf *ibuf,
       ibuf, NULL, display_buffer, view_settings, display_settings);
 }
 
-/*********************** Threaded processor transform routines *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Threaded Processor Transform Routines
+ * \{ */
 
 typedef struct ProcessorTransformThread {
   ColormanageProcessor *cm_processor;
@@ -1955,7 +1983,11 @@ static void processor_transform_apply_threaded(unsigned char *byte_buffer,
                                do_processor_transform_thread);
 }
 
-/*********************** Color space transformation functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Color Space Transformation Functions
+ * \{ */
 
 /* Convert the whole buffer from specified by name color space to another -
  * internal implementation. */
@@ -2584,7 +2616,6 @@ ImBuf *IMB_colormanagement_imbuf_for_write(ImBuf *ibuf,
 
   if (do_colormanagement) {
     bool make_byte = false;
-    const ImFileType *type;
 
     /* for proper check whether byte buffer is required by a format or not
      * should be pretty safe since this image buffer is supposed to be used for
@@ -2597,13 +2628,10 @@ ImBuf *IMB_colormanagement_imbuf_for_write(ImBuf *ibuf,
      * we need to allocate byte buffer and store color managed
      * image there
      */
-    for (type = IMB_FILE_TYPES; type < IMB_FILE_TYPES_LAST; type++) {
-      if (type->save && type->ftype(type, colormanaged_ibuf)) {
-        if ((type->flag & IM_FTYPE_FLOAT) == 0) {
-          make_byte = true;
-        }
-
-        break;
+    const ImFileType *type = IMB_file_type_from_ibuf(colormanaged_ibuf);
+    if (type != NULL) {
+      if ((type->save != NULL) && (type->flag & IM_FTYPE_FLOAT) == 0) {
+        make_byte = true;
       }
     }
 
@@ -2667,7 +2695,11 @@ void IMB_colormanagement_buffer_make_display_space(
   IMB_colormanagement_processor_free(cm_processor);
 }
 
-/*********************** Public display buffers interfaces *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Public Display Buffers Interfaces
+ * \{ */
 
 /* acquire display buffer for given image buffer using specified view and display settings */
 unsigned char *IMB_display_buffer_acquire(ImBuf *ibuf,
@@ -2825,7 +2857,11 @@ void IMB_display_buffer_release(void *cache_handle)
   }
 }
 
-/*********************** Display functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Display Functions
+ * \{ */
 
 const char *colormanage_display_get_default_name(void)
 {
@@ -2945,7 +2981,11 @@ const char *IMB_colormanagement_display_get_default_view_transform_name(
   return colormanage_view_get_default_name(display);
 }
 
-/*********************** View functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name View Functions
+ * \{ */
 
 const char *colormanage_view_get_default_name(const ColorManagedDisplay *display)
 {
@@ -3059,7 +3099,11 @@ const char *IMB_colormanagement_view_get_default_name(const char *display_name)
   return NULL;
 }
 
-/*********************** Color space functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Color Space Functions
+ * \{ */
 
 static void colormanage_description_strip(char *description)
 {
@@ -3190,20 +3234,21 @@ void IMB_colormanagement_colorspace_from_ibuf_ftype(
   }
 
   /* Get color space from file type. */
-  const ImFileType *type;
-
-  for (type = IMB_FILE_TYPES; type < IMB_FILE_TYPES_LAST; type++) {
-    if (type->save && type->ftype(type, ibuf)) {
-      const char *role_colorspace;
-
-      role_colorspace = IMB_colormanagement_role_colorspace_name_get(type->default_save_role);
-
+  const ImFileType *type = IMB_file_type_from_ibuf(ibuf);
+  if (type != NULL) {
+    if (type->save != NULL) {
+      const char *role_colorspace = IMB_colormanagement_role_colorspace_name_get(
+          type->default_save_role);
       BLI_strncpy(colorspace_settings->name, role_colorspace, sizeof(colorspace_settings->name));
     }
   }
 }
 
-/*********************** Looks functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Looks Functions
+ * \{ */
 
 ColorManagedLook *colormanage_look_add(const char *name, const char *process_space, bool is_noop)
 {
@@ -3276,7 +3321,11 @@ const char *IMB_colormanagement_look_get_indexed_name(int index)
   return NULL;
 }
 
-/*********************** RNA helper functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name RNA Helper Functions
+ * \{ */
 
 void IMB_colormanagement_display_items_add(EnumPropertyItem **items, int *totitem)
 {
@@ -3372,7 +3421,11 @@ void IMB_colormanagement_colorspace_items_add(EnumPropertyItem **items, int *tot
   }
 }
 
-/*********************** Partial display buffer update  *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Partial Display Buffer Update
+ * \{ */
 
 /*
  * Partial display update is supposed to be used by such areas as
@@ -3750,7 +3803,11 @@ void IMB_partial_display_buffer_update_delayed(ImBuf *ibuf, int xmin, int ymin, 
   }
 }
 
-/*********************** Pixel processor functions *************************/
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Pixel Processor Functions
+ * \{ */
 
 ColormanageProcessor *IMB_colormanagement_display_processor_new(
     const ColorManagedViewSettings *view_settings,
@@ -4172,3 +4229,5 @@ void IMB_colormanagement_finish_glsl_draw(void)
     OCIO_finishGLSLDraw(global_glsl_state.ocio_glsl_state);
   }
 }
+
+/** \} */

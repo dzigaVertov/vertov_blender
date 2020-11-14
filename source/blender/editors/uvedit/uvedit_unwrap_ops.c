@@ -149,6 +149,8 @@ static bool ED_uvedit_ensure_uvs(Object *obedit)
 typedef struct UnwrapOptions {
   /** Connectivity based on UV coordinates instead of seams. */
   bool topology_from_uvs;
+  /** Also use seams as well as UV coordinates (only valid when `topology_from_uvs` is enabled). */
+  bool topology_from_uvs_use_seams;
   /** Only affect selected faces. */
   bool only_selected_faces;
   /**
@@ -331,7 +333,7 @@ static ParamHandle *construct_param_handle(const Scene *scene,
     construct_param_handle_face_add(handle, scene, efa, i, cd_loop_uv_offset);
   }
 
-  if (!options->topology_from_uvs) {
+  if (!options->topology_from_uvs || options->topology_from_uvs_use_seams) {
     BM_ITER_MESH (eed, &iter, bm, BM_EDGES_OF_MESH) {
       if (BM_elem_flag_test(eed, BM_ELEM_SEAM)) {
         ParamKey vkeys[2];
@@ -416,7 +418,7 @@ static ParamHandle *construct_param_handle_multi(const Scene *scene,
       construct_param_handle_face_add(handle, scene, efa, i + offset, cd_loop_uv_offset);
     }
 
-    if (!options->topology_from_uvs) {
+    if (!options->topology_from_uvs || options->topology_from_uvs_use_seams) {
       BM_ITER_MESH (eed, &iter, bm, BM_EDGES_OF_MESH) {
         if (BM_elem_flag_test(eed, BM_ELEM_SEAM)) {
           ParamKey vkeys[2];
@@ -2017,7 +2019,7 @@ static int smart_project_exec(bContext *C, wmOperator *op)
   MemArena *arena = BLI_memarena_new(BLI_MEMARENA_STD_BUFSIZE, __func__);
 
   uint objects_len = 0;
-  Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(
+  Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(
       view_layer, v3d, &objects_len);
 
   Object **objects_changed = MEM_mallocN(sizeof(*objects_changed) * objects_len, __func__);
@@ -2031,6 +2033,10 @@ static int smart_project_exec(bContext *C, wmOperator *op)
     Object *obedit = objects[ob_index];
     BMEditMesh *em = BKE_editmesh_from_object(obedit);
     bool changed = false;
+
+    if (!ED_uvedit_ensure_uvs(obedit)) {
+      continue;
+    }
 
     const uint cd_loop_uv_offset = CustomData_get_offset(&em->bm->ldata, CD_MLOOPUV);
     ThickFace *thick_faces = MEM_mallocN(sizeof(*thick_faces) * em->bm->totface, __func__);
@@ -2145,6 +2151,10 @@ static int smart_project_exec(bContext *C, wmOperator *op)
     scene->toolsettings->uvcalc_margin = island_margin;
     const UnwrapOptions options = {
         .topology_from_uvs = true,
+        /* Even though the islands are defined by UV's,
+         * split them by seams so users have control over the islands. */
+        .topology_from_uvs_use_seams = true,
+
         .only_selected_faces = true,
         .only_selected_uvs = false,
         .fill_holes = true,
@@ -2380,7 +2390,7 @@ static bool uv_from_view_poll(bContext *C)
 void UV_OT_project_from_view(wmOperatorType *ot)
 {
   /* identifiers */
-  ot->name = "Project From View";
+  ot->name = "Project from View";
   ot->idname = "UV_OT_project_from_view";
   ot->description = "Project the UV vertices of the mesh as seen in current 3D view";
 

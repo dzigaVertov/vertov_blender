@@ -218,8 +218,12 @@ typedef struct View3DOverlay {
   /** Armature edit/pose mode settings. */
   float xray_alpha_bone;
 
+  /** Darken Inactive. */
+  float fade_alpha;
+
   /** Other settings. */
   float wireframe_threshold;
+  float wireframe_opacity;
 
   /** Grease pencil settings. */
   float gpencil_paper_opacity;
@@ -479,6 +483,7 @@ enum {
   V3D_SHADING_DEPTH_OF_FIELD = (1 << 11),
   V3D_SHADING_SCENE_LIGHTS_RENDER = (1 << 12),
   V3D_SHADING_SCENE_WORLD_RENDER = (1 << 13),
+  V3D_SHADING_STUDIOLIGHT_VIEW_ROTATION = (1 << 14),
 };
 
 /** #View3DShading.cavity_type */
@@ -502,6 +507,7 @@ enum {
   V3D_OVERLAY_HIDE_OBJECT_XTRAS = (1 << 9),
   V3D_OVERLAY_HIDE_OBJECT_ORIGINS = (1 << 10),
   V3D_OVERLAY_STATS = (1 << 11),
+  V3D_OVERLAY_FADE_INACTIVE = (1 << 12),
 };
 
 /** #View3DOverlay.edit_flag */

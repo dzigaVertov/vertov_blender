@@ -61,7 +61,7 @@
 #include "IMB_imbuf_types.h"
 
 #include "RE_pipeline.h"
-#include "RE_shader_ext.h"
+#include "RE_texture.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +70,7 @@ extern "C" {
 typedef struct TexCallData {
   TexResult *target;
   /* all float[3] */
-  float *co;
+  const float *co;
   float *dxt, *dyt;
 
   int osatex;
@@ -84,7 +84,7 @@ typedef struct TexCallData {
 } TexCallData;
 
 typedef struct TexParams {
-  float *co;
+  const float *co;
   float *dxt, *dyt;
   const float *previewco;
   int cfra;

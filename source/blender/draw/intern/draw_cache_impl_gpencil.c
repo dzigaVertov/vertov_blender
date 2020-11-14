@@ -734,11 +734,15 @@ static void gpencil_edit_stroke_iter_cb(bGPDlayer *gpl,
   vert_ptr->weight = gpencil_point_edit_weight(dvert, 0, iter->vgindex);
 }
 
-static void gpencil_edit_curve_stroke_count_cb(bGPDlayer *UNUSED(gpl),
+static void gpencil_edit_curve_stroke_count_cb(bGPDlayer *gpl,
                                                bGPDframe *UNUSED(gpf),
                                                bGPDstroke *gps,
                                                void *thunk)
 {
+  if (gpl->flag & GP_LAYER_LOCKED) {
+    return;
+  }
+
   gpIterData *iter = (gpIterData *)thunk;
 
   if (gps->editcurve == NULL) {
@@ -768,10 +772,14 @@ static char gpencil_beztriple_vflag_get(char flag,
 }
 
 static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
-                                              bGPDframe *gpf,
+                                              bGPDframe *UNUSED(gpf),
                                               bGPDstroke *gps,
                                               void *thunk)
 {
+  if (gpl->flag & GP_LAYER_LOCKED) {
+    return;
+  }
+
   if (gps->editcurve == NULL) {
     return;
   }

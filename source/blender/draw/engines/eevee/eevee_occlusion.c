@@ -64,7 +64,9 @@ int EEVEE_occlusion_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
     common_data->ao_factor = scene_eval->eevee.gtao_factor;
     common_data->ao_quality = 1.0f - scene_eval->eevee.gtao_quality;
 
-    common_data->ao_settings = 1.0f; /* USE_AO */
+    if (scene_eval->eevee.flag & SCE_EEVEE_GTAO_ENABLED) {
+      common_data->ao_settings = 1.0f; /* USE_AO */
+    }
     if (scene_eval->eevee.flag & SCE_EEVEE_GTAO_BENT_NORMALS) {
       common_data->ao_settings += 2.0f; /* USE_BENT_NORMAL */
     }
@@ -128,12 +130,6 @@ void EEVEE_occlusion_output_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata
 
   /* Clear texture. */
   if (effects->taa_current_sample == 1) {
-    GPU_framebuffer_bind(fbl->ao_accum_fb);
-    GPU_framebuffer_clear_color(fbl->ao_accum_fb, clear);
-  }
-
-  /* Clear texture. */
-  if (DRW_state_is_image_render() || effects->taa_current_sample == 1) {
     GPU_framebuffer_bind(fbl->ao_accum_fb);
     GPU_framebuffer_clear_color(fbl->ao_accum_fb, clear);
   }

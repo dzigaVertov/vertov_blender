@@ -25,14 +25,12 @@ set(INC
   ../../imbuf
   ../../makesdna
   ../../makesrna
+  ../../sequencer
   ../../windowmanager
   ../../../../intern/glew-mx
   ../../../../intern/guardedalloc
 )
 
-set(INC_SYS
-  ${GLEW_INCLUDE_PATH}
-)
 
 set(SRC
   outliner_collections.c
@@ -46,8 +44,14 @@ set(SRC
   outliner_tree.c
   outliner_utils.c
   space_outliner.c
+  tree/common.cc
+  tree/tree_display.cc
+  tree/tree_display_libraries.cc
+  tree/tree_display_view_layer.cc
 
   outliner_intern.h
+  tree/tree_display.h
+  tree/tree_display.hh
 )
 
 set(LIB
@@ -60,6 +64,5 @@ if(WITH_INTERNATIONAL)
   add_definitions(-DWITH_INTERNATIONAL)
 endif()
 
-add_definitions(${GL_DEFINITIONS})
 
 blender_add_lib(bf_editor_space_outliner "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")

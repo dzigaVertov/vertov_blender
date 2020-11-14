@@ -28,15 +28,11 @@ set(INC
   ../../imbuf
   ../../makesdna
   ../../makesrna
-  ../../render/extern/include
+  ../../render
   ../../windowmanager
   ../../../../intern/clog
   ../../../../intern/glew-mx
   ../../../../intern/guardedalloc
-)
-
-set(INC_SYS
-  ${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
@@ -97,6 +93,5 @@ if(WITH_GMP)
   add_definitions(-DWITH_GMP)
 endif()
 
-add_definitions(${GL_DEFINITIONS})
 
 blender_add_lib(bf_editor_mesh "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")

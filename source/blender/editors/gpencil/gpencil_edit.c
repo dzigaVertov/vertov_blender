@@ -1000,31 +1000,7 @@ static int gpencil_duplicate_exec(bContext *C, wmOperator *op)
 
   bool changed = false;
   if (is_curve_edit) {
-    CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
-      ListBase new_strokes = {NULL, NULL};
-      bGPDframe *gpf = gpl->actframe;
-      if (gpf == NULL) {
-        continue;
-      }
-
-      for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-        if (ED_gpencil_stroke_can_use(C, gps) == false) {
-          continue;
-        }
-        if (gps->editcurve == NULL) {
-          continue;
-        }
-
-        bGPDcurve *gpc = gps->editcurve;
-        if (gpc->flag & GP_CURVE_SELECT) {
-          gpencil_duplicate_selected_curve_points(gpd, gpl, &new_strokes, gps, gpc);
-          changed = true;
-        }
-      }
-
-      BLI_movelisttolist(&gpf->strokes, &new_strokes);
-    }
-    CTX_DATA_END;
+    BKE_report(op->reports, RPT_ERROR, "Not implemented!");
   }
   else {
     /* for each visible (and editable) layer's selected strokes,
@@ -1166,7 +1142,7 @@ static void gpencil_add_move_points(bGPdata *gpd, bGPDframe *gpf, bGPDstroke *gp
   /* review points in the middle of stroke to create new strokes */
   for (int i = 0; i < gps->totpoints; i++) {
     /* skip first and last point */
-    if ((i == 0) || (i == gps->totpoints - 1)) {
+    if (ELEM(i, 0, gps->totpoints - 1)) {
       continue;
     }
 
@@ -1311,7 +1287,8 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
       /* select last point */
       bGPDcurve_point *gpc_pt_last = &new_gpc->curve_points[1];
       gpc_pt_last->flag |= GP_CURVE_POINT_SELECT;
-      BEZT_SEL_ALL(&gpc_pt_last->bezt);
+      BEZT_SEL_IDX(&gpc_pt_last->bezt, 1);
+      gps_new->editcurve->flag |= GP_CURVE_SELECT;
 
       BLI_insertlinkafter(&gpf->strokes, gps, gps_new);
 
@@ -1349,7 +1326,7 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
 
       bGPDcurve_point *old_first = &gpc->curve_points[1];
 
-      old_first->flag &= GP_CURVE_POINT_SELECT;
+      old_first->flag &= ~GP_CURVE_POINT_SELECT;
       BEZT_DESEL_ALL(&old_first->bezt);
     }
 
@@ -1358,7 +1335,7 @@ static void gpencil_curve_extrude_points(bGPdata *gpd,
       bGPDcurve_point *new_last = &gpc->curve_points[gpc->tot_curve_points - 1];
       memcpy(new_last, old_last, sizeof(bGPDcurve_point));
 
-      old_last->flag &= GP_CURVE_POINT_SELECT;
+      old_last->flag &= ~GP_CURVE_POINT_SELECT;
       BEZT_DESEL_ALL(&old_last->bezt);
     }
 
@@ -1671,7 +1648,7 @@ static int gpencil_strokes_copy_exec(bContext *C, wmOperator *op)
   }
 
   /* updates (to ensure operator buttons are refreshed, when used via hotkeys) */
-  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);  // XXX?
+  WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL); /* XXX? */
 
   /* done */
   return OPERATOR_FINISHED;
@@ -1979,11 +1956,11 @@ void GPENCIL_OT_move_to_layer(wmOperatorType *ot)
   ot->name = "Move Strokes to Layer";
   ot->idname = "GPENCIL_OT_move_to_layer";
   ot->description =
-      "Move selected strokes to another layer";  // XXX: allow moving individual points too?
+      "Move selected strokes to another layer"; /* XXX: allow moving individual points too? */
 
   /* callbacks */
   ot->exec = gpencil_move_to_layer_exec;
-  ot->poll = gpencil_stroke_edit_poll;  // XXX?
+  ot->poll = gpencil_stroke_edit_poll; /* XXX? */
 
   /* flags */
   ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
@@ -2901,9 +2878,7 @@ static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
                                                bGPDstroke *gps,
                                                bGPDstroke *next_stroke,
                                                bGPDcurve *gpc,
-                                               int tag_flags,
-                                               bool select,
-                                               int limit)
+                                               int tag_flags)
 {
   if (gpc == NULL) {
     return;
@@ -2927,7 +2902,6 @@ static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
       idx_end = selected ? i - 1 : i;
       int island_length = idx_end - idx_start + 1;
 
-#if 0
       /* If an island has only a single curve point, there is no curve segment, so skip island */
       if (island_length == 1) {
         if (is_cyclic) {
@@ -2941,7 +2915,7 @@ static void gpencil_curve_delete_tagged_points(bGPdata *gpd,
           continue;
         }
       }
-#endif
+
       bGPDstroke *new_stroke = BKE_gpencil_stroke_duplicate(gps, false, false);
       new_stroke->points = NULL;
       new_stroke->flag &= ~GP_STROKE_CYCLIC;
@@ -3043,7 +3017,7 @@ static int gpencil_delete_selected_points(bContext *C)
             if (is_curve_edit) {
               bGPDcurve *gpc = gps->editcurve;
               gpencil_curve_delete_tagged_points(
-                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT, false, 0);
+                  gpd, gpf, gps, gps->next, gpc, GP_CURVE_POINT_SELECT);
             }
             else {
               /* delete unwanted points by splitting stroke into several smaller ones */
@@ -3198,12 +3172,12 @@ static bool gpencil_snap_poll(bContext *C)
 static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
-  RegionView3D *rv3d = CTX_wm_region_data(C);
+  ARegion *region = CTX_wm_region(C);
   View3D *v3d = CTX_wm_view3d(C);
   Scene *scene = CTX_data_scene(C);
   Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   Object *obact = CTX_data_active_object(C);
-  const float gridf = ED_view3d_grid_view_scale(scene, v3d, rv3d, NULL);
+  const float gridf = ED_view3d_grid_view_scale(scene, v3d, region, NULL);
   const bool is_curve_edit = (bool)GPENCIL_CURVE_EDIT_SESSIONS_ON(gpd);
 
   bool changed = false;
@@ -3271,7 +3245,7 @@ static int gpencil_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
           }
         }
         else {
-          // TODO: if entire stroke is selected, offset entire stroke by same amount?
+          /* TODO: if entire stroke is selected, offset entire stroke by same amount? */
           for (int i = 0; i < gps->totpoints; i++) {
             bGPDspoint *pt = &gps->points[i];
             /* only if point is selected */
@@ -3477,7 +3451,7 @@ static bool gpencil_stroke_points_centroid(Depsgraph *depsgraph,
             add_v3_v3(r_centroid, fpt);
             minmax_v3v3_v3(r_min, r_max, fpt);
 
-            *count++;
+            (*count)++;
           }
         }
 
@@ -3722,8 +3696,8 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
   PropertyRNA *prop;
 
   static const EnumPropertyItem cyclic_type[] = {
-      {GP_STROKE_CYCLIC_CLOSE, "CLOSE", 0, "Close all", ""},
-      {GP_STROKE_CYCLIC_OPEN, "OPEN", 0, "Open all", ""},
+      {GP_STROKE_CYCLIC_CLOSE, "CLOSE", 0, "Close All", ""},
+      {GP_STROKE_CYCLIC_OPEN, "OPEN", 0, "Open All", ""},
       {GP_STROKE_CYCLIC_TOGGLE, "TOGGLE", 0, "Toggle", ""},
       {0, NULL, 0, NULL, NULL},
   };
@@ -3791,13 +3765,13 @@ static int gpencil_stroke_caps_set_exec(bContext *C, wmOperator *op)
       short prev_first = gps->caps[0];
       short prev_last = gps->caps[1];
 
-      if ((type == GP_STROKE_CAPS_TOGGLE_BOTH) || (type == GP_STROKE_CAPS_TOGGLE_START)) {
+      if (ELEM(type, GP_STROKE_CAPS_TOGGLE_BOTH, GP_STROKE_CAPS_TOGGLE_START)) {
         ++gps->caps[0];
         if (gps->caps[0] >= GP_STROKE_CAP_MAX) {
           gps->caps[0] = GP_STROKE_CAP_ROUND;
         }
       }
-      if ((type == GP_STROKE_CAPS_TOGGLE_BOTH) || (type == GP_STROKE_CAPS_TOGGLE_END)) {
+      if (ELEM(type, GP_STROKE_CAPS_TOGGLE_BOTH, GP_STROKE_CAPS_TOGGLE_END)) {
         ++gps->caps[1];
         if (gps->caps[1] >= GP_STROKE_CAP_MAX) {
           gps->caps[1] = GP_STROKE_CAP_ROUND;
@@ -3971,24 +3945,50 @@ static void gpencil_stroke_join_strokes(bGPDstroke *gps_a,
   }
 
   /* define start and end points of each stroke */
-  float area[3], sb[3], ea[3], eb[3];
+  float start_a[3], start_b[3], end_a[3], end_b[3];
   pt = &gps_a->points[0];
-  copy_v3_v3(area, &pt->x);
+  copy_v3_v3(start_a, &pt->x);
 
   pt = &gps_a->points[gps_a->totpoints - 1];
-  copy_v3_v3(ea, &pt->x);
+  copy_v3_v3(end_a, &pt->x);
 
   pt = &gps_b->points[0];
-  copy_v3_v3(sb, &pt->x);
+  copy_v3_v3(start_b, &pt->x);
 
   pt = &gps_b->points[gps_b->totpoints - 1];
-  copy_v3_v3(eb, &pt->x);
+  copy_v3_v3(end_b, &pt->x);
 
-  /* review if need flip stroke B */
-  float ea_sb = len_squared_v3v3(ea, sb);
-  float ea_eb = len_squared_v3v3(ea, eb);
-  /* flip if distance to end point is shorter */
-  if (ea_eb < ea_sb) {
+  /* Check if need flip strokes. */
+  float dist = len_squared_v3v3(end_a, start_b);
+  bool flip_a = false;
+  bool flip_b = false;
+  float lowest = dist;
+
+  dist = len_squared_v3v3(end_a, end_b);
+  if (dist < lowest) {
+    lowest = dist;
+    flip_a = false;
+    flip_b = true;
+  }
+
+  dist = len_squared_v3v3(start_a, start_b);
+  if (dist < lowest) {
+    lowest = dist;
+    flip_a = true;
+    flip_b = false;
+  }
+
+  dist = len_squared_v3v3(start_a, end_b);
+  if (dist < lowest) {
+    lowest = dist;
+    flip_a = true;
+    flip_b = true;
+  }
+
+  if (flip_a) {
+    gpencil_flip_stroke(gps_a);
+  }
+  if (flip_b) {
     gpencil_flip_stroke(gps_b);
   }
 
@@ -4012,16 +4012,71 @@ static void gpencil_stroke_join_strokes(bGPDstroke *gps_a,
   }
 }
 
+typedef struct tJoinStrokes {
+  bGPDframe *gpf;
+  bGPDstroke *gps;
+  bool used;
+} tJoinStrokes;
+
+static int gpencil_get_nearest_stroke_index(tJoinStrokes *strokes_list,
+                                            const bGPDstroke *gps,
+                                            const int totstrokes)
+{
+  int index = -1;
+  float min_dist = FLT_MAX;
+  float dist, start_a[3], end_a[3], start_b[3], end_b[3];
+
+  bGPDspoint *pt = &gps->points[0];
+  copy_v3_v3(start_a, &pt->x);
+
+  pt = &gps->points[gps->totpoints - 1];
+  copy_v3_v3(end_a, &pt->x);
+
+  for (int i = 0; i < totstrokes; i++) {
+    tJoinStrokes *elem = &strokes_list[i];
+    if (elem->used) {
+      continue;
+    }
+    pt = &elem->gps->points[0];
+    copy_v3_v3(start_b, &pt->x);
+
+    pt = &elem->gps->points[elem->gps->totpoints - 1];
+    copy_v3_v3(end_b, &pt->x);
+
+    dist = len_squared_v3v3(start_a, start_b);
+    if (dist < min_dist) {
+      min_dist = dist;
+      index = i;
+    }
+    dist = len_squared_v3v3(start_a, end_b);
+    if (dist < min_dist) {
+      min_dist = dist;
+      index = i;
+    }
+    dist = len_squared_v3v3(end_a, start_b);
+    if (dist < min_dist) {
+      min_dist = dist;
+      index = i;
+    }
+    dist = len_squared_v3v3(end_a, end_b);
+    if (dist < min_dist) {
+      min_dist = dist;
+      index = i;
+    }
+  }
+
+  return index;
+}
+
 static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
 {
   bGPdata *gpd = ED_gpencil_data_get_active(C);
   bGPDlayer *activegpl = BKE_gpencil_layer_active_get(gpd);
   Object *ob = CTX_data_active_object(C);
-
-  bGPDframe *gpf_a = NULL;
-  bGPDstroke *stroke_a = NULL;
-  bGPDstroke *stroke_b = NULL;
-  bGPDstroke *new_stroke = NULL;
+  /* Limit the number of strokes to join. It makes no sense to allow an very high number of strokes
+   * for CPU time and because to have a stroke with thousands of points is unpractical, so limit
+   * this number avoid to joining a full frame scene in one single stroke. */
+  const int max_join_strokes = 128;
 
   const int type = RNA_enum_get(op->ptr, "type");
   const bool leave_gaps = RNA_boolean_get(op->ptr, "leave_gaps");
@@ -4042,86 +4097,88 @@ static int gpencil_stroke_join_exec(bContext *C, wmOperator *op)
 
   BLI_assert(ELEM(type, GP_STROKE_JOIN, GP_STROKE_JOINCOPY));
 
-  /* read all selected strokes */
-  bool first = false;
+  int tot_strokes = 0;
+  /** Alloc memory  */
+  tJoinStrokes *strokes_list = MEM_malloc_arrayN(sizeof(tJoinStrokes), max_join_strokes, __func__);
+  tJoinStrokes *elem = NULL;
+  /* Read all selected strokes to create a list. */
   CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
     bGPDframe *gpf = gpl->actframe;
     if (gpf == NULL) {
       continue;
     }
 
-    LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
+    /* Add all stroke selected of the frame. */
+    LISTBASE_FOREACH (bGPDstroke *, gps, &gpf->strokes) {
       if (gps->flag & GP_STROKE_SELECT) {
         /* skip strokes that are invalid for current view */
         if (ED_gpencil_stroke_can_use(C, gps) == false) {
           continue;
         }
-        /* check if the color is editable */
+        /* check if the color is editable. */
         if (ED_gpencil_stroke_color_use(ob, gpl, gps) == false) {
           continue;
         }
+        elem = &strokes_list[tot_strokes];
+        elem->gpf = gpf;
+        elem->gps = gps;
+        elem->used = false;
 
-        /* to join strokes, cyclic must be disabled */
-        gps->flag &= ~GP_STROKE_CYCLIC;
-
-        /* saves first frame and stroke */
-        if (!first) {
-          first = true;
-          gpf_a = gpf;
-          stroke_a = gps;
-        }
-        else {
-          stroke_b = gps;
-
-          /* create a new stroke if was not created before (only created if something to join) */
-          if (new_stroke == NULL) {
-            new_stroke = BKE_gpencil_stroke_duplicate(stroke_a, true, true);
-
-            /* if new, set current color */
-            if (type == GP_STROKE_JOINCOPY) {
-              new_stroke->mat_nr = stroke_a->mat_nr;
-            }
-          }
-
-          /* join new_stroke and stroke B. New stroke will contain all the previous data */
-          gpencil_stroke_join_strokes(new_stroke, stroke_b, leave_gaps);
-
-          /* if join only, delete old strokes */
-          if (type == GP_STROKE_JOIN) {
-            if (stroke_a) {
-              /* Calc geometry data. */
-              BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
-
-              BLI_insertlinkbefore(&gpf_a->strokes, stroke_a, new_stroke);
-              BLI_remlink(&gpf->strokes, stroke_a);
-              BKE_gpencil_free_stroke(stroke_a);
-              stroke_a = NULL;
-            }
-            if (stroke_b) {
-              BLI_remlink(&gpf->strokes, stroke_b);
-              BKE_gpencil_free_stroke(stroke_b);
-              stroke_b = NULL;
-            }
-          }
+        tot_strokes++;
+        /* Limit the number of strokes. */
+        if (tot_strokes == max_join_strokes) {
+          BKE_reportf(op->reports,
+                      RPT_WARNING,
+                      "Too many strokes selected. Only joined first %d strokes.",
+                      max_join_strokes);
+          break;
         }
       }
     }
   }
   CTX_DATA_END;
 
-  /* add new stroke if was not added before */
-  if (type == GP_STROKE_JOINCOPY) {
-    if (new_stroke) {
-      /* Add a new frame if needed */
-      if (activegpl->actframe == NULL) {
-        activegpl->actframe = BKE_gpencil_frame_addnew(activegpl, gpf_a->framenum);
-      }
-      /* Calc geometry data. */
-      BKE_gpencil_stroke_geometry_update(gpd, new_stroke);
+  /* Nothing to join. */
+  if (tot_strokes < 2) {
+    MEM_SAFE_FREE(strokes_list);
+    return OPERATOR_CANCELLED;
+  }
 
-      BLI_addtail(&activegpl->actframe->strokes, new_stroke);
+  /* Take first stroke. */
+  elem = &strokes_list[0];
+  elem->used = true;
+
+  /* Create a new stroke. */
+  bGPDstroke *gps_new = BKE_gpencil_stroke_duplicate(elem->gps, true, true);
+  gps_new->flag &= ~GP_STROKE_CYCLIC;
+  BLI_insertlinkbefore(&elem->gpf->strokes, elem->gps, gps_new);
+
+  /* Join all strokes until the list is completed. */
+  while (true) {
+    int i = gpencil_get_nearest_stroke_index(strokes_list, gps_new, tot_strokes);
+    if (i < 0) {
+      break;
+    }
+    elem = &strokes_list[i];
+    /* Join new_stroke and stroke B. */
+    gpencil_stroke_join_strokes(gps_new, elem->gps, leave_gaps);
+    elem->used = true;
+  }
+
+  /* Calc geometry data for new stroke. */
+  BKE_gpencil_stroke_geometry_update(gpd, gps_new);
+
+  /* If join only, delete old strokes. */
+  if (type == GP_STROKE_JOIN) {
+    for (int i = 0; i < tot_strokes; i++) {
+      elem = &strokes_list[i];
+      BLI_remlink(&elem->gpf->strokes, elem->gps);
+      BKE_gpencil_free_stroke(elem->gps);
     }
   }
+
+  /* Free memory. */
+  MEM_SAFE_FREE(strokes_list);
 
   /* notifiers */
   DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
@@ -4749,6 +4806,7 @@ static int gpencil_stroke_simplify_fixed_exec(bContext *C, wmOperator *op)
     /* Go through each editable + selected stroke */
     GP_EDITABLE_STROKES_BEGIN (gpstroke_iter, C, gpl, gps) {
       if (gps->flag & GP_STROKE_SELECT) {
+        changed |= true;
         for (int i = 0; i < steps; i++) {
           BKE_gpencil_stroke_simplify_fixed(gpd, gps);
         }
@@ -4948,7 +5006,7 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  if ((mode == GP_SEPARATE_LAYER) && (BLI_listbase_count(&gpd_src->layers) == 1)) {
+  if ((mode == GP_SEPARATE_LAYER) && (BLI_listbase_is_single(&gpd_src->layers))) {
     BKE_report(op->reports, RPT_ERROR, "Cannot separate an object with one layer only");
     return OPERATOR_CANCELLED;
   }
@@ -4971,7 +5029,7 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
   ob_dst->data = (bGPdata *)gpd_dst;
 
   /* Loop old data-block and separate parts. */
-  if ((mode == GP_SEPARATE_POINT) || (mode == GP_SEPARATE_STROKE)) {
+  if (ELEM(mode, GP_SEPARATE_POINT, GP_SEPARATE_STROKE)) {
     CTX_DATA_BEGIN (C, bGPDlayer *, gpl, editable_gpencil_layers) {
       gpl_dst = NULL;
       bGPDframe *init_gpf = (is_multiedit) ? gpl->frames.first : gpl->actframe;
@@ -5103,6 +5161,19 @@ static int gpencil_stroke_separate_exec(bContext *C, wmOperator *op)
       BKE_gpencil_layer_active_set(gpd_dst, gpd_dst->layers.first);
     }
   }
+
+  /* Remove unused slots. */
+  int actcol = ob_dst->actcol;
+  for (int slot = 1; slot <= ob_dst->totcol; slot++) {
+    while (slot <= ob_dst->totcol && !BKE_object_material_slot_used(ob_dst->data, slot)) {
+      ob_dst->actcol = slot;
+      BKE_object_material_slot_remove(bmain, ob_dst);
+      if (actcol >= slot) {
+        actcol--;
+      }
+    }
+  }
+  ob_dst->actcol = actcol;
 
   DEG_id_tag_update(&gpd_src->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
   DEG_id_tag_update(&gpd_dst->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
@@ -5337,7 +5408,10 @@ typedef bool (*GPencilTestFn)(bGPDstroke *gps,
                               const float diff_mat[4][4],
                               void *user_data);
 
-static void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
+static void gpencil_cutter_dissolve(bGPdata *gpd,
+                                    bGPDlayer *hit_layer,
+                                    bGPDstroke *hit_stroke,
+                                    const bool flat_caps)
 {
   bGPDspoint *pt = NULL;
   bGPDspoint *pt1 = NULL;
@@ -5381,6 +5455,17 @@ static void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstro
         pt->flag &= ~GP_SPOINT_TAG;
       }
     }
+    /* If flat caps mode check extremes. */
+    if (flat_caps) {
+      if (hit_stroke->points[0].flag & GP_SPOINT_TAG) {
+        hit_stroke->caps[0] = GP_STROKE_CAP_FLAT;
+      }
+
+      if (hit_stroke->points[hit_stroke->totpoints - 1].flag & GP_SPOINT_TAG) {
+        hit_stroke->caps[1] = GP_STROKE_CAP_FLAT;
+      }
+    }
+
     gpencil_stroke_delete_tagged_points(
         gpd, hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
   }
@@ -5395,6 +5480,7 @@ static int gpencil_cutter_lasso_select(bContext *C,
   ScrArea *area = CTX_wm_area(C);
   ToolSettings *ts = CTX_data_tool_settings(C);
   const float scale = ts->gp_sculpt.isect_threshold;
+  const bool flat_caps = RNA_boolean_get(op->ptr, "flat_caps");
 
   bGPDspoint *pt;
   GP_SpaceConversion gsc = {NULL};
@@ -5469,7 +5555,7 @@ static int gpencil_cutter_lasso_select(bContext *C,
     }
     LISTBASE_FOREACH_MUTABLE (bGPDstroke *, gps, &gpf->strokes) {
       if (gps->flag & GP_STROKE_SELECT) {
-        gpencil_cutter_dissolve(gpd, gpl, gps);
+        gpencil_cutter_dissolve(gpd, gpl, gps, flat_caps);
       }
     }
   }
@@ -5543,6 +5629,8 @@ void GPENCIL_OT_stroke_cutter(wmOperatorType *ot)
 
   /* properties */
   WM_operator_properties_gesture_lasso(ot);
+
+  RNA_def_boolean(ot->srna, "flat_caps", 0, "Flat Caps", "");
 }
 
 bool ED_object_gpencil_exit(struct Main *bmain, Object *ob)

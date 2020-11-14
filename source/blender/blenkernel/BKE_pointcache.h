@@ -91,9 +91,8 @@ struct RigidBodyWorld;
 struct Scene;
 struct SoftBody;
 struct ViewLayer;
-
-struct OpenVDBReader;
-struct OpenVDBWriter;
+struct BlendWriter;
+struct BlendDataReader;
 
 /* temp structure for read/write */
 typedef struct PTCacheData {
@@ -122,7 +121,6 @@ typedef struct PTCacheFile {
 
 enum {
   PTCACHE_FILE_PTCACHE = 0,
-  PTCACHE_FILE_OPENVDB = 1,
 };
 
 typedef struct PTCacheID {
@@ -159,11 +157,6 @@ typedef struct PTCacheID {
   /* copies cache cata to point data */
   int (*read_stream)(PTCacheFile *pf, void *calldata);
 
-  /* copies point data to cache data */
-  int (*write_openvdb_stream)(struct OpenVDBWriter *writer, void *calldata);
-  /* copies cache cata to point data */
-  int (*read_openvdb_stream)(struct OpenVDBReader *reader, void *calldata);
-
   /* copies custom extradata to cache data */
   void (*write_extra_data)(void *calldata, struct PTCacheMem *pm, int cfra);
   /* copies custom extradata to cache data */
@@ -176,7 +169,7 @@ typedef struct PTCacheID {
    * (the cfra parameter is just for using same function pointer with totwrite). */
   int (*totpoint)(void *calldata, int cfra);
   /* report error if number of points does not match */
-  void (*error)(void *calldata, const char *message);
+  void (*error)(const struct ID *owner_id, void *calldata, const char *message);
   /* number of points written for current cache frame */
   int (*totwrite)(void *calldata, int cfra);
 
@@ -382,6 +375,14 @@ void BKE_ptcache_validate(struct PointCache *cache, int framenr);
 
 /* Set correct flags after unsuccessful simulation step */
 void BKE_ptcache_invalidate(struct PointCache *cache);
+
+/********************** .blend File I/O *********************/
+
+void BKE_ptcache_blend_write(struct BlendWriter *writer, struct ListBase *ptcaches);
+void BKE_ptcache_blend_read_data(struct BlendDataReader *reader,
+                                 struct ListBase *ptcaches,
+                                 struct PointCache **ocache,
+                                 int force_disk);
 
 #ifdef __cplusplus
 }

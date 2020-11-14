@@ -58,6 +58,11 @@ Alembic::Abc::OObject ABCPointsWriter::get_alembic_object() const
   return abc_points_;
 }
 
+Alembic::Abc::OCompoundProperty ABCPointsWriter::abc_prop_for_custom_props()
+{
+  return abc_schema_prop_for_custom_props(abc_points_schema_);
+}
+
 bool ABCPointsWriter::is_supported(const HierarchyContext *context) const
 {
   return ELEM(context->particle_system->part->type,
@@ -118,15 +123,15 @@ void ABCPointsWriter::do_write(HierarchyContext &context)
     sub_v3_v3v3(vel, state.co, psys->particles[p].prev_state.co);
 
     /* Convert Z-up to Y-up. */
-    points.push_back(Imath::V3f(pos[0], pos[2], -pos[1]));
-    velocities.push_back(Imath::V3f(vel[0], vel[2], -vel[1]));
+    points.emplace_back(pos[0], pos[2], -pos[1]);
+    velocities.emplace_back(vel[0], vel[2], -vel[1]);
     widths.push_back(psys->particles[p].size);
     ids.push_back(index++);
   }
 
   if (psys->lattice_deform_data) {
     BKE_lattice_deform_data_destroy(psys->lattice_deform_data);
-    psys->lattice_deform_data = NULL;
+    psys->lattice_deform_data = nullptr;
   }
 
   Alembic::Abc::P3fArraySample psample(points);

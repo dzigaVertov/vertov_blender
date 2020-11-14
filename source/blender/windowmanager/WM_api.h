@@ -632,12 +632,19 @@ void WM_gesture_lasso_cancel(struct bContext *C, struct wmOperator *op);
 const int (*WM_gesture_lasso_path_to_array(struct bContext *C,
                                            struct wmOperator *op,
                                            int *mcoords_len))[2];
+
 int WM_gesture_straightline_invoke(struct bContext *C,
                                    struct wmOperator *op,
                                    const struct wmEvent *event);
+int WM_gesture_straightline_active_side_invoke(struct bContext *C,
+                                               struct wmOperator *op,
+                                               const struct wmEvent *event);
 int WM_gesture_straightline_modal(struct bContext *C,
                                   struct wmOperator *op,
                                   const struct wmEvent *event);
+int WM_gesture_straightline_oneshot_modal(struct bContext *C,
+                                          struct wmOperator *op,
+                                          const struct wmEvent *event);
 void WM_gesture_straightline_cancel(struct bContext *C, struct wmOperator *op);
 
 /* Gesture manager API */
@@ -722,6 +729,7 @@ enum {
   WM_JOB_TYPE_LIGHT_BAKE,
   WM_JOB_TYPE_FSMENU_BOOKMARK_VALIDATE,
   WM_JOB_TYPE_QUADRIFLOW_REMESH,
+  WM_JOB_TYPE_TRACE_IMAGE,
   /* add as needed, bake, seq proxy build
    * if having hard coded values is a problem */
 };
@@ -848,6 +856,9 @@ void WM_event_ndof_to_quat(const struct wmNDOFMotionData *ndof, float q[4]);
 
 float WM_event_tablet_data(const struct wmEvent *event, int *pen_flip, float tilt[2]);
 bool WM_event_is_tablet(const struct wmEvent *event);
+
+int WM_event_absolute_delta_x(const struct wmEvent *event);
+int WM_event_absolute_delta_y(const struct wmEvent *event);
 
 #ifdef WITH_INPUT_IME
 bool WM_event_is_ime_switch(const struct wmEvent *event);

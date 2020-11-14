@@ -447,10 +447,10 @@ class QuickLiquid(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     show_flows: BoolProperty(
-            name="Render Liquid Objects",
-            description="Keep the liquid objects visible during rendering",
-            default=False,
-            )
+        name="Render Liquid Objects",
+        description="Keep the liquid objects visible during rendering",
+        default=False,
+    )
 
     def execute(self, context):
         if not bpy.app.build_options.fluid:
@@ -523,6 +523,17 @@ class QuickLiquid(Operator):
         # change domain type, will also allocate and show particle system for FLIP
         obj.modifiers[-1].domain_settings.domain_type = 'LIQUID'
 
+        liquid_domain = obj.modifiers[-2]
+
+        # set color mapping field to show phi grid for liquid
+        liquid_domain.domain_settings.color_ramp_field = 'PHI'
+
+        # perform a single slice of the domain
+        liquid_domain.domain_settings.use_slice = True
+
+        # set display thickness to a lower value for more detailed display of phi grids
+        liquid_domain.domain_settings.display_thickness = 0.02
+
         # make the domain smooth so it renders nicely
         bpy.ops.object.shade_smooth()
 
@@ -562,62 +573,9 @@ class QuickLiquid(Operator):
 
         return {'FINISHED'}
 
-
-class QuickParticles(Operator):
-    """Use active object as particle emitter"""
-    bl_idname = "object.quick_particles"
-    bl_label = "Quick Particles"
-
-    @classmethod
-    def poll(cls, context):
-        if not context.preferences.experimental.use_new_particle_system:
-            return False
-        if context.mode != 'OBJECT':
-            return False
-        if context.active_object is None:
-            return False
-        if context.active_object.type != 'MESH':
-            return False
-        return True
-
-    def execute(self, context):
-        pointcloud = bpy.data.pointclouds.new("Particles")
-        pointcloud_object = bpy.data.objects.new("Particles", pointcloud)
-        modifier = pointcloud_object.modifiers.new("Simulation", 'SIMULATION')
-        simulation = bpy.data.simulations.new("Particle Simulation")
-        tree = simulation.node_tree
-
-        default_name = "Particles"
-        particle_simulation_node = tree.nodes.new('SimulationNodeParticleSimulation')
-        particle_simulation_node.name = default_name
-        emitter_node = tree.nodes.new('SimulationNodeParticleMeshEmitter')
-        emitter_node.location.x -= 200
-        emitter_node.location.y += 50
-        emitter_node.inputs["Object"].default_value = context.active_object
-        force_node = tree.nodes.new('SimulationNodeForce')
-        force_node.location.x -= 200
-        force_node.location.y -= 100
-        force_node.inputs["Force"].default_value = (0, 0, -1)
-
-        tree.links.new(particle_simulation_node.inputs["Emitters"], emitter_node.outputs["Emitter"])
-        tree.links.new(particle_simulation_node.inputs["Forces"], force_node.outputs["Force"])
-
-        modifier.simulation = simulation
-        modifier.data_path = default_name
-
-        for obj in context.selected_objects:
-            obj.select_set(False)
-
-        context.collection.objects.link(pointcloud_object)
-        pointcloud_object.select_set(True)
-        context.view_layer.objects.active = pointcloud_object
-        pointcloud_object.show_bounds = True
-        return {'FINISHED'}
-
 classes = (
     QuickExplode,
     QuickFur,
     QuickSmoke,
     QuickLiquid,
-    QuickParticles,
 )

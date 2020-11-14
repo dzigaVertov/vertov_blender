@@ -122,10 +122,10 @@ static bool dependsOnNormals(ModifierData *md)
   return false;
 }
 
-static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk, void *userData)
+static void foreachIDLink(ModifierData *md, Object *ob, IDWalkFunc walk, void *userData)
 {
   DataTransferModifierData *dtmd = (DataTransferModifierData *)md;
-  walk(userData, ob, &dtmd->ob_source, IDWALK_CB_NOP);
+  walk(userData, ob, (ID **)&dtmd->ob_source, IDWALK_CB_NOP);
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
@@ -198,7 +198,7 @@ static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *
       (dtmd->data_types & DT_TYPES_AFFECT_MESH)) {
     /* We need to duplicate data here, otherwise setting custom normals, edges' sharpness, etc.,
      * could modify org mesh, see T43671. */
-    BKE_id_copy_ex(NULL, &me_mod->id, (ID **)&result, LIB_ID_COPY_LOCALIZE);
+    result = (Mesh *)BKE_id_copy_ex(NULL, &me_mod->id, NULL, LIB_ID_COPY_LOCALIZE);
   }
 
   BKE_reports_init(&reports, RPT_STORE);
@@ -232,16 +232,19 @@ static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *
 
   if (BKE_reports_contain(&reports, RPT_ERROR)) {
     const char *report_str = BKE_reports_string(&reports, RPT_ERROR);
-    BKE_modifier_set_error(md, "%s", report_str);
+    BKE_modifier_set_error(ctx->object, md, "%s", report_str);
     MEM_freeN((void *)report_str);
   }
   else if ((dtmd->data_types & DT_TYPE_LNOR) && !(me->flag & ME_AUTOSMOOTH)) {
-    BKE_modifier_set_error((ModifierData *)dtmd, "Enable 'Auto Smooth' in Object Data Properties");
+    BKE_modifier_set_error(
+        ctx->object, (ModifierData *)dtmd, "Enable 'Auto Smooth' in Object Data Properties");
   }
   else if (result->totvert > HIGH_POLY_WARNING ||
            ((Mesh *)(ob_source->data))->totvert > HIGH_POLY_WARNING) {
     BKE_modifier_set_error(
-        md, "Source or destination object has a high polygon count, computation might be slow");
+        ctx->object,
+        md,
+        "Source or destination object has a high polygon count, computation might be slow");
   }
 
   return result;
@@ -264,11 +267,18 @@ static void panel_draw(const bContext *UNUSED(C), Panel *panel)
   uiItemR(sub, ptr, "use_object_transform", 0, "", ICON_ORIENTATION_GLOBAL);
 
   uiItemR(layout, ptr, "mix_mode", 0, NULL, ICON_NONE);
-  uiItemR(layout, ptr, "mix_factor", 0, NULL, ICON_NONE);
+
+  row = uiLayoutRow(layout, false);
+  uiLayoutSetActive(row,
+                    !ELEM(RNA_enum_get(ptr, "mix_mode"),
+                          CDT_MIX_NOMIX,
+                          CDT_MIX_REPLACE_ABOVE_THRESHOLD,
+                          CDT_MIX_REPLACE_BELOW_THRESHOLD));
+  uiItemR(row, ptr, "mix_factor", 0, NULL, ICON_NONE);
 
   modifier_vgroup_ui(layout, ptr, &ob_ptr, "vertex_group", "invert_vertex_group", NULL);
 
-  uiItemO(layout, "Generate Data Layers", ICON_NONE, "OBJECT_OT_datalayout_transfer");
+  uiItemO(layout, IFACE_("Generate Data Layers"), ICON_NONE, "OBJECT_OT_datalayout_transfer");
 
   modifier_panel_end(layout, ptr);
 }
@@ -470,9 +480,11 @@ ModifierTypeInfo modifierType_DataTransfer = {
     /* name */ "DataTransfer",
     /* structName */ "DataTransferModifierData",
     /* structSize */ sizeof(DataTransferModifierData),
+    /* srna */ &RNA_DataTransferModifier,
     /* type */ eModifierTypeType_NonGeometrical,
     /* flags */ eModifierTypeFlag_AcceptsMesh | eModifierTypeFlag_SupportsMapping |
         eModifierTypeFlag_SupportsEditmode | eModifierTypeFlag_UsesPreview,
+    /* icon */ ICON_MOD_DATA_TRANSFER,
 
     /* copyData */ BKE_modifier_copydata_generic,
 
@@ -492,8 +504,7 @@ ModifierTypeInfo modifierType_DataTransfer = {
     /* updateDepsgraph */ updateDepsgraph,
     /* dependsOnTime */ NULL,
     /* dependsOnNormals */ dependsOnNormals,
-    /* foreachObjectLink */ foreachObjectLink,
-    /* foreachIDLink */ NULL,
+    /* foreachIDLink */ foreachIDLink,
     /* foreachTexLink */ NULL,
     /* freeRuntimeData */ NULL,
     /* panelRegister */ panelRegister,

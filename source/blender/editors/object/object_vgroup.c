@@ -21,7 +21,6 @@
  * \ingroup edobj
  */
 
-#include <assert.h>
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
@@ -578,7 +577,7 @@ void ED_vgroup_vert_active_mirror(Object *ob, int def_nr)
   BMEditMesh *em = me->edit_mesh;
   MDeformVert *dvert_act;
 
-  if (me->editflag & ME_EDIT_MIRROR_X) {
+  if (me->symmetry & ME_SYMMETRY_X) {
     if (em) {
       BMVert *eve_act;
       dvert_act = ED_mesh_active_dvert_get_em(ob, &eve_act);
@@ -634,7 +633,7 @@ static bool vgroup_normalize_active_vertex(Object *ob, eVGroupSelect subset_type
   BKE_defvert_normalize_subset(dvert_act, vgroup_validmap, vgroup_tot);
   MEM_freeN((void *)vgroup_validmap);
 
-  if (me->editflag & ME_EDIT_MIRROR_X) {
+  if (me->symmetry & ME_SYMMETRY_X) {
     if (em) {
       const int cd_dvert_offset = CustomData_get_offset(&em->bm->vdata, CD_MDEFORMVERT);
       ED_mesh_defvert_mirror_update_em(ob, eve_act, -1, -1, cd_dvert_offset);
@@ -667,7 +666,7 @@ static void vgroup_copy_active_to_sel(Object *ob, eVGroupSelect subset_type)
         if (BM_elem_flag_test(eve, BM_ELEM_SELECT) && eve != eve_act) {
           MDeformVert *dv = BM_ELEM_CD_GET_VOID_P(eve, cd_dvert_offset);
           BKE_defvert_copy_subset(dv, dvert_act, vgroup_validmap, vgroup_tot);
-          if (me->editflag & ME_EDIT_MIRROR_X) {
+          if (me->symmetry & ME_SYMMETRY_X) {
             ED_mesh_defvert_mirror_update_em(ob, eve, -1, i, cd_dvert_offset);
           }
         }
@@ -684,7 +683,7 @@ static void vgroup_copy_active_to_sel(Object *ob, eVGroupSelect subset_type)
       for (i = 0; i < me->totvert; i++, dv++) {
         if ((me->mvert[i].flag & SELECT) && dv != dvert_act) {
           BKE_defvert_copy_subset(dv, dvert_act, vgroup_validmap, vgroup_tot);
-          if (me->editflag & ME_EDIT_MIRROR_X) {
+          if (me->symmetry & ME_SYMMETRY_X) {
             ED_mesh_defvert_mirror_update_ob(ob, -1, i);
           }
         }
@@ -1592,7 +1591,7 @@ static void vgroup_levels_subset(Object *ob,
 
   const bool use_vert_sel = vertex_group_use_vert_sel(ob);
   const bool use_mirror = (ob->type == OB_MESH) ?
-                              (((Mesh *)ob->data)->editflag & ME_EDIT_MIRROR_X) != 0 :
+                              (((Mesh *)ob->data)->symmetry & ME_SYMMETRY_X) != 0 :
                               false;
 
   ED_vgroup_parray_alloc(ob->data, &dvert_array, &dvert_tot, use_vert_sel);
@@ -1747,7 +1746,7 @@ static bool *vgroup_selected_get(Object *ob)
     /* Mirror the selection if X Mirror is enabled. */
     Mesh *me = BKE_mesh_from_object(ob);
 
-    if (me && (me->editflag & ME_EDIT_MIRROR_X) != 0) {
+    if (me && (me->symmetry & ME_SYMMETRY_X) != 0) {
       BKE_object_defgroup_mirror_selection(ob, defbase_tot, mask, mask, &sel_count);
     }
   }
@@ -1847,7 +1846,7 @@ static void vgroup_invert_subset(Object *ob,
   int dvert_tot = 0;
   const bool use_vert_sel = vertex_group_use_vert_sel(ob);
   const bool use_mirror = (ob->type == OB_MESH) ?
-                              (((Mesh *)ob->data)->editflag & ME_EDIT_MIRROR_X) != 0 :
+                              (((Mesh *)ob->data)->symmetry & ME_SYMMETRY_X) != 0 :
                               false;
 
   ED_vgroup_parray_alloc(ob->data, &dvert_array, &dvert_tot, use_vert_sel);
@@ -1905,7 +1904,7 @@ static void vgroup_smooth_subset(Object *ob,
   int *vgroup_subset_map = BLI_array_alloca(vgroup_subset_map, subset_count);
   float *vgroup_subset_weights = BLI_array_alloca(vgroup_subset_weights, subset_count);
   const bool use_mirror = (ob->type == OB_MESH) ?
-                              (((Mesh *)ob->data)->editflag & ME_EDIT_MIRROR_X) != 0 :
+                              (((Mesh *)ob->data)->symmetry & ME_SYMMETRY_X) != 0 :
                               false;
   const bool use_select = vertex_group_use_vert_sel(ob);
   const bool use_hide = use_select;
@@ -2219,7 +2218,7 @@ static void vgroup_clean_subset(Object *ob,
   int dvert_tot = 0;
   const bool use_vert_sel = vertex_group_use_vert_sel(ob);
   const bool use_mirror = (ob->type == OB_MESH) ?
-                              (((Mesh *)ob->data)->editflag & ME_EDIT_MIRROR_X) != 0 :
+                              (((Mesh *)ob->data)->symmetry & ME_SYMMETRY_X) != 0 :
                               false;
 
   ED_vgroup_parray_alloc(ob->data, &dvert_array, &dvert_tot, use_vert_sel);
@@ -2249,7 +2248,7 @@ static void vgroup_quantize_subset(Object *ob,
   int dvert_tot = 0;
   const bool use_vert_sel = vertex_group_use_vert_sel(ob);
   const bool use_mirror = (ob->type == OB_MESH) ?
-                              (((Mesh *)ob->data)->editflag & ME_EDIT_MIRROR_X) != 0 :
+                              (((Mesh *)ob->data)->symmetry & ME_SYMMETRY_X) != 0 :
                               false;
   ED_vgroup_parray_alloc(ob->data, &dvert_array, &dvert_tot, use_vert_sel);
 
@@ -2665,12 +2664,23 @@ static void vgroup_assign_verts(Object *ob, const float weight)
 static bool vertex_group_supported_poll_ex(bContext *C, const Object *ob)
 {
   if (!ED_operator_object_active_local_editable_ex(C, ob)) {
+    CTX_wm_operator_poll_msg_set(C, "No active editable object");
     return false;
   }
+
+  if (!OB_TYPE_SUPPORT_VGROUP(ob->type)) {
+    CTX_wm_operator_poll_msg_set(C, "Object type does not support vertex groups");
+    return false;
+  }
+
+  /* Data checks. */
   const ID *data = ob->data;
-  return (OB_TYPE_SUPPORT_VGROUP(ob->type) &&
-          /* Data checks. */
-          (data != NULL) && !ID_IS_LINKED(data) && !ID_IS_OVERRIDE_LIBRARY(data));
+  if (data == NULL || ID_IS_LINKED(data) || ID_IS_OVERRIDE_LIBRARY(data)) {
+    CTX_wm_operator_poll_msg_set(C, "Object type \"%s\" does not have editable data");
+    return false;
+  }
+
+  return true;
 }
 
 static bool vertex_group_supported_poll(bContext *C)
@@ -2679,32 +2689,61 @@ static bool vertex_group_supported_poll(bContext *C)
   return vertex_group_supported_poll_ex(C, ob);
 }
 
+static bool vertex_group_poll_ex(bContext *C, Object *ob)
+{
+  if (!vertex_group_supported_poll_ex(C, ob)) {
+    return false;
+  }
+
+  if (BLI_listbase_is_empty(&ob->defbase)) {
+    CTX_wm_operator_poll_msg_set(C, "Object has no vertex groups");
+    return false;
+  }
+
+  return true;
+}
+
 static bool vertex_group_poll(bContext *C)
 {
   Object *ob = ED_object_context(C);
-
-  return (vertex_group_supported_poll(C) && ob->defbase.first);
+  return vertex_group_poll_ex(C, ob);
 }
 
-static bool vertex_group_mesh_poll(bContext *C)
+static bool vertex_group_mesh_poll_ex(bContext *C, Object *ob)
 {
-  Object *ob = ED_object_context(C);
+  if (!vertex_group_poll_ex(C, ob)) {
+    return false;
+  }
 
-  return (vertex_group_poll(C) && ob->type == OB_MESH);
+  if (ob->type != OB_MESH) {
+    CTX_wm_operator_poll_msg_set(C, "Only mesh objects are supported");
+    return false;
+  }
+
+  return true;
 }
 
-static bool UNUSED_FUNCTION(vertex_group_mesh_supported_poll)(bContext *C)
+static bool vertex_group_mesh_with_dvert_poll(bContext *C)
 {
   Object *ob = ED_object_context(C);
+  if (!vertex_group_mesh_poll_ex(C, ob)) {
+    return false;
+  }
 
-  return (vertex_group_supported_poll(C) && ob->type == OB_MESH);
+  Mesh *me = ob->data;
+  if (me->dvert == NULL) {
+    CTX_wm_operator_poll_msg_set(C, "The active mesh object has no vertex group data");
+    return false;
+  }
+
+  return true;
 }
 
 static bool UNUSED_FUNCTION(vertex_group_poll_edit)(bContext *C)
 {
   Object *ob = ED_object_context(C);
 
-  if (!vertex_group_supported_poll(C)) {
+  if (!vertex_group_supported_poll_ex(C, ob)) {
     return false;
   }
 
@@ -2718,7 +2757,7 @@ static bool vertex_group_vert_poll_ex(bContext *C,
 {
   Object *ob = ED_object_context(C);
 
-  if (!vertex_group_supported_poll(C)) {
+  if (!vertex_group_supported_poll_ex(C, ob)) {
     return false;
   }
 
@@ -2771,7 +2810,7 @@ static bool vertex_group_vert_select_unlocked_poll(bContext *C)
 {
   Object *ob = ED_object_context(C);
 
-  if (!vertex_group_supported_poll(C)) {
+  if (!vertex_group_supported_poll_ex(C, ob)) {
     return false;
   }
 
@@ -2792,7 +2831,7 @@ static bool vertex_group_vert_select_mesh_poll(bContext *C)
 {
   Object *ob = ED_object_context(C);
 
-  if (!vertex_group_supported_poll(C)) {
+  if (!vertex_group_supported_poll_ex(C, ob)) {
     return false;
   }
 
@@ -2880,7 +2919,7 @@ void OBJECT_OT_vertex_group_remove(wmOperatorType *ot)
   /* flags */
   /* redo operator will fail in this case because vertex groups aren't stored
    * in local edit mode stack and toggling "all" property will lead to
-   * all groups deleted without way to restore them (see [#29527], sergey) */
+   * all groups deleted without way to restore them (see T29527, sergey) */
   ot->flag = /*OPTYPE_REGISTER|*/ OPTYPE_UNDO;
 
   /* properties */
@@ -2923,7 +2962,7 @@ void OBJECT_OT_vertex_group_assign(wmOperatorType *ot)
   /* flags */
   /* redo operator will fail in this case because vertex group assignment
    * isn't stored in local edit mode stack and toggling "new" property will
-   * lead to creating plenty of new vertex groups (see [#29527], sergey) */
+   * lead to creating plenty of new vertex groups (see T29527, sergey) */
   ot->flag = /*OPTYPE_REGISTER|*/ OPTYPE_UNDO;
 }
 
@@ -2958,7 +2997,7 @@ void OBJECT_OT_vertex_group_assign_new(wmOperatorType *ot)
   /* flags */
   /* redo operator will fail in this case because vertex group assignment
    * isn't stored in local edit mode stack and toggling "new" property will
-   * lead to creating plenty of new vertex groups (see [#29527], sergey) */
+   * lead to creating plenty of new vertex groups (see T29527, sergey) */
   ot->flag = /*OPTYPE_REGISTER|*/ OPTYPE_UNDO;
 }
 
@@ -3009,7 +3048,7 @@ void OBJECT_OT_vertex_group_remove_from(wmOperatorType *ot)
   /* flags */
   /* redo operator will fail in this case because vertex groups assignment
    * isn't stored in local edit mode stack and toggling "all" property will lead to
-   * removing vertices from all groups (see [#29527], sergey) */
+   * removing vertices from all groups (see T29527, sergey) */
   ot->flag = /*OPTYPE_REGISTER|*/ OPTYPE_UNDO;
 
   /* properties */
@@ -3166,9 +3205,9 @@ void OBJECT_OT_vertex_group_levels(wmOperatorType *ot)
 
   vgroup_operator_subset_select_props(ot, true);
   RNA_def_float(
-      ot->srna, "offset", 0.f, -1.0, 1.0, "Offset", "Value to add to weights", -1.0f, 1.f);
+      ot->srna, "offset", 0.0f, -1.0, 1.0, "Offset", "Value to add to weights", -1.0f, 1.0f);
   RNA_def_float(
-      ot->srna, "gain", 1.f, 0.f, FLT_MAX, "Gain", "Value to multiply weights by", 0.0f, 10.f);
+      ot->srna, "gain", 1.0f, 0.0f, FLT_MAX, "Gain", "Value to multiply weights by", 0.0f, 10.0f);
 }
 
 /** \} */
@@ -3314,7 +3353,7 @@ void OBJECT_OT_vertex_group_fix(wmOperatorType *ot)
       "groups' weights (this tool may be slow for many vertices)";
 
   /* api callbacks */
-  ot->poll = vertex_group_mesh_poll;
+  ot->poll = vertex_group_mesh_with_dvert_poll;
   ot->exec = vertex_group_fix_exec;
 
   /* flags */
@@ -3330,7 +3369,7 @@ void OBJECT_OT_vertex_group_fix(wmOperatorType *ot)
                 10.0f);
   RNA_def_float(ot->srna,
                 "strength",
-                1.f,
+                1.0f,
                 -2.0f,
                 FLT_MAX,
                 "Strength",
@@ -3346,7 +3385,7 @@ void OBJECT_OT_vertex_group_fix(wmOperatorType *ot)
       "Change Sensitivity",
       "Change the amount weights are altered with each iteration: lower values are slower",
       0.05f,
-      1.f);
+      1.0f);
 }
 
 /** \} */
@@ -4286,14 +4325,14 @@ static void vgroup_copy_active_to_sel_single(Object *ob, const int def_nr)
         if (dw) {
           dw->weight = weight_act;
 
-          if (me->editflag & ME_EDIT_MIRROR_X) {
+          if (me->symmetry & ME_SYMMETRY_X) {
             ED_mesh_defvert_mirror_update_em(ob, eve, -1, i, cd_dvert_offset);
           }
         }
       }
     }
 
-    if (me->editflag & ME_EDIT_MIRROR_X) {
+    if (me->symmetry & ME_SYMMETRY_X) {
       ED_mesh_defvert_mirror_update_em(ob, eve_act, -1, -1, cd_dvert_offset);
     }
   }
@@ -4313,14 +4352,14 @@ static void vgroup_copy_active_to_sel_single(Object *ob, const int def_nr)
         MDeformWeight *dw = BKE_defvert_find_index(dv, def_nr);
         if (dw) {
           dw->weight = weight_act;
-          if (me->editflag & ME_EDIT_MIRROR_X) {
+          if (me->symmetry & ME_SYMMETRY_X) {
             ED_mesh_defvert_mirror_update_ob(ob, -1, i);
           }
         }
       }
     }
 
-    if (me->editflag & ME_EDIT_MIRROR_X) {
+    if (me->symmetry & ME_SYMMETRY_X) {
       ED_mesh_defvert_mirror_update_ob(ob, -1, v_act);
     }
   }

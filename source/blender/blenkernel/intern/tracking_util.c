@@ -457,6 +457,15 @@ static void distortion_model_parameters_from_tracking(
       camera_intrinsics_options->nuke_k1 = camera->nuke_k1;
       camera_intrinsics_options->nuke_k2 = camera->nuke_k2;
       return;
+    case TRACKING_DISTORTION_MODEL_BROWN:
+      camera_intrinsics_options->distortion_model = LIBMV_DISTORTION_MODEL_BROWN;
+      camera_intrinsics_options->brown_k1 = camera->brown_k1;
+      camera_intrinsics_options->brown_k2 = camera->brown_k2;
+      camera_intrinsics_options->brown_k3 = camera->brown_k3;
+      camera_intrinsics_options->brown_k4 = camera->brown_k4;
+      camera_intrinsics_options->brown_p1 = camera->brown_p1;
+      camera_intrinsics_options->brown_p2 = camera->brown_p2;
+      return;
   }
 
   /* Unknown distortion model, which might be due to opening newer file in older Blender.
@@ -490,6 +499,15 @@ static void distortion_model_parameters_from_options(
       camera->distortion_model = TRACKING_DISTORTION_MODEL_NUKE;
       camera->nuke_k1 = camera_intrinsics_options->nuke_k1;
       camera->nuke_k2 = camera_intrinsics_options->nuke_k2;
+      return;
+    case LIBMV_DISTORTION_MODEL_BROWN:
+      camera->distortion_model = TRACKING_DISTORTION_MODEL_BROWN;
+      camera->brown_k1 = camera_intrinsics_options->brown_k1;
+      camera->brown_k2 = camera_intrinsics_options->brown_k2;
+      camera->brown_k3 = camera_intrinsics_options->brown_k3;
+      camera->brown_k4 = camera_intrinsics_options->brown_k4;
+      camera->brown_p1 = camera_intrinsics_options->brown_p1;
+      camera->brown_p2 = camera_intrinsics_options->brown_p2;
       return;
   }
 
@@ -704,7 +722,7 @@ static ImBuf *make_grayscale_ibuf_copy(ImBuf *ibuf)
 {
   ImBuf *grayscale = IMB_allocImBuf(ibuf->x, ibuf->y, 32, 0);
 
-  BLI_assert(ibuf->channels == 3 || ibuf->channels == 4);
+  BLI_assert(ELEM(ibuf->channels, 3, 4));
 
   /* TODO(sergey): Bummer, currently IMB API only allows to create 4 channels
    * float buffer, so we do it manually here.
@@ -862,7 +880,7 @@ static ImBuf *accessor_get_ibuf(TrackingImageAccessor *accessor,
   }
   /* Transform number of channels. */
   if (input_mode == LIBMV_IMAGE_MODE_RGBA) {
-    BLI_assert(orig_ibuf->channels == 3 || orig_ibuf->channels == 4);
+    BLI_assert(ELEM(orig_ibuf->channels, 3, 4));
     /* pass */
   }
   else /* if (input_mode == LIBMV_IMAGE_MODE_MONO) */ {

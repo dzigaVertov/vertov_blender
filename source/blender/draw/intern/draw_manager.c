@@ -308,7 +308,7 @@ struct DupliObject *DRW_object_get_dupli(const Object *UNUSED(ob))
 /** \name Color Management
  * \{ */
 
-/* TODO(fclem) This should be a render engine callback to determine if we need CM or not. */
+/* TODO(fclem): This should be a render engine callback to determine if we need CM or not. */
 static void drw_viewport_colormanagement_set(void)
 {
   Scene *scene = DST.draw_ctx.scene;
@@ -467,6 +467,8 @@ static void drw_viewport_cache_resize(void)
     BLI_memblock_clear(DST.vmempool->passes, NULL);
     BLI_memblock_clear(DST.vmempool->views, NULL);
     BLI_memblock_clear(DST.vmempool->images, NULL);
+
+    DRW_uniform_attrs_pool_clear_all(DST.vmempool->obattrs_ubo_pool);
   }
 
   DRW_instance_data_list_free_unused(DST.idatalist);
@@ -525,7 +527,7 @@ static void draw_unit_state_create(void)
   infos->ob_flag = 1.0f;
   copy_v3_fl(infos->ob_color, 1.0f);
 
-  /* TODO(fclem) get rid of this. */
+  /* TODO(fclem): get rid of this. */
   culling->bsphere.radius = -1.0f;
   culling->user_data = NULL;
 
@@ -592,6 +594,9 @@ static void drw_viewport_var_init(void)
     }
     if (DST.vmempool->images == NULL) {
       DST.vmempool->images = BLI_memblock_create(sizeof(GPUTexture *));
+    }
+    if (DST.vmempool->obattrs_ubo_pool == NULL) {
+      DST.vmempool->obattrs_ubo_pool = DRW_uniform_attrs_pool_new();
     }
 
     DST.resource_handle = 0;
@@ -1365,6 +1370,8 @@ void DRW_draw_callbacks_pre_scene(void)
 
   if (DST.draw_ctx.evil_C) {
     ED_region_draw_cb_draw(DST.draw_ctx.evil_C, DST.draw_ctx.region, REGION_DRAW_PRE_VIEW);
+    /* Callback can be nasty and do whatever they want with the state.
+     * Don't trust them! */
     DRW_state_reset();
   }
 }
@@ -1400,6 +1407,9 @@ void DRW_draw_callbacks_post_scene(void)
     drw_debug_draw();
 
     GPU_depth_test(GPU_DEPTH_NONE);
+    /* Apply state for callbacks. */
+    GPU_apply_state();
+
     ED_region_draw_cb_draw(DST.draw_ctx.evil_C, DST.draw_ctx.region, REGION_DRAW_POST_VIEW);
 
     /* Callback can be nasty and do whatever they want with the state.
@@ -1730,11 +1740,10 @@ static void DRW_render_gpencil_to_image(RenderEngine *engine,
 
 void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph)
 {
-  /* Early out if there are no grease pencil objects, especially important
-   * to avoid failing in in background renders without OpenGL context. */
-  if (!DRW_render_check_grease_pencil(depsgraph)) {
-    return;
-  }
+  /* This function should only be called if there are are grease pencil objects,
+   * especially important to avoid failing in in background renders without OpenGL
+   * context. */
+  BLI_assert(DRW_render_check_grease_pencil(depsgraph));
 
   Scene *scene = DEG_get_evaluated_scene(depsgraph);
   ViewLayer *view_layer = DEG_get_evaluated_view_layer(depsgraph);
@@ -1798,6 +1807,20 @@ void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph
   DST.buffer_finish_called = false;
 }
 
+/* Callback function for RE_engine_update_render_passes to ensure all
+ * render passes are registered. */
+static void draw_render_result_ensure_pass_cb(void *user_data,
+                                              struct Scene *UNUSED(scene),
+                                              struct ViewLayer *view_layer,
+                                              const char *name,
+                                              int channels,
+                                              const char *chanid,
+                                              eNodeSocketDatatype UNUSED(type))
+{
+  RenderEngine *engine = user_data;
+  RE_engine_add_pass(engine, name, channels, chanid, view_layer->name);
+}
+
 void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
 {
   Scene *scene = DEG_get_evaluated_scene(depsgraph);
@@ -1846,6 +1869,10 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
   /* set default viewport */
   GPU_viewport(0, 0, size[0], size[1]);
 
+  /* Update the render passes. This needs to be done before acquiring the render result. */
+  RE_engine_update_render_passes(
+      engine, scene, view_layer, draw_render_result_ensure_pass_cb, engine);
+
   /* Init render result. */
   RenderResult *render_result = RE_engine_begin_result(engine,
                                                        0,
@@ -1854,7 +1881,6 @@ void DRW_render_to_image(RenderEngine *engine, struct Depsgraph *depsgraph)
                                                        size[1],
                                                        view_layer->name,
                                                        /* RR_ALL_VIEWS */ NULL);
-
   RenderLayer *render_layer = render_result->layers.first;
   for (RenderView *render_view = render_result->views.first; render_view != NULL;
        render_view = render_view->next) {
@@ -2091,32 +2117,26 @@ void DRW_draw_render_loop_2d_ex(struct Depsgraph *depsgraph,
 
     GPU_framebuffer_bind(dfbl->overlay_fb);
 
+    GPU_depth_test(GPU_DEPTH_NONE);
+    GPU_matrix_push_projection();
+    wmOrtho2(
+        region->v2d.cur.xmin, region->v2d.cur.xmax, region->v2d.cur.ymin, region->v2d.cur.ymax);
     if (do_annotations) {
-      GPU_depth_test(false);
-      GPU_matrix_push_projection();
-      wmOrtho2(
-          region->v2d.cur.xmin, region->v2d.cur.xmax, region->v2d.cur.ymin, region->v2d.cur.ymax);
       ED_annotation_draw_view2d(DST.draw_ctx.evil_C, true);
-      GPU_matrix_pop_projection();
-
-      GPU_depth_test(true);
     }
-
-    GPU_depth_test(false);
+    GPU_depth_test(GPU_DEPTH_NONE);
     ED_region_draw_cb_draw(DST.draw_ctx.evil_C, DST.draw_ctx.region, REGION_DRAW_POST_VIEW);
-    GPU_depth_test(true);
+    GPU_matrix_pop_projection();
     /* Callback can be nasty and do whatever they want with the state.
      * Don't trust them! */
     DRW_state_reset();
 
-    GPU_depth_test(false);
+    GPU_depth_test(GPU_DEPTH_NONE);
     drw_engines_draw_text();
-    GPU_depth_test(true);
 
     if (do_annotations) {
-      GPU_depth_test(false);
+      GPU_depth_test(GPU_DEPTH_NONE);
       ED_annotation_draw_view2d(DST.draw_ctx.evil_C, false);
-      GPU_depth_test(true);
     }
   }
 
@@ -2124,20 +2144,20 @@ void DRW_draw_render_loop_2d_ex(struct Depsgraph *depsgraph,
   ED_region_pixelspace(DST.draw_ctx.region);
 
   {
-    GPU_depth_test(false);
+    GPU_depth_test(GPU_DEPTH_NONE);
     DRW_draw_gizmo_2d();
-    GPU_depth_test(true);
   }
 
   DRW_stats_reset();
 
   if (G.debug_value > 20 && G.debug_value < 30) {
-    GPU_depth_test(false);
+    GPU_depth_test(GPU_DEPTH_NONE);
     /* local coordinate visible rect inside region, to accommodate overlapping ui */
     const rcti *rect = ED_region_visible_rect(DST.draw_ctx.region);
     DRW_stats_draw(rect);
-    GPU_depth_test(true);
   }
+
+  GPU_depth_test(GPU_DEPTH_LESS_EQUAL);
 
   if (WM_draw_region_get_bound_viewport(region)) {
     /* Don't unbind the framebuffer yet in this case and let
@@ -2409,23 +2429,21 @@ void DRW_draw_select_loop(struct Depsgraph *depsgraph,
 
   DRW_hair_update();
 
-  DRW_state_lock(DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_ALWAYS | DRW_STATE_DEPTH_LESS_EQUAL |
-                 DRW_STATE_DEPTH_EQUAL | DRW_STATE_DEPTH_GREATER | DRW_STATE_DEPTH_ALWAYS);
-
   /* Only 1-2 passes. */
   while (true) {
     if (!select_pass_fn(DRW_SELECT_PASS_PRE, select_pass_user_data)) {
       break;
     }
+    DRW_state_lock(DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_TEST_ENABLED);
 
     drw_engines_draw_scene();
+
+    DRW_state_lock(0);
 
     if (!select_pass_fn(DRW_SELECT_PASS_POST, select_pass_user_data)) {
       break;
     }
   }
-
-  DRW_state_lock(0);
 
   DRW_state_reset();
   drw_engines_disable();
@@ -2596,7 +2614,7 @@ void DRW_draw_select_id(Depsgraph *depsgraph, ARegion *region, View3D *v3d, cons
   GPUViewport *viewport = WM_draw_region_get_viewport(region);
   if (!viewport) {
     /* Selection engine requires a viewport.
-     * TODO (germano): This should be done internally in the engine. */
+     * TODO(germano): This should be done internally in the engine. */
     sel_ctx->is_dirty = true;
     sel_ctx->objects_drawn_len = 0;
     sel_ctx->index_drawn_len = 1;
@@ -2888,6 +2906,7 @@ void DRW_engines_register(void)
   DRW_engine_register(&draw_engine_basic_type);
 
   DRW_engine_register(&draw_engine_image_type);
+  DRW_engine_register(DRW_engine_viewport_external_type.draw_engine);
 
   /* setup callbacks */
   {
@@ -3011,6 +3030,7 @@ void DRW_render_context_disable(Render *render)
 
 /** \} */
 
+/* -------------------------------------------------------------------- */
 /** \name Init/Exit (DRW_opengl_ctx)
  * \{ */
 
@@ -3157,6 +3177,7 @@ void DRW_xr_drawing_end(void)
 
 #endif
 
+/* -------------------------------------------------------------------- */
 /** \name Internal testing API for gtests
  * \{ */
 

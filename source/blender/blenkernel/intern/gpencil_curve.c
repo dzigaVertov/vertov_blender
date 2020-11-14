@@ -563,7 +563,6 @@ void BKE_gpencil_convert_curve(Main *bmain,
 /** \name Editcurve kernel functions
  * \{ */
 
-/* Helper: generate curves with one or two curve points */
 static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
                                                               const float stroke_radius)
 {
@@ -591,8 +590,8 @@ static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
     copy_v4_v4(cpt->vert_color, pt->vert_color);
 
     /* default handle type */
-    bezt->h1 = HD_ALIGN;
-    bezt->h2 = HD_ALIGN;
+    bezt->h1 = HD_FREE;
+    bezt->h2 = HD_FREE;
 
     cpt->point_index = 0;
 
@@ -625,10 +624,10 @@ static bGPDcurve *gpencil_stroke_editcurve_generate_edgecases(bGPDstroke *gps,
       copy_v4_v4(cpt->vert_color, pt->vert_color);
 
       /* default handle type */
-      bezt->h1 = HD_ALIGN;
-      bezt->h2 = HD_ALIGN;
+      bezt->h1 = HD_VECT;
+      bezt->h2 = HD_VECT;
 
-      cpt->point_index = i;
+      cpt->point_index = 0;
     }
 
     return editcurve;
@@ -756,7 +755,7 @@ bGPDcurve *BKE_gpencil_stroke_editcurve_generate(bGPDstroke *gps,
  */
 void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps)
 {
-  if (gps == NULL || gps->totpoints <= 0) {
+  if (gps == NULL || gps->totpoints < 0) {
     return;
   }
 
@@ -769,8 +768,9 @@ void BKE_gpencil_stroke_editcurve_update(bGPdata *gpd, bGPDlayer *gpl, bGPDstrok
 
   bGPDcurve *editcurve = BKE_gpencil_stroke_editcurve_generate(
       gps, gpd->curve_edit_threshold, gpd->curve_edit_corner_angle, stroke_radius);
-
-  BLI_assert(editcurve != NULL);
+  if (editcurve == NULL) {
+    return;
+  }
 
   gps->editcurve = editcurve;
 }
@@ -960,6 +960,7 @@ static float *gpencil_stroke_points_from_editcurve_adaptive_resolu(
     bGPDcurve_point *cpt_next = &curve_point_array[i + 1];
     float arclen = gpencil_approximate_curve_segment_arclength(cpt, cpt_next);
     int segment_resolu = (int)floorf(arclen * resolution);
+    CLAMP_MIN(segment_resolu, 1);
 
     segment_point_lengths[i] = segment_resolu;
     points_len += segment_resolu;
@@ -970,6 +971,7 @@ static float *gpencil_stroke_points_from_editcurve_adaptive_resolu(
     bGPDcurve_point *cpt_next = &curve_point_array[0];
     float arclen = gpencil_approximate_curve_segment_arclength(cpt, cpt_next);
     int segment_resolu = (int)floorf(arclen * resolution);
+    CLAMP_MIN(segment_resolu, 1);
 
     segment_point_lengths[cpt_last] = segment_resolu;
     points_len += segment_resolu;

@@ -1266,7 +1266,7 @@ static void gpencil_stroke_norm_curve_weights(Curve *cu, const float minmax_weig
 {
   const float delta = minmax_weights[0];
 
-  /* when delta == minmax_weights[0] == minmax_weights[1], we get div by zero [#35686] */
+  /* when delta == minmax_weights[0] == minmax_weights[1], we get div by zero T35686. */
   float fac;
   if (IS_EQF(delta, minmax_weights[1])) {
     fac = 1.0f;
@@ -1633,9 +1633,13 @@ static bool gpencil_convert_poll_property(const bContext *UNUSED(C),
   const bool valid_timing = RNA_boolean_get(ptr, "use_timing_data");
 
   /* Always show those props */
-  if (STREQ(prop_id, "type") || STREQ(prop_id, "use_normalize_weights") ||
-      STREQ(prop_id, "radius_multiplier") || STREQ(prop_id, "use_link_strokes") ||
-      STREQ(prop_id, "bevel_depth") || STREQ(prop_id, "bevel_resolution")) {
+  if (STR_ELEM(prop_id,
+               "type",
+               "use_normalize_weights",
+               "radius_multiplier",
+               "use_link_strokes",
+               "bevel_depth",
+               "bevel_resolution")) {
     return true;
   }
 
@@ -1652,7 +1656,7 @@ static bool gpencil_convert_poll_property(const bContext *UNUSED(C),
 
     if (timing_mode != GP_STROKECONVERT_TIMING_NONE) {
       /* Only show when link_stroke is true and stroke timing is enabled */
-      if (STREQ(prop_id, "frame_range") || STREQ(prop_id, "start_frame")) {
+      if (STR_ELEM(prop_id, "frame_range", "start_frame")) {
         return true;
       }
 

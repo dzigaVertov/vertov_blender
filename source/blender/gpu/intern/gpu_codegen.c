@@ -377,6 +377,19 @@ static int codegen_process_uniforms_functions(GPUMaterial *material,
     BLI_freelistN(&ubo_inputs);
   }
 
+  /* Generate the uniform attribute UBO if necessary. */
+  if (!BLI_listbase_is_empty(&graph->uniform_attrs.list)) {
+    BLI_dynstr_append(ds, "\nstruct UniformAttributes {\n");
+    LISTBASE_FOREACH (GPUUniformAttr *, attr, &graph->uniform_attrs.list) {
+      BLI_dynstr_appendf(ds, "  vec4 attr%d;\n", attr->id);
+    }
+    BLI_dynstr_append(ds, "};\n");
+    BLI_dynstr_appendf(ds, "layout (std140) uniform %s {\n", GPU_ATTRIBUTE_UBO_BLOCK_NAME);
+    BLI_dynstr_append(ds, "  UniformAttributes uniform_attrs[DRW_RESOURCE_CHUNK_LEN];\n");
+    BLI_dynstr_append(ds, "};\n");
+    BLI_dynstr_append(ds, "#define GET_UNIFORM_ATTR(name) (uniform_attrs[resource_id].name)\n");
+  }
+
   BLI_dynstr_append(ds, "\n");
 
   return builtins;
@@ -421,7 +434,7 @@ static void codegen_call_functions(DynStr *ds, GPUNodeGraph *graph, GPUOutput *f
             ds, input->link->output->type, input->type, "tmp", input->link->output->id);
       }
       else if (input->source == GPU_SOURCE_BUILTIN) {
-        /* TODO(fclem) get rid of that. */
+        /* TODO(fclem): get rid of that. */
         if (input->builtin == GPU_INVERSE_VIEW_MATRIX) {
           BLI_dynstr_append(ds, "viewinv");
         }
@@ -478,7 +491,10 @@ static void codegen_call_functions(DynStr *ds, GPUNodeGraph *graph, GPUOutput *f
         BLI_dynstr_appendf(ds, "cons%d", input->id);
       }
       else if (input->source == GPU_SOURCE_ATTR) {
-        BLI_dynstr_appendf(ds, "var%d", input->attr->id);
+        codegen_convert_datatype(ds, input->attr->gputype, input->type, "var", input->attr->id);
+      }
+      else if (input->source == GPU_SOURCE_UNIFORM_ATTR) {
+        BLI_dynstr_appendf(ds, "GET_UNIFORM_ATTR(attr%d)", input->uniform_attr->id);
       }
 
       BLI_dynstr_append(ds, ", ");
@@ -527,7 +543,7 @@ static char *code_generate_fragment(GPUMaterial *material,
   if (builtins & GPU_BARYCENTRIC_TEXCO) {
     BLI_dynstr_append(ds, "  vec2 barytexco = barycentric_resolve(barycentricTexCo);\n");
   }
-  /* TODO(fclem) get rid of that. */
+  /* TODO(fclem): get rid of that. */
   if (builtins & GPU_VIEW_MATRIX) {
     BLI_dynstr_append(ds, "  #define viewmat ViewMatrix\n");
   }
@@ -799,6 +815,7 @@ GPUPass *GPU_generate_pass(GPUMaterial *material,
   /* Prune the unused nodes and extract attributes before compiling so the
    * generated VBOs are ready to accept the future shader. */
   gpu_node_graph_prune_unused(graph);
+  gpu_node_graph_finalize_uniform_attrs(graph);
 
   int builtins = 0;
   LISTBASE_FOREACH (GPUNode *, node, &graph->nodes) {
@@ -914,7 +931,7 @@ static int count_active_texture_sampler(GPUShader *shader, char *source)
       /* Move past "uniform". */
       code += 7;
       /* Skip sampler type suffix. */
-      while (*code != ' ' && *code != '\0') {
+      while (!ELEM(*code, ' ', '\0')) {
         code++;
       }
       /* Skip following spaces. */

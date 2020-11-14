@@ -48,7 +48,7 @@
 
 #include "RNA_access.h"
 
-#include "RE_shader_ext.h"
+#include "RE_texture.h"
 
 static void texture_get_from_context(const bContext *C,
                                      bNodeTreeType *UNUSED(treetype),
@@ -277,7 +277,7 @@ void ntreeTexEndExecTree(bNodeTreeExec *exec)
 
 int ntreeTexExecTree(bNodeTree *ntree,
                      TexResult *target,
-                     float co[3],
+                     const float co[3],
                      float dxt[3],
                      float dyt[3],
                      int osatex,

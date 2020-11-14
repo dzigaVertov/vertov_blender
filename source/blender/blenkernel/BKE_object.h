@@ -77,6 +77,10 @@ bool BKE_object_shaderfx_use_time(struct Object *ob, struct ShaderFxData *md);
 
 bool BKE_object_support_modifier_type_check(const struct Object *ob, int modifier_type);
 
+bool BKE_object_copy_modifier(struct Object *ob_dst,
+                              const struct Object *ob_src,
+                              struct ModifierData *md);
+bool BKE_object_copy_gpencil_modifier(struct Object *ob_dst, struct GpencilModifierData *md);
 void BKE_object_link_modifiers(struct Object *ob_dst, const struct Object *ob_src);
 void BKE_object_free_modifiers(struct Object *ob, const int flag);
 void BKE_object_free_shaderfx(struct Object *ob, const int flag);
@@ -132,7 +136,6 @@ void *BKE_object_obdata_add_from_type(struct Main *bmain, int type, const char *
     ATTR_NONNULL(1);
 int BKE_object_obdata_to_type(const struct ID *id) ATTR_NONNULL(1);
 
-struct Object *BKE_object_copy(struct Main *bmain, const struct Object *ob);
 bool BKE_object_is_libdata(const struct Object *ob);
 bool BKE_object_obdata_is_libdata(const struct Object *ob);
 
@@ -188,6 +191,8 @@ struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer,
                                              unsigned int *r_bases_len);
 
 void BKE_object_get_parent_matrix(struct Object *ob, struct Object *par, float r_parentmat[4][4]);
+
+/* Compute object world transform and store it in ob->obmat. */
 void BKE_object_where_is_calc(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
 void BKE_object_where_is_calc_ex(struct Depsgraph *depsgraph,
                                  struct Scene *scene,
@@ -410,6 +415,14 @@ struct Mesh *BKE_object_to_mesh(struct Depsgraph *depsgraph,
 void BKE_object_to_mesh_clear(struct Object *object);
 
 void BKE_object_check_uuids_unique_and_report(const struct Object *object);
+
+void BKE_object_modifiers_lib_link_common(void *userData,
+                                          struct Object *ob,
+                                          struct ID **idpoin,
+                                          int cb_flag);
+
+struct PartEff;
+struct PartEff *BKE_object_do_version_give_parteff_245(struct Object *ob);
 
 #ifdef __cplusplus
 }

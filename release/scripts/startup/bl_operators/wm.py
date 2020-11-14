@@ -1236,7 +1236,7 @@ class WM_OT_properties_edit(Operator):
     def get_value_eval(self):
         try:
             value_eval = eval(self.value)
-            # assert else None -> None, not "None", see [#33431]
+            # assert else None -> None, not "None", see T33431.
             assert(type(value_eval) in {str, float, int, bool, tuple, list})
         except:
             value_eval = self.value
@@ -1246,7 +1246,7 @@ class WM_OT_properties_edit(Operator):
     def get_default_eval(self):
         try:
             default_eval = eval(self.default)
-            # assert else None -> None, not "None", see [#33431]
+            # assert else None -> None, not "None", see T33431.
             assert(type(default_eval) in {str, float, int, bool, tuple, list})
         except:
             default_eval = self.default
@@ -1347,8 +1347,8 @@ class WM_OT_properties_edit(Operator):
                     for nt in adt.nla_tracks:
                         _update_strips(nt.strips)
 
-        # otherwise existing buttons which reference freed
-        # memory may crash blender [#26510]
+        # Otherwise existing buttons which reference freed
+        # memory may crash Blender T26510.
         # context.area.tag_redraw()
         for win in context.window_manager.windows:
             for area in win.screen.areas:
@@ -1380,7 +1380,6 @@ class WM_OT_properties_edit(Operator):
         # retrieve overridable static
         is_overridable = item.is_property_overridable_library('["%s"]' % self.property)
         self.is_overridable_library = bool(is_overridable)
-
 
         # default default value
         prop_type, is_array = rna_idprop_value_item_type(self.get_value_eval())
@@ -1661,7 +1660,7 @@ class WM_OT_owner_disable(Operator):
 class WM_OT_tool_set_by_id(Operator):
     """Set the tool by name (for keymaps)"""
     bl_idname = "wm.tool_set_by_id"
-    bl_label = "Set Tool By Name"
+    bl_label = "Set Tool by Name"
 
     name: StringProperty(
         name="Identifier",
@@ -1719,7 +1718,7 @@ class WM_OT_tool_set_by_id(Operator):
 class WM_OT_tool_set_by_index(Operator):
     """Set the tool by index (for keymaps)"""
     bl_idname = "wm.tool_set_by_index"
-    bl_label = "Set Tool By Index"
+    bl_label = "Set Tool by Index"
     index: IntProperty(
         name="Index in toolbar",
         default=0,

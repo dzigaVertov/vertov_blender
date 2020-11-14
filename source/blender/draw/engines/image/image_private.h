@@ -25,16 +25,16 @@ extern "C" {
 #endif
 
 /* Forward declarations */
-struct rcti;
 struct GPUBatch;
-struct Image;
-struct ImBuf;
 struct GPUTexture;
+struct ImBuf;
+struct Image;
+struct rcti;
 
 /* *********** LISTS *********** */
 
 /* GPUViewport.storage
- * Is freed everytime the viewport engine changes */
+ * Is freed every time the viewport engine changes. */
 typedef struct IMAGE_PassList {
   DRWPass *image_pass;
 } IMAGE_PassList;
@@ -60,7 +60,7 @@ typedef struct IMAGE_Data {
 } IMAGE_Data;
 
 /* image_shader.c */
-GPUShader *IMAGE_shader_image_get(void);
+GPUShader *IMAGE_shader_image_get(bool is_tiled_image);
 void IMAGE_shader_library_ensure(void);
 void IMAGE_shader_free(void);
 

@@ -63,6 +63,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_defaults.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
@@ -802,7 +803,7 @@ static int calc_edge_subdivisions(const MVert *mvert,
                                   const MEdge *e,
                                   const int *degree)
 {
-  /* prevent memory errors [#38003] */
+  /* prevent memory errors T38003. */
 #define NUM_SUBDIVISIONS_MAX 128
 
   const MVertSkin *evs[2] = {&nodes[e->v1], &nodes[e->v2]};
@@ -997,8 +998,8 @@ static void add_poly(SkinOutput *so, BMVert *v1, BMVert *v2, BMVert *v3, BMVert 
   BMVert *verts[4] = {v1, v2, v3, v4};
   BMFace *f;
 
-  BLI_assert(v1 != v2 && v1 != v3 && v1 != v4);
-  BLI_assert(v2 != v3 && v2 != v4);
+  BLI_assert(!ELEM(v1, v2, v3, v4));
+  BLI_assert(!ELEM(v2, v3, v4));
   BLI_assert(v3 != v4);
   BLI_assert(v1 && v2 && v3);
 
@@ -1413,7 +1414,7 @@ static void quad_from_tris(BMEdge *e, BMFace *adj[2], BMVert *ndx[4])
 
   /* Find what the second tri has that the first doesn't */
   for (i = 0; i < 3; i++) {
-    if (tri[1][i] != tri[0][0] && tri[1][i] != tri[0][1] && tri[1][i] != tri[0][2]) {
+    if (!ELEM(tri[1][i], tri[0][0], tri[0][1], tri[0][2])) {
       opp = tri[1][i];
       break;
     }
@@ -1759,13 +1760,19 @@ static bool skin_output_branch_hulls(
   return result;
 }
 
+typedef enum eSkinErrorFlag {
+  SKIN_ERROR_NO_VALID_ROOT = (1 << 0),
+  SKIN_ERROR_HULL = (1 << 1),
+} eSkinErrorFlag;
+
 static BMesh *build_skin(SkinNode *skin_nodes,
                          int totvert,
                          const MeshElemMap *emap,
                          const MEdge *medge,
                          int totedge,
                          const MDeformVert *input_dvert,
-                         SkinModifierData *smd)
+                         SkinModifierData *smd,
+                         eSkinErrorFlag *r_error)
 {
   SkinOutput so;
   int v;
@@ -1801,7 +1808,7 @@ static BMesh *build_skin(SkinNode *skin_nodes,
   skin_update_merged_vertices(skin_nodes, totvert);
 
   if (!skin_output_branch_hulls(&so, skin_nodes, totvert, emap, medge)) {
-    BKE_modifier_set_error(&smd->modifier, "Hull error");
+    *r_error |= SKIN_ERROR_HULL;
   }
 
   /* Merge triangles here in the hope of providing better target
@@ -1847,7 +1854,7 @@ static void skin_set_orig_indices(Mesh *mesh)
  * 2) Generate node frames
  * 3) Output vertices and polygons from frames, connections, and hulls
  */
-static Mesh *base_skin(Mesh *origmesh, SkinModifierData *smd)
+static Mesh *base_skin(Mesh *origmesh, SkinModifierData *smd, eSkinErrorFlag *r_error)
 {
   Mesh *result;
   MVertSkin *nodes;
@@ -1877,16 +1884,14 @@ static Mesh *base_skin(Mesh *origmesh, SkinModifierData *smd)
   MEM_freeN(emat);
   emat = NULL;
 
-  bm = build_skin(skin_nodes, totvert, emap, medge, totedge, dvert, smd);
+  bm = build_skin(skin_nodes, totvert, emap, medge, totedge, dvert, smd, r_error);
 
   MEM_freeN(skin_nodes);
   MEM_freeN(emap);
   MEM_freeN(emapmem);
 
   if (!has_valid_root) {
-    BKE_modifier_set_error(
-        &smd->modifier,
-        "No valid root vertex found (you need one per mesh island you want to skin)");
+    *r_error |= SKIN_ERROR_NO_VALID_ROOT;
   }
 
   if (!bm) {
@@ -1903,7 +1908,7 @@ static Mesh *base_skin(Mesh *origmesh, SkinModifierData *smd)
   return result;
 }
 
-static Mesh *final_skin(SkinModifierData *smd, Mesh *mesh)
+static Mesh *final_skin(SkinModifierData *smd, Mesh *mesh, eSkinErrorFlag *r_error)
 {
   Mesh *result;
 
@@ -1913,7 +1918,7 @@ static Mesh *final_skin(SkinModifierData *smd, Mesh *mesh)
   }
 
   mesh = subdivide_base(mesh);
-  result = base_skin(mesh, smd);
+  result = base_skin(mesh, smd, r_error);
 
   BKE_id_free(NULL, mesh);
   return result;
@@ -1925,19 +1930,33 @@ static void initData(ModifierData *md)
 {
   SkinModifierData *smd = (SkinModifierData *)md;
 
-  /* Enable in editmode by default */
-  md->mode |= eModifierMode_Editmode;
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(smd, modifier));
 
-  smd->branch_smoothing = 0;
-  smd->flag = 0;
-  smd->symmetry_axes = MOD_SKIN_SYMM_X;
+  MEMCPY_STRUCT_AFTER(smd, DNA_struct_default_get(SkinModifierData), modifier);
+
+  /* Enable in editmode by default. */
+  md->mode |= eModifierMode_Editmode;
 }
 
-static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *UNUSED(ctx), Mesh *mesh)
+static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh)
 {
-  Mesh *result;
+  eSkinErrorFlag error = 0;
+  Mesh *result = final_skin((SkinModifierData *)md, mesh, &error);
 
-  if (!(result = final_skin((SkinModifierData *)md, mesh))) {
+  if (error & SKIN_ERROR_NO_VALID_ROOT) {
+    error &= ~SKIN_ERROR_NO_VALID_ROOT;
+    BKE_modifier_set_error(
+        ctx->object,
+        md,
+        "No valid root vertex found (you need one per mesh island you want to skin)");
+  }
+  if (error & SKIN_ERROR_HULL) {
+    error &= ~SKIN_ERROR_HULL;
+    BKE_modifier_set_error(ctx->object, md, "Hull error");
+  }
+  BLI_assert(error == 0);
+
+  if (result == NULL) {
     return mesh;
   }
   return result;
@@ -2011,8 +2030,10 @@ ModifierTypeInfo modifierType_Skin = {
     /* name */ "Skin",
     /* structName */ "SkinModifierData",
     /* structSize */ sizeof(SkinModifierData),
+    /* srna */ &RNA_SkinModifier,
     /* type */ eModifierTypeType_Constructive,
     /* flags */ eModifierTypeFlag_AcceptsMesh | eModifierTypeFlag_SupportsEditmode,
+    /* icon */ ICON_MOD_SKIN,
 
     /* copyData */ BKE_modifier_copydata_generic,
 
@@ -2032,7 +2053,6 @@ ModifierTypeInfo modifierType_Skin = {
     /* updateDepsgraph */ NULL,
     /* dependsOnTime */ NULL,
     /* dependsOnNormals */ NULL,
-    /* foreachObjectLink */ NULL,
     /* foreachIDLink */ NULL,
     /* foreachTexLink */ NULL,
     /* freeRuntimeData */ NULL,

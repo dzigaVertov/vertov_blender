@@ -27,6 +27,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_defaults.h"
 #include "DNA_mesh_types.h"
 #include "DNA_screen_types.h"
 
@@ -44,10 +45,6 @@
 
 #include "MOD_solidify_util.h"
 
-#ifdef __GNUC__
-#  pragma GCC diagnostic error "-Wsign-conversion"
-#endif
-
 static bool dependsOnNormals(ModifierData *md)
 {
   const SolidifyModifierData *smd = (SolidifyModifierData *)md;
@@ -60,15 +57,15 @@ static bool dependsOnNormals(ModifierData *md)
 static void initData(ModifierData *md)
 {
   SolidifyModifierData *smd = (SolidifyModifierData *)md;
-  smd->offset = 0.01f;
-  smd->offset_fac = -1.0f;
-  smd->flag = MOD_SOLIDIFY_RIM;
-  smd->mode = MOD_SOLIDIFY_MODE_EXTRUDE;
-  smd->nonmanifold_offset_mode = MOD_SOLIDIFY_NONMANIFOLD_OFFSET_MODE_CONSTRAINTS;
-  smd->nonmanifold_boundary_mode = MOD_SOLIDIFY_NONMANIFOLD_BOUNDARY_MODE_NONE;
-  smd->merge_tolerance = 0.0001f;
-  smd->bevel_convex = 0.0f;
+
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(smd, modifier));
+
+  MEMCPY_STRUCT_AFTER(smd, DNA_struct_default_get(SolidifyModifierData), modifier);
 }
+
+#ifdef __GNUC__
+#  pragma GCC diagnostic error "-Wsign-conversion"
+#endif
 
 static void requiredDataMask(Object *UNUSED(ob),
                              ModifierData *md,
@@ -233,8 +230,9 @@ static void vertex_group_panel_draw(const bContext *UNUSED(C), Panel *panel)
   uiLayoutSetPropSep(layout, true);
 
   col = uiLayoutColumn(layout, false);
-  uiItemPointerR(col, ptr, "shell_vertex_group", &ob_ptr, "vertex_groups", "Shell", ICON_NONE);
-  uiItemPointerR(col, ptr, "rim_vertex_group", &ob_ptr, "vertex_groups", "Rim", ICON_NONE);
+  uiItemPointerR(
+      col, ptr, "shell_vertex_group", &ob_ptr, "vertex_groups", IFACE_("Shell"), ICON_NONE);
+  uiItemPointerR(col, ptr, "rim_vertex_group", &ob_ptr, "vertex_groups", IFACE_("Rim"), ICON_NONE);
 }
 
 static void panelRegister(ARegionType *region_type)
@@ -260,11 +258,13 @@ ModifierTypeInfo modifierType_Solidify = {
     /* name */ "Solidify",
     /* structName */ "SolidifyModifierData",
     /* structSize */ sizeof(SolidifyModifierData),
+    /* srna */ &RNA_SolidifyModifier,
     /* type */ eModifierTypeType_Constructive,
 
     /* flags */ eModifierTypeFlag_AcceptsMesh | eModifierTypeFlag_AcceptsCVs |
         eModifierTypeFlag_SupportsMapping | eModifierTypeFlag_SupportsEditmode |
         eModifierTypeFlag_EnableInEditmode,
+    /* icon */ ICON_MOD_SOLIDIFY,
 
     /* copyData */ BKE_modifier_copydata_generic,
 
@@ -284,7 +284,6 @@ ModifierTypeInfo modifierType_Solidify = {
     /* updateDepsgraph */ NULL,
     /* dependsOnTime */ NULL,
     /* dependsOnNormals */ dependsOnNormals,
-    /* foreachObjectLink */ NULL,
     /* foreachIDLink */ NULL,
     /* foreachTexLink */ NULL,
     /* freeRuntimeData */ NULL,

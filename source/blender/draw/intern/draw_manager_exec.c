@@ -57,12 +57,15 @@ typedef struct DRWCommandsState {
   /* Resource location. */
   int obmats_loc;
   int obinfos_loc;
+  int obattrs_loc;
   int baseinst_loc;
   int chunkid_loc;
   int resourceid_loc;
   /* Legacy matrix support. */
   int obmat_loc;
   int obinv_loc;
+  /* Uniform Attributes. */
+  DRWSparseUniformBuf *obattrs_ubo;
   /* Selection ID state. */
   GPUVertBuf *select_buf;
   uint select_id;
@@ -203,6 +206,9 @@ void drw_state_set(DRWState state)
     case DRW_STATE_LOGIC_INVERT:
       blend = GPU_BLEND_INVERT;
       break;
+    case DRW_STATE_BLEND_ALPHA_UNDER_PREMUL:
+      blend = GPU_BLEND_ALPHA_UNDER_PREMUL;
+      break;
     default:
       blend = GPU_BLEND_NONE;
       break;
@@ -294,6 +300,38 @@ static void drw_state_validate(void)
 void DRW_state_lock(DRWState state)
 {
   DST.state_lock = state;
+
+  /* We must get the current state to avoid overriding it. */
+  /* Not complete, but that just what we need for now. */
+  if (state & DRW_STATE_WRITE_DEPTH) {
+    SET_FLAG_FROM_TEST(DST.state, GPU_depth_mask_get(), DRW_STATE_WRITE_DEPTH);
+  }
+  if (state & DRW_STATE_DEPTH_TEST_ENABLED) {
+    DST.state &= ~DRW_STATE_DEPTH_TEST_ENABLED;
+
+    switch (GPU_depth_test_get()) {
+      case GPU_DEPTH_ALWAYS:
+        DST.state |= DRW_STATE_DEPTH_ALWAYS;
+        break;
+      case GPU_DEPTH_LESS:
+        DST.state |= DRW_STATE_DEPTH_LESS;
+        break;
+      case GPU_DEPTH_LESS_EQUAL:
+        DST.state |= DRW_STATE_DEPTH_LESS_EQUAL;
+        break;
+      case GPU_DEPTH_EQUAL:
+        DST.state |= DRW_STATE_DEPTH_EQUAL;
+        break;
+      case GPU_DEPTH_GREATER:
+        DST.state |= DRW_STATE_DEPTH_GREATER;
+        break;
+      case GPU_DEPTH_GREATER_EQUAL:
+        DST.state |= DRW_STATE_DEPTH_GREATER_EQUAL;
+        break;
+      default:
+        break;
+    }
+  }
 }
 
 void DRW_state_reset(void)
@@ -451,8 +489,8 @@ static void draw_compute_culling(DRWView *view)
 {
   view = view->parent ? view->parent : view;
 
-  /* TODO(fclem) multithread this. */
-  /* TODO(fclem) compute all dirty views at once. */
+  /* TODO(fclem): multi-thread this. */
+  /* TODO(fclem): compute all dirty views at once. */
   if (!view->is_dirty) {
     return;
   }
@@ -596,6 +634,12 @@ static void draw_update_uniforms(DRWShadingGroup *shgroup,
         case DRW_UNIFORM_TEXTURE_REF:
           GPU_texture_bind_ex(*uni->texture_ref, uni->sampler_state, uni->location, false);
           break;
+        case DRW_UNIFORM_IMAGE:
+          GPU_texture_image_bind(uni->texture, uni->location);
+          break;
+        case DRW_UNIFORM_IMAGE_REF:
+          GPU_texture_image_bind(*uni->texture_ref, uni->location);
+          break;
         case DRW_UNIFORM_BLOCK:
           GPU_uniformbuf_bind(uni->block, uni->location);
           break;
@@ -609,6 +653,12 @@ static void draw_update_uniforms(DRWShadingGroup *shgroup,
         case DRW_UNIFORM_BLOCK_OBINFOS:
           state->obinfos_loc = uni->location;
           GPU_uniformbuf_bind(DST.vmempool->obinfos_ubo[0], uni->location);
+          break;
+        case DRW_UNIFORM_BLOCK_OBATTRS:
+          state->obattrs_loc = uni->location;
+          state->obattrs_ubo = DRW_uniform_attrs_pool_find_ubo(DST.vmempool->obattrs_ubo_pool,
+                                                               uni->uniform_attrs);
+          DRW_sparse_uniform_buffer_bind(state->obattrs_ubo, 0, uni->location);
           break;
         case DRW_UNIFORM_RESOURCE_CHUNK:
           state->chunkid_loc = uni->location;
@@ -723,6 +773,10 @@ static void draw_call_resource_bind(DRWCommandsState *state, const DRWResourceHa
     if (state->obinfos_loc != -1) {
       GPU_uniformbuf_unbind(DST.vmempool->obinfos_ubo[state->resource_chunk]);
       GPU_uniformbuf_bind(DST.vmempool->obinfos_ubo[chunk], state->obinfos_loc);
+    }
+    if (state->obattrs_loc != -1) {
+      DRW_sparse_uniform_buffer_unbind(state->obattrs_ubo, state->resource_chunk);
+      DRW_sparse_uniform_buffer_bind(state->obattrs_ubo, chunk, state->obattrs_loc);
     }
     state->resource_chunk = chunk;
   }
@@ -846,6 +900,9 @@ static void draw_call_batching_finish(DRWShadingGroup *shgroup, DRWCommandsState
   if (state->obinfos_loc != -1) {
     GPU_uniformbuf_unbind(DST.vmempool->obinfos_ubo[state->resource_chunk]);
   }
+  if (state->obattrs_loc != -1) {
+    DRW_sparse_uniform_buffer_unbind(state->obattrs_ubo, state->resource_chunk);
+  }
 }
 
 static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
@@ -855,11 +912,13 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
   DRWCommandsState state = {
       .obmats_loc = -1,
       .obinfos_loc = -1,
+      .obattrs_loc = -1,
       .baseinst_loc = -1,
       .chunkid_loc = -1,
       .resourceid_loc = -1,
       .obmat_loc = -1,
       .obinv_loc = -1,
+      .obattrs_ubo = NULL,
       .drw_state_enabled = 0,
       .drw_state_disabled = 0,
   };
@@ -1004,7 +1063,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 
 static void drw_update_view(void)
 {
-  /* TODO(fclem) update a big UBO and only bind ranges here. */
+  /* TODO(fclem): update a big UBO and only bind ranges here. */
   GPU_uniformbuf_update(G_draw.view_ubo, &DST.view_active->storage);
 
   /* TODO get rid of this. */

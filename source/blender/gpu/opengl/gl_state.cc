@@ -42,7 +42,7 @@ namespace blender::gpu {
 /** \name GLStateManager
  * \{ */
 
-GLStateManager::GLStateManager(void) : GPUStateManager()
+GLStateManager::GLStateManager()
 {
   /* Set other states that never change. */
   glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -71,12 +71,28 @@ GLStateManager::GLStateManager(void) : GPUStateManager()
   set_mutable_state(mutable_state);
 }
 
-void GLStateManager::apply_state(void)
+void GLStateManager::apply_state()
 {
+  if (!this->use_bgl) {
+    this->set_state(this->state);
+    this->set_mutable_state(this->mutable_state);
+    this->texture_bind_apply();
+    this->image_bind_apply();
+  }
+  /* This is needed by gpu_py_offscreen. */
+  active_fb->apply_state();
+};
+
+/* Will set all the states regardless of the current ones. */
+void GLStateManager::force_state()
+{
+  /* Little exception for clip distances since they need to keep the old count correct. */
+  uint32_t clip_distances = current_.clip_distances;
+  current_ = ~this->state;
+  current_.clip_distances = clip_distances;
+  current_mutable_ = ~this->mutable_state;
   this->set_state(this->state);
   this->set_mutable_state(this->mutable_state);
-  this->texture_bind_apply();
-  active_fb->apply_state();
 };
 
 void GLStateManager::set_state(const GPUState &state)
@@ -405,6 +421,13 @@ void GLStateManager::set_blend(const eGPUBlend value)
       dst_alpha = GL_SRC_ALPHA;
       break;
     }
+    case GPU_BLEND_ALPHA_UNDER_PREMUL: {
+      src_rgb = GL_ONE_MINUS_DST_ALPHA;
+      dst_rgb = GL_ONE;
+      src_alpha = GL_ONE_MINUS_DST_ALPHA;
+      dst_alpha = GL_ONE;
+      break;
+    }
     case GPU_BLEND_CUSTOM: {
       src_rgb = GL_ONE;
       dst_rgb = GL_SRC1_COLOR;
@@ -412,6 +435,13 @@ void GLStateManager::set_blend(const eGPUBlend value)
       dst_alpha = GL_SRC1_ALPHA;
       break;
     }
+  }
+
+  if (value == GPU_BLEND_SUBTRACT) {
+    glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+  }
+  else {
+    glBlendEquation(GL_FUNC_ADD);
   }
 
   /* Always set the blend function. This avoid a rendering error when blending is disabled but
@@ -481,7 +511,7 @@ void GLStateManager::texture_unbind(Texture *tex_)
   tex->is_bound_ = false;
 }
 
-void GLStateManager::texture_unbind_all(void)
+void GLStateManager::texture_unbind_all()
 {
   for (int i = 0; i < ARRAY_SIZE(textures_); i++) {
     if (textures_[i] != 0) {
@@ -493,7 +523,7 @@ void GLStateManager::texture_unbind_all(void)
   this->texture_bind_apply();
 }
 
-void GLStateManager::texture_bind_apply(void)
+void GLStateManager::texture_bind_apply()
 {
   if (dirty_texture_binds_ == 0) {
     return;
@@ -525,7 +555,7 @@ void GLStateManager::texture_unpack_row_length_set(uint len)
   glPixelStorei(GL_UNPACK_ROW_LENGTH, len);
 }
 
-uint64_t GLStateManager::bound_texture_slots(void)
+uint64_t GLStateManager::bound_texture_slots()
 {
   uint64_t bound_slots = 0;
   for (int i = 0; i < ARRAY_SIZE(textures_); i++) {
@@ -534,6 +564,100 @@ uint64_t GLStateManager::bound_texture_slots(void)
     }
   }
   return bound_slots;
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Image Binding (from image load store)
+ * \{ */
+
+void GLStateManager::image_bind(Texture *tex_, int unit)
+{
+  /* Minimum support is 8 image in the fragment shader. No image for other stages. */
+  BLI_assert(GPU_shader_image_load_store_support() && unit < 8);
+  GLTexture *tex = static_cast<GLTexture *>(tex_);
+  if (G.debug & G_DEBUG_GPU) {
+    tex->check_feedback_loop();
+  }
+  images_[unit] = tex->tex_id_;
+  formats_[unit] = to_gl_internal_format(tex->format_);
+  tex->is_bound_ = true;
+  dirty_image_binds_ |= 1ULL << unit;
+}
+
+void GLStateManager::image_unbind(Texture *tex_)
+{
+  GLTexture *tex = static_cast<GLTexture *>(tex_);
+  if (!tex->is_bound_) {
+    return;
+  }
+
+  GLuint tex_id = tex->tex_id_;
+  for (int i = 0; i < ARRAY_SIZE(images_); i++) {
+    if (images_[i] == tex_id) {
+      images_[i] = 0;
+      dirty_image_binds_ |= 1ULL << i;
+    }
+  }
+  tex->is_bound_ = false;
+}
+
+void GLStateManager::image_unbind_all()
+{
+  for (int i = 0; i < ARRAY_SIZE(images_); i++) {
+    if (images_[i] != 0) {
+      images_[i] = 0;
+      dirty_image_binds_ |= 1ULL << i;
+    }
+  }
+  this->image_bind_apply();
+}
+
+void GLStateManager::image_bind_apply()
+{
+  if (dirty_image_binds_ == 0) {
+    return;
+  }
+  uint32_t dirty_bind = dirty_image_binds_;
+  dirty_image_binds_ = 0;
+
+  int first = bitscan_forward_uint(dirty_bind);
+  int last = 32 - bitscan_reverse_uint(dirty_bind);
+  int count = last - first;
+
+  if (GLContext::multi_bind_support) {
+    glBindImageTextures(first, count, images_ + first);
+  }
+  else {
+    for (int unit = first; unit < last; unit++) {
+      if ((dirty_bind >> unit) & 1UL) {
+        glBindImageTexture(unit, images_[unit], 0, GL_TRUE, 0, GL_READ_WRITE, formats_[unit]);
+      }
+    }
+  }
+}
+
+uint8_t GLStateManager::bound_image_slots()
+{
+  uint8_t bound_slots = 0;
+  for (int i = 0; i < ARRAY_SIZE(images_); i++) {
+    if (images_[i] != 0) {
+      bound_slots |= 1ULL << i;
+    }
+  }
+  return bound_slots;
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Memory barrier
+ * \{ */
+
+void GLStateManager::issue_barrier(eGPUBarrier barrier_bits)
+{
+  glMemoryBarrier(to_gl(barrier_bits));
 }
 
 /** \} */

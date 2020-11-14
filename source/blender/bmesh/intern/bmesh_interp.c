@@ -880,7 +880,7 @@ static void update_data_blocks(BMesh *bm, CustomData *olddata, CustomData *data)
   }
 
   if (oldpool) {
-    /* this should never happen but can when dissolve fails - [#28960] */
+    /* this should never happen but can when dissolve fails - T28960. */
     BLI_assert(data->pool != oldpool);
 
     BLI_mempool_destroy(oldpool);
@@ -1027,6 +1027,7 @@ void BM_elem_float_data_set(CustomData *cd, void *element, int type, const float
   }
 }
 
+/* -------------------------------------------------------------------- */
 /** \name Loop interpolation functions: BM_vert_loop_groups_data_layer_***
  *
  * Handling loop custom-data such as UV's, while keeping contiguous fans is rather tedious.

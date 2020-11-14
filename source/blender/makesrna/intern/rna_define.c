@@ -457,8 +457,7 @@ static int rna_find_sdna_member(SDNA *sdna,
                                 int *offset)
 {
   const char *dnaname;
-  const short *sp;
-  int a, b, structnr, totmember, cmp;
+  int b, structnr, cmp;
 
   if (!DefRNA.preprocess) {
     CLOG_ERROR(&LOG, "only during preprocessing.");
@@ -474,17 +473,15 @@ static int rna_find_sdna_member(SDNA *sdna,
     return 0;
   }
 
-  sp = sdna->structs[structnr];
-  totmember = sp[1];
-  sp += 2;
-
-  for (a = 0; a < totmember; a++, sp += 2) {
-    const int size = DNA_elem_size_nr(sdna, sp[0], sp[1]);
-    dnaname = sdna->alias.names[sp[1]];
+  const SDNA_Struct *struct_info = sdna->structs[structnr];
+  for (int a = 0; a < struct_info->members_len; a++) {
+    const SDNA_StructMember *member = &struct_info->members[a];
+    const int size = DNA_elem_size_nr(sdna, member->type, member->name);
+    dnaname = sdna->alias.names[member->name];
     cmp = rna_member_cmp(dnaname, membername);
 
     if (cmp == 1) {
-      smember->type = sdna->alias.types[sp[0]];
+      smember->type = sdna->alias.types[member->type];
       smember->name = dnaname;
       smember->offset = *offset;
       smember->size = size;
@@ -503,7 +500,7 @@ static int rna_find_sdna_member(SDNA *sdna,
 
       return 1;
     }
-    else if (cmp == 2) {
+    if (cmp == 2) {
       smember->type = "";
       smember->name = dnaname;
       smember->offset = *offset;
@@ -512,11 +509,11 @@ static int rna_find_sdna_member(SDNA *sdna,
       smember->arraylength = 0;
 
       membername = strstr(membername, ".") + strlen(".");
-      rna_find_sdna_member(sdna, sdna->alias.types[sp[0]], membername, smember, offset);
+      rna_find_sdna_member(sdna, sdna->alias.types[member->type], membername, smember, offset);
 
       return 1;
     }
-    else if (cmp == 3) {
+    if (cmp == 3) {
       smember->type = "";
       smember->name = dnaname;
       smember->offset = *offset;
@@ -528,7 +525,7 @@ static int rna_find_sdna_member(SDNA *sdna,
         *offset = -1;
       }
       membername = strstr(membername, "->") + strlen("->");
-      rna_find_sdna_member(sdna, sdna->alias.types[sp[0]], membername, smember, offset);
+      rna_find_sdna_member(sdna, sdna->alias.types[member->type], membername, smember, offset);
 
       return 1;
     }
@@ -1306,7 +1303,7 @@ PropertyRNA *RNA_def_property(StructOrFunctionRNA *cont_,
     rna_addtail(&dcont->properties, dprop);
   }
   else {
-#ifdef DEBUG
+#ifndef NDEBUG
     char error[512];
     if (rna_validate_identifier(identifier, error, true) == 0) {
       CLOG_ERROR(&LOG,
@@ -1410,7 +1407,7 @@ PropertyRNA *RNA_def_property(StructOrFunctionRNA *cont_,
   /* a priori not raw editable */
   prop->rawtype = -1;
 
-  if (type != PROP_COLLECTION && type != PROP_POINTER) {
+  if (!ELEM(type, PROP_COLLECTION, PROP_POINTER)) {
     prop->flag = PROP_EDITABLE;
 
     if (type != PROP_STRING) {
@@ -1846,6 +1843,10 @@ void RNA_def_property_struct_runtime(PropertyRNA *prop, StructRNA *type)
       DefRNA.error = true;
       break;
   }
+
+  if ((type->flag & STRUCT_ID) != 0) {
+    prop->flag |= PROP_PTR_NO_OWNERSHIP;
+  }
 }
 
 void RNA_def_property_enum_native_type(PropertyRNA *prop, const char *native_enum_type)
@@ -1888,7 +1889,7 @@ void RNA_def_property_enum_items(PropertyRNA *prop, const EnumPropertyItem *item
             DefRNA.error = true;
             break;
           }
-          else if (item[i].value == eprop->defaultvalue) {
+          if (item[i].value == eprop->defaultvalue) {
             defaultfound = 1;
           }
         }
@@ -2185,7 +2186,7 @@ static PropertyDefRNA *rna_def_property_sdna(PropertyRNA *prop,
     if (DefRNA.silent) {
       return NULL;
     }
-    else if (!DefRNA.verify) {
+    if (!DefRNA.verify) {
       /* some basic values to survive even with sdna info */
       dp->dnastructname = structname;
       dp->dnaname = propname;
@@ -2198,15 +2199,13 @@ static PropertyDefRNA *rna_def_property_sdna(PropertyRNA *prop,
       dp->dnaoffset = smember.offset;
       return dp;
     }
-    else {
-      CLOG_ERROR(&LOG,
-                 "\"%s.%s\" (identifier \"%s\") not found. Struct must be in DNA.",
-                 structname,
-                 propname,
-                 prop->identifier);
-      DefRNA.error = true;
-      return NULL;
-    }
+    CLOG_ERROR(&LOG,
+               "\"%s.%s\" (identifier \"%s\") not found. Struct must be in DNA.",
+               structname,
+               propname,
+               prop->identifier);
+    DefRNA.error = true;
+    return NULL;
   }
 
   if (smember.arraylength > 1) {
@@ -4272,7 +4271,7 @@ void RNA_def_function_return(FunctionRNA *func, PropertyRNA *ret)
                ret->identifier);
     return;
   }
-  else if (ret->arraydimension) {
+  if (ret->arraydimension) {
     CLOG_ERROR(&LOG,
                "\"%s.%s\", arrays are not allowed as strict returns, "
                "use RNA_def_function_output instead.",
@@ -4360,13 +4359,10 @@ int rna_parameter_size(PropertyRNA *parm)
           if (parm->flag & PROP_THICK_WRAP) {
             return sizeof(PointerRNA);
           }
-          else {
-            return sizeof(PointerRNA *);
-          }
+          return sizeof(PointerRNA *);
         }
-        else {
-          return sizeof(void *);
-        }
+        return sizeof(void *);
+
 #endif
       }
       case PROP_COLLECTION:

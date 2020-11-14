@@ -467,7 +467,7 @@ typedef struct ProjPixel {
   /* Only used when the airbrush is disabled.
    * Store the max mask value to avoid painting over an area with a lower opacity
    * with an advantage that we can avoid touching the pixel at all, if the
-   * new mask value is lower then mask_accum */
+   * new mask value is lower than mask_accum */
   ushort *mask_accum;
 
   /* horrible hack, store tile valid flag pointer here to re-validate tiles
@@ -774,7 +774,7 @@ static bool project_paint_PickColor(
   else {
     // xi = (int)((uv[0]*ibuf->x) + 0.5f);
     // yi = (int)((uv[1]*ibuf->y) + 0.5f);
-    // if (xi < 0 || xi >= ibuf->x  ||  yi < 0 || yi >= ibuf->y) return 0;
+    // if (xi < 0 || xi >= ibuf->x  ||  yi < 0 || yi >= ibuf->y) return false;
 
     /* wrap */
     xi = mod_i((int)(uv[0] * ibuf->x), ibuf->x);
@@ -899,7 +899,7 @@ static bool project_bucket_point_occluded(const ProjPaintState *ps,
   int isect_ret;
   const bool do_clip = RV3D_CLIPPING_ENABLED(ps->v3d, ps->rv3d);
 
-  /* we could return 0 for 1 face buckets, as long as this function assumes
+  /* we could return false for 1 face buckets, as long as this function assumes
    * that the point its testing is only every originated from an existing face */
 
   for (; bucketFace; bucketFace = bucketFace->next) {
@@ -1789,7 +1789,7 @@ static float project_paint_uvpixel_mask(const ProjPaintState *ps,
 
 static int project_paint_pixel_sizeof(const short tool)
 {
-  if ((tool == PAINT_TOOL_CLONE) || (tool == PAINT_TOOL_SMEAR)) {
+  if (ELEM(tool, PAINT_TOOL_CLONE, PAINT_TOOL_SMEAR)) {
     return sizeof(ProjPixelClone);
   }
   return sizeof(ProjPixel);
@@ -2080,12 +2080,12 @@ static bool line_clip_rect2f(const rctf *cliprect,
   if (fabsf(l1[0] - l2[0]) < PROJ_PIXEL_TOLERANCE) {
     /* is the line out of range on its X axis? */
     if (l1[0] < rect->xmin || l1[0] > rect->xmax) {
-      return 0;
+      return false;
     }
 
     /* line is out of range on its Y axis */
     if ((l1[1] < rect->ymin && l2[1] < rect->ymin) || (l1[1] > rect->ymax && l2[1] > rect->ymax)) {
-      return 0;
+      return false;
     }
 
     /* this is a single point  (or close to)*/
@@ -2124,7 +2124,7 @@ static bool line_clip_rect2f(const rctf *cliprect,
 
   /* line inside rect */
   if (ok1 && ok2) {
-    return 1;
+    return true;
   }
 
   /* top/bottom */
@@ -2254,7 +2254,7 @@ static bool project_bucket_isect_circle(const float cent[2],
   /* Would normally to a simple intersection test,
    * however we know the bounds of these 2 already intersect so we only need to test
    * if the center is inside the vertical or horizontal bounds on either axis,
-   * this is even less work then an intersection test.
+   * this is even less work than an intersection test.
    */
 #if 0
   if (BLI_rctf_isect_pt_v(bucket_bounds, cent)) {
@@ -2660,7 +2660,7 @@ static void project_bucket_clip_face(const bool is_ortho,
      *
      * There are a number of ways this could be done, currently it just collects all
      * intersecting verts, and line intersections, then sorts them clockwise, this is
-     * a lot easier then evaluating the geometry to do a correct clipping on both shapes.
+     * a lot easier than evaluating the geometry to do a correct clipping on both shapes.
      */
 
     /* Add a bunch of points, we know must make up the convex hull
@@ -2765,7 +2765,7 @@ static void project_bucket_clip_face(const bool is_ortho,
 
     /* Collect angles for every point around the center point */
 
-#if 0 /* uses a few more cycles then the above loop */
+#if 0 /* uses a few more cycles than the above loop */
     for (int i = 0; i < (*tot); i++) {
       isectVCosSS[i][2] = angle_2d_clockwise(up, cent, isectVCosSS[i]);
     }
@@ -3054,9 +3054,9 @@ static void project_paint_face_init(const ProjPaintState *ps,
   lt_uv_pxoffset[2][1] = lt_tri_uv[2][1] - yhalfpx;
 
   {
-    uv1co = lt_uv_pxoffset[0];  // was lt_tri_uv[i1];
-    uv2co = lt_uv_pxoffset[1];  // was lt_tri_uv[i2];
-    uv3co = lt_uv_pxoffset[2];  // was lt_tri_uv[i3];
+    uv1co = lt_uv_pxoffset[0]; /* was lt_tri_uv[i1]; */
+    uv2co = lt_uv_pxoffset[1]; /* was lt_tri_uv[i2]; */
+    uv3co = lt_uv_pxoffset[2]; /* was lt_tri_uv[i3]; */
 
     v1coSS = ps->screenCoords[lt_vtri[0]];
     v2coSS = ps->screenCoords[lt_vtri[1]];
@@ -3248,7 +3248,7 @@ static void project_paint_face_init(const ProjPaintState *ps,
       vCoSS[1] = ps->screenCoords[lt_vtri[1]];
       vCoSS[2] = ps->screenCoords[lt_vtri[2]];
 
-      /* PROJ_FACE_SCALE_SEAM must be slightly less then 1.0f */
+      /* PROJ_FACE_SCALE_SEAM must be slightly less than 1.0f */
       if (is_ortho) {
         scale_tri(insetCos, vCoSS, PROJ_FACE_SCALE_SEAM);
       }
@@ -3414,7 +3414,7 @@ static void project_paint_face_init(const ProjPaintState *ps,
   }
 #else
   UNUSED_VARS(vCo, threaded);
-#endif  // PROJ_DEBUG_NOSEAMBLEED
+#endif /* PROJ_DEBUG_NOSEAMBLEED */
 }
 
 /**
@@ -3924,7 +3924,7 @@ static void proj_paint_state_thread_init(ProjPaintState *ps, const bool reset_th
 
   ps->thread_tot = BKE_scene_num_threads(ps->scene);
 
-  /* workaround for #35057, disable threading if diameter is less than is possible for
+  /* workaround for T35057, disable threading if diameter is less than is possible for
    * optimum bucket number generation */
   if (reset_threads) {
     ps->thread_tot = 1;
@@ -4221,7 +4221,7 @@ static bool project_paint_winclip(const ProjPaintState *ps, const ProjPaintFaceC
            (coSS->v1[1] > ps->screenMax[1] && coSS->v2[1] > ps->screenMax[1] &&
             coSS->v3[1] > ps->screenMax[1])));
 }
-#endif  // PROJ_DEBUG_WINCLIP
+#endif /* PROJ_DEBUG_WINCLIP */
 
 typedef struct PrepareImageEntry {
   struct PrepareImageEntry *next, *prev;
@@ -4719,7 +4719,12 @@ static bool project_bucket_iter_init(ProjPaintState *ps, const float mval_f[2])
     const float radius = ps->brush_size;
 
     /* so we don't have a bucket bounds that is way too small to paint into */
-    // if (radius < 1.0f) radius = 1.0f; // this doesn't work yet :/
+#if 0
+    /* This doesn't work yet. */
+    if (radius < 1.0f) {
+      radius = 1.0f;
+    }
+#endif
 
     min_brush[0] = mval_f[0] - radius;
     min_brush[1] = mval_f[1] - radius;
@@ -4890,7 +4895,7 @@ static void do_projectpaint_soften_f(ProjPaintState *ps,
   BlurKernel *kernel = ps->blurkernel;
   float *rgba = projPixel->newColor.f;
 
-  /* rather then painting, accumulate surrounding colors */
+  /* rather than painting, accumulate surrounding colors */
   zero_v4(rgba);
 
   for (yk = 0; yk < kernel->side; yk++) {
@@ -4951,7 +4956,7 @@ static void do_projectpaint_soften(ProjPaintState *ps,
   /* convert to byte after */
   float rgba[4];
 
-  /* rather then painting, accumulate surrounding colors */
+  /* rather than painting, accumulate surrounding colors */
   zero_v4(rgba);
 
   for (yk = 0; yk < kernel->side; yk++) {
@@ -5305,10 +5310,7 @@ static void do_projectpaint_thread(TaskPool *__restrict UNUSED(pool), void *ph_v
         }
         else {
           if (is_floatbuf) {
-            if (UNLIKELY(ps->reproject_ibuf->rect_float == NULL)) {
-              IMB_float_from_rect(ps->reproject_ibuf);
-              ps->reproject_ibuf_free_float = true;
-            }
+            BLI_assert(ps->reproject_ibuf->rect_float != NULL);
 
             bicubic_interpolation_color(ps->reproject_ibuf,
                                         NULL,
@@ -5325,10 +5327,7 @@ static void do_projectpaint_thread(TaskPool *__restrict UNUSED(pool), void *ph_v
             }
           }
           else {
-            if (UNLIKELY(ps->reproject_ibuf->rect == NULL)) {
-              IMB_rect_from_float(ps->reproject_ibuf);
-              ps->reproject_ibuf_free_uchar = true;
-            }
+            BLI_assert(ps->reproject_ibuf->rect != NULL);
 
             bicubic_interpolation_color(ps->reproject_ibuf,
                                         projPixel->newColor.ch,
@@ -5576,6 +5575,32 @@ static bool project_paint_op(void *state, const float lastpos[2], const float po
   }
 
   image_pool = BKE_image_pool_new();
+
+  if (!ELEM(ps->source, PROJ_SRC_VIEW, PROJ_SRC_VIEW_FILL)) {
+    /* This means we are reprojecting an image, make sure the image has the needed data available.
+     */
+    bool float_dest = false;
+    bool uchar_dest = false;
+    /* Check if the destination images are float or uchar. */
+    for (i = 0; i < ps->image_tot; i++) {
+      if (ps->projImages[i].ibuf->rect != NULL) {
+        uchar_dest = true;
+      }
+      if (ps->projImages[i].ibuf->rect_float != NULL) {
+        float_dest = true;
+      }
+    }
+
+    /* Generate missing data if needed. */
+    if (float_dest && ps->reproject_ibuf->rect_float == NULL) {
+      IMB_float_from_rect(ps->reproject_ibuf);
+      ps->reproject_ibuf_free_float = true;
+    }
+    if (uchar_dest && ps->reproject_ibuf->rect == NULL) {
+      IMB_rect_from_float(ps->reproject_ibuf);
+      ps->reproject_ibuf_free_uchar = true;
+    }
+  }
 
   /* get the threads running */
   for (a = 0; a < ps->thread_tot; a++) {
@@ -5887,7 +5912,8 @@ void *paint_proj_new_stroke(bContext *C, Object *ob, const float mouse[2], int m
 
   ps_handle->orig_brush_size = BKE_brush_size_get(scene, ps_handle->brush);
 
-  ps_handle->symmetry_flags = settings->imapaint.paint.symmetry_flags & PAINT_SYMM_AXIS_ALL;
+  Mesh *mesh = BKE_mesh_from_object(ob);
+  ps_handle->symmetry_flags = mesh->symmetry;
   ps_handle->ps_views_tot = 1 + (pow_i(2, count_bits_i(ps_handle->symmetry_flags)) - 1);
   bool is_multi_view = (ps_handle->ps_views_tot != 1);
 
@@ -6031,8 +6057,8 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
     return OPERATOR_CANCELLED;
   }
 
-  if (!BKE_paint_proj_mesh_data_check(scene, ob, &uvs, &mat, &tex, NULL)) {
-    BKE_paint_data_warning(op->reports, uvs, mat, tex, true);
+  if (!ED_paint_proj_mesh_data_check(scene, ob, &uvs, &mat, &tex, NULL)) {
+    ED_paint_data_warning(op->reports, uvs, mat, tex, true);
     WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
     return OPERATOR_CANCELLED;
   }
@@ -6091,8 +6117,6 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
 
   scene->toolsettings->imapaint.flag |= IMAGEPAINT_DRAWING;
 
-  ED_image_undo_push_begin(op->type->name, PAINT_MODE_TEXTURE_3D);
-
   /* allocate and initialize spatial data structures */
   project_paint_begin(C, &ps, false, 0);
 
@@ -6101,6 +6125,8 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
     BKE_report(op->reports, RPT_ERROR, "Could not get valid evaluated mesh");
     return OPERATOR_CANCELLED;
   }
+
+  ED_image_undo_push_begin(op->type->name, PAINT_MODE_TEXTURE_3D);
 
   const float pos[2] = {0.0, 0.0};
   const float lastpos[2] = {0.0, 0.0};
@@ -6116,6 +6142,8 @@ static int texture_paint_camera_project_exec(bContext *C, wmOperator *op)
   }
 
   project_paint_end(&ps);
+
+  ED_image_undo_push_end();
 
   scene->toolsettings->imapaint.flag &= ~IMAGEPAINT_DRAWING;
   BKE_brush_size_set(scene, ps.brush, orig_brush_size);
@@ -6257,7 +6285,7 @@ static int texture_paint_image_from_view_exec(bContext *C, wmOperator *op)
     array += sizeof(rv3d->viewmat) / sizeof(float);
     is_ortho = ED_view3d_clip_range_get(depsgraph, v3d, rv3d, &array[0], &array[1], true);
     /* using float for a bool is dodgy but since its an extra member in the array...
-     * easier then adding a single bool prop */
+     * easier than adding a single bool prop */
     array[2] = is_ortho ? 1.0f : 0.0f;
 
     IDP_AddToGroup(idgroup, view_data);
@@ -6287,7 +6315,7 @@ void PAINT_OT_image_from_view(wmOperatorType *ot)
  * Data generation for projective texturing  *
  * *******************************************/
 
-void BKE_paint_data_warning(struct ReportList *reports, bool uvs, bool mat, bool tex, bool stencil)
+void ED_paint_data_warning(struct ReportList *reports, bool uvs, bool mat, bool tex, bool stencil)
 {
   BKE_reportf(reports,
               RPT_WARNING,
@@ -6300,7 +6328,7 @@ void BKE_paint_data_warning(struct ReportList *reports, bool uvs, bool mat, bool
 
 /* Make sure that active object has a material,
  * and assign UVs and image layers if they do not exist */
-bool BKE_paint_proj_mesh_data_check(
+bool ED_paint_proj_mesh_data_check(
     Scene *scene, Object *ob, bool *uvs, bool *mat, bool *tex, bool *stencil)
 {
   Mesh *me;
@@ -6330,19 +6358,15 @@ bool BKE_paint_proj_mesh_data_check(
       for (int i = 1; i < ob->totcol + 1; i++) {
         Material *ma = BKE_object_material_get(ob, i);
 
-        if (ma) {
+        if (ma && !ID_IS_LINKED(ma)) {
           hasmat = true;
-          if (!ma->texpaintslot) {
+          if (ma->texpaintslot == NULL) {
             /* refresh here just in case */
             BKE_texpaint_slot_refresh_cache(scene, ma);
-
-            /* if still no slots, we have to add */
-            if (ma->texpaintslot) {
-              hastex = true;
-              break;
-            }
           }
-          else {
+          if (ma->texpaintslot != NULL &&
+              (ma->texpaintslot[ma->paint_active_slot].ima == NULL ||
+               !ID_IS_LINKED(ma->texpaintslot[ma->paint_active_slot].ima))) {
             hastex = true;
             break;
           }
@@ -6351,7 +6375,7 @@ bool BKE_paint_proj_mesh_data_check(
     }
   }
   else if (imapaint->mode == IMAGEPAINT_MODE_IMAGE) {
-    if (imapaint->canvas == NULL) {
+    if (imapaint->canvas == NULL || ID_IS_LINKED(imapaint->canvas)) {
       hastex = false;
     }
   }
@@ -6615,7 +6639,7 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
     DEG_id_tag_update(&ma->id, ID_RECALC_SHADING);
     ED_area_tag_redraw(CTX_wm_area(C));
 
-    BKE_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
+    ED_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
 
     return true;
   }
@@ -6736,7 +6760,7 @@ static int add_simple_uvs_exec(bContext *C, wmOperator *UNUSED(op))
 
   ED_uvedit_add_simple_uvs(bmain, scene, ob);
 
-  BKE_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
+  ED_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
 
   DEG_id_tag_update(ob->data, 0);
   WM_event_add_notifier(C, NC_GEOM | ND_DATA, ob->data);

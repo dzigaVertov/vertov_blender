@@ -26,6 +26,7 @@
 #include "DNA_object_types.h"
 #include "DNA_particle_types.h"
 #include "DNA_pointcache_types.h"
+#include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
 #include "RNA_define.h"
@@ -777,7 +778,18 @@ static char *rna_EffectorWeight_path(PointerRNA *ptr)
     }
   }
   else {
-    Object *ob = (Object *)ptr->owner_id;
+    ID *id = ptr->owner_id;
+
+    if (id && GS(id->name) == ID_SCE) {
+      const Scene *scene = (Scene *)id;
+      const RigidBodyWorld *rbw = scene->rigidbody_world;
+
+      if (rbw->effector_weights == ew) {
+        return BLI_strdup("rigidbody_world.effector_weights");
+      }
+    }
+
+    Object *ob = (Object *)id;
     ModifierData *md;
 
     /* check softbody modifier */
@@ -932,6 +944,8 @@ static void rna_def_pointcache_common(StructRNA *srna)
 
   RNA_def_struct_path_func(srna, "rna_PointCache_path");
 
+  RNA_define_lib_overridable(true);
+
   prop = RNA_def_property(srna, "frame_start", PROP_INT, PROP_TIME);
   RNA_def_property_int_sdna(prop, NULL, "startframe");
   RNA_def_property_range(prop, -MAXFRAME, MAXFRAME);
@@ -1026,6 +1040,8 @@ static void rna_def_pointcache_common(StructRNA *srna)
       "Use this file's path for the disk cache when library linked into another file "
       "(for local bakes per scene file, disable this option)");
   RNA_def_property_update(prop, NC_OBJECT, "rna_Cache_idname_change");
+
+  RNA_define_lib_overridable(false);
 }
 
 static void rna_def_ptcache_point_caches(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1087,6 +1103,7 @@ static void rna_def_pointcache_active(BlenderRNA *brna)
                                     NULL);
   RNA_def_property_struct_type(prop, "PointCacheItem");
   RNA_def_property_ui_text(prop, "Point Cache List", "");
+  RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_LIBRARY);
   rna_def_ptcache_point_caches(brna, prop);
 }
 
@@ -2019,7 +2036,8 @@ static void rna_def_softbody(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "use_estimate_matrix", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "solverflags", SBSO_ESTIMATEIPO);
-  RNA_def_property_ui_text(prop, "Estimate Matrix", "Estimate matrix... split to COM, ROT, SCALE");
+  RNA_def_property_ui_text(
+      prop, "Estimate Transforms", "Store the estimated transforms in the soft body settings");
 
   /***********************************************************************************/
   /* these are not exactly settings, but reading calculated results*/
@@ -2035,7 +2053,7 @@ static void rna_def_softbody(BlenderRNA *brna)
   prop = RNA_def_property(srna, "rotation_estimate", PROP_FLOAT, PROP_MATRIX);
   RNA_def_property_float_sdna(prop, NULL, "lrot");
   RNA_def_property_multi_array(prop, 2, rna_matrix_dimsize_3x3);
-  RNA_def_property_ui_text(prop, "Rot Matrix", "Estimated rotation matrix");
+  RNA_def_property_ui_text(prop, "Rotation Matrix", "Estimated rotation matrix");
 
   prop = RNA_def_property(srna, "scale_estimate", PROP_FLOAT, PROP_MATRIX);
   RNA_def_property_float_sdna(prop, NULL, "lscale");

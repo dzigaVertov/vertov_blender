@@ -26,6 +26,8 @@
 #include "DNA_scene_types.h"
 #include "DNA_workspace_types.h"
 
+#include "BLI_kdopbvh.h"
+#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
@@ -44,12 +46,19 @@
 #include "RNA_access.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "ED_armature.h"
 #include "ED_gpencil.h"
 #include "ED_screen.h"
+#include "ED_transform_snap_object_context.h"
+#include "ED_undo.h"
+#include "ED_view3d.h"
+
+#include "WM_toolsystem.h"
 
 #include "ED_object.h" /* own include */
+#include "object_intern.h"
 
 /* -------------------------------------------------------------------- */
 /** \name High Level Mode Operations
@@ -387,6 +396,107 @@ void ED_object_mode_generic_exit(struct Main *bmain,
 bool ED_object_mode_generic_has_data(struct Depsgraph *depsgraph, struct Object *ob)
 {
   return ed_object_mode_generic_exit_ex(NULL, depsgraph, NULL, ob, true);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Switch Object
+ *
+ * Enters the same mode of the current active object in another object,
+ * leaving the mode of the current object.
+ * \{ */
+
+static bool object_switch_object_poll(bContext *C)
+{
+
+  if (!U.experimental.use_switch_object_operator) {
+    return false;
+  }
+
+  if (!CTX_wm_region_view3d(C)) {
+    return false;
+  }
+  const Object *ob = CTX_data_active_object(C);
+  return ob && (ob->mode & (OB_MODE_EDIT | OB_MODE_SCULPT));
+}
+
+static int object_switch_object_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+  ARegion *ar = CTX_wm_region(C);
+  Scene *scene = CTX_data_scene(C);
+  ViewLayer *view_layer = CTX_data_view_layer(C);
+
+  Base *base_dst = ED_view3d_give_base_under_cursor(C, event->mval);
+
+  if (base_dst == NULL) {
+    return OPERATOR_CANCELLED;
+  }
+
+  Object *ob_dst = base_dst->object;
+  Object *ob_src = CTX_data_active_object(C);
+
+  if (ob_dst == ob_src) {
+    return OPERATOR_CANCELLED;
+  }
+
+  const eObjectMode last_mode = (eObjectMode)ob_src->mode;
+  if (!ED_object_mode_compat_test(ob_dst, last_mode)) {
+    return OPERATOR_CANCELLED;
+  }
+
+  int retval = OPERATOR_CANCELLED;
+
+  ED_undo_group_begin(C);
+
+  if (ED_object_mode_set_ex(C, OB_MODE_OBJECT, true, op->reports)) {
+    Object *ob_dst_orig = DEG_get_original_object(ob_dst);
+    Base *base = BKE_view_layer_base_find(view_layer, ob_dst_orig);
+    BKE_view_layer_base_deselect_all(view_layer);
+    BKE_view_layer_base_select_and_set_active(view_layer, base);
+    DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
+
+    ED_undo_push(C, "Change Active");
+
+    ob_dst_orig = DEG_get_original_object(ob_dst);
+    ED_object_mode_set_ex(C, last_mode, true, op->reports);
+
+    /* Update the viewport rotation origin to the mouse cursor. */
+    if (last_mode & OB_MODE_ALL_PAINT) {
+      float global_loc[3];
+      if (ED_view3d_autodist_simple(ar, event->mval, global_loc, 0, NULL)) {
+        UnifiedPaintSettings *ups = &scene->toolsettings->unified_paint_settings;
+        copy_v3_v3(ups->average_stroke_accum, global_loc);
+        ups->average_stroke_counter = 1;
+        ups->last_stroke_valid = true;
+      }
+    }
+
+    WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
+    WM_toolsystem_update_from_context_view3d(C);
+    retval = OPERATOR_FINISHED;
+  }
+
+  ED_undo_group_end(C);
+
+  return retval;
+}
+
+void OBJECT_OT_switch_object(wmOperatorType *ot)
+{
+  /* identifiers */
+  ot->name = "Switch Object";
+  ot->idname = "OBJECT_OT_switch_object";
+  ot->description =
+      "Switches the active object and assigns the same mode to a new one under the mouse cursor, "
+      "leaving the active mode in the current one";
+
+  /* api callbacks */
+  ot->invoke = object_switch_object_invoke;
+  ot->poll = object_switch_object_poll;
+
+  /* Undo push is handled by the operator. */
+  ot->flag = OPTYPE_REGISTER;
 }
 
 /** \} */

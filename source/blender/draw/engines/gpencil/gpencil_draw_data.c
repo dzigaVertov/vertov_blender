@@ -237,7 +237,19 @@ GPENCIL_MaterialPool *gpencil_material_pool_create(GPENCIL_PrivateData *pd, Obje
       mat_data->flag |= GP_STROKE_OVERLAP;
     }
 
+    /* Material with holdout. */
+    if (gp_style->flag & GP_MATERIAL_IS_STROKE_HOLDOUT) {
+      mat_data->flag |= GP_STROKE_HOLDOUT;
+    }
+    if (gp_style->flag & GP_MATERIAL_IS_FILL_HOLDOUT) {
+      mat_data->flag |= GP_FILL_HOLDOUT;
+    }
+
     gp_style = gpencil_viewport_material_overrides(pd, ob, color_type, gp_style);
+
+    /* Dots or Squares rotation. */
+    mat_data->alignment_rot_cos = cosf(gp_style->alignment_rotation);
+    mat_data->alignment_rot_sin = sinf(gp_style->alignment_rotation);
 
     /* Stroke Style */
     if ((gp_style->stroke_style == GP_MATERIAL_STROKE_STYLE_TEXTURE) && (gp_style->sima)) {
@@ -359,7 +371,7 @@ static float light_power_get(const Light *la)
   if (la->type == LA_AREA) {
     return 1.0f / (4.0f * M_PI);
   }
-  if (la->type == LA_SPOT || la->type == LA_LOCAL) {
+  if (ELEM(la->type, LA_SPOT, LA_LOCAL)) {
     return 1.0f / (4.0f * M_PI * M_PI);
   }
 
@@ -420,7 +432,7 @@ GPENCIL_LightPool *gpencil_light_pool_create(GPENCIL_PrivateData *pd, Object *UN
   if (lightpool == NULL) {
     lightpool = gpencil_light_pool_add(pd);
   }
-  /* TODO(fclem) Light linking. */
+  /* TODO(fclem): Light linking. */
   // gpencil_light_pool_populate(lightpool, ob);
 
   return lightpool;

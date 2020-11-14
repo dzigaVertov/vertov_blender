@@ -21,7 +21,6 @@
  * \ingroup spview3d
  */
 
-#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -933,7 +932,7 @@ static void do_lasso_select_curve__doSelect(void *userData,
       data->is_changed = true;
     }
     else {
-      char *flag_p = (&bezt->f1) + beztindex;
+      uint8_t *flag_p = (&bezt->f1) + beztindex;
       const bool is_select = *flag_p & SELECT;
       const int sel_op_result = ED_select_op_action_deselected(data->sel_op, is_select, is_inside);
       if (sel_op_result != -1) {
@@ -1692,6 +1691,10 @@ static int selectbuffer_ret_hits_5(uint *buffer,
 /**
  * Populate a select buffer with objects and bones, if there are any.
  * Checks three selection levels and compare.
+ *
+ * \param do_nearest_xray_if_supported: When set, read in hits that don't stop
+ * at the nearest surface. The hits must still be ordered by depth.
+ * Needed so we can step to the next, non-active object when it's already selected, see: T76445.
  */
 static int mixed_bones_object_selectbuffer(ViewContext *vc,
                                            uint *buffer,
@@ -2289,7 +2292,7 @@ static bool ed_object_select_pick(bContext *C,
       /* Set special modes for grease pencil
        * The grease pencil modes are not real modes, but a hack to make the interface
        * consistent, so need some tricks to keep UI synchronized */
-      // XXX: This stuff needs reviewing (Aligorith)
+      /* XXX: This stuff needs reviewing (Aligorith) */
       if (false && (((oldbasact) && oldbasact->object->type == OB_GPENCIL) ||
                     (basact->object->type == OB_GPENCIL))) {
         /* set cursor */
@@ -2732,7 +2735,7 @@ static void do_nurbs_box_select__doSelect(void *userData,
       bezt->f1 = bezt->f3 = bezt->f2;
     }
     else {
-      char *flag_p = (&bezt->f1) + beztindex;
+      uint8_t *flag_p = (&bezt->f1) + beztindex;
       const bool is_select = *flag_p & SELECT;
       const int sel_op_result = ED_select_op_action_deselected(data->sel_op, is_select, is_inside);
       if (sel_op_result != -1) {

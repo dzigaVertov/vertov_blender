@@ -26,6 +26,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_cachefile_types.h"
+#include "DNA_defaults.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_modifier_types.h"
@@ -64,15 +65,9 @@ static void initData(ModifierData *md)
 {
   MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *)md;
 
-  mcmd->cache_file = NULL;
-  mcmd->object_path[0] = '\0';
-  mcmd->read_flag = MOD_MESHSEQ_READ_ALL;
-  mcmd->velocity_scale = 1.0f;
-  mcmd->vertex_velocities = NULL;
-  mcmd->num_vertices = 0;
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(mcmd, modifier));
 
-  mcmd->reader = NULL;
-  mcmd->reader_object_path[0] = '\0';
+  MEMCPY_STRUCT_AFTER(mcmd, DNA_struct_default_get(MeshSeqCacheModifierData), modifier);
 }
 
 static void copyData(const ModifierData *md, ModifierData *target, const int flag)
@@ -132,7 +127,7 @@ static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *
     BKE_cachefile_reader_open(cache_file, &mcmd->reader, ctx->object, mcmd->object_path);
     if (!mcmd->reader) {
       BKE_modifier_set_error(
-          md, "Could not create Alembic reader for file %s", cache_file->filepath);
+          ctx->object, md, "Could not create Alembic reader for file %s", cache_file->filepath);
       return mesh;
     }
   }
@@ -153,11 +148,11 @@ static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *
      * flags) and duplicate those too. */
     if ((me->mvert == mvert) || (me->medge == medge) || (me->mpoly == mpoly)) {
       /* We need to duplicate data here, otherwise we'll modify org mesh, see T51701. */
-      BKE_id_copy_ex(NULL,
-                     &mesh->id,
-                     (ID **)&mesh,
-                     LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT |
-                         LIB_ID_CREATE_NO_DEG_TAG | LIB_ID_COPY_NO_PREVIEW);
+      mesh = (Mesh *)BKE_id_copy_ex(NULL,
+                                    &mesh->id,
+                                    NULL,
+                                    LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT |
+                                        LIB_ID_CREATE_NO_DEG_TAG | LIB_ID_COPY_NO_PREVIEW);
     }
   }
 
@@ -175,7 +170,7 @@ static Mesh *modifyMesh(ModifierData *md, const ModifierEvalContext *ctx, Mesh *
   }
 
   if (err_str) {
-    BKE_modifier_set_error(md, "%s", err_str);
+    BKE_modifier_set_error(ctx->object, md, "%s", err_str);
   }
 
   if (!ELEM(result, NULL, mesh) && (mesh != org_mesh)) {
@@ -238,6 +233,7 @@ static void panel_draw(const bContext *C, Panel *panel)
 
   if (RNA_enum_get(&ob_ptr, "type") == OB_MESH) {
     uiItemR(layout, ptr, "read_data", UI_ITEM_R_EXPAND, NULL, ICON_NONE);
+    uiItemR(layout, ptr, "use_vertex_interpolation", 0, NULL, ICON_NONE);
   }
 
   uiItemR(layout, ptr, "velocity_scale", 0, NULL, ICON_NONE);
@@ -261,8 +257,10 @@ ModifierTypeInfo modifierType_MeshSequenceCache = {
     /* name */ "MeshSequenceCache",
     /* structName */ "MeshSeqCacheModifierData",
     /* structSize */ sizeof(MeshSeqCacheModifierData),
+    /* srna */ &RNA_MeshSequenceCacheModifier,
     /* type */ eModifierTypeType_Constructive,
     /* flags */ eModifierTypeFlag_AcceptsMesh | eModifierTypeFlag_AcceptsCVs,
+    /* icon */ ICON_MOD_MESHDEFORM, /* TODO: Use correct icon. */
 
     /* copyData */ copyData,
 
@@ -282,7 +280,6 @@ ModifierTypeInfo modifierType_MeshSequenceCache = {
     /* updateDepsgraph */ updateDepsgraph,
     /* dependsOnTime */ dependsOnTime,
     /* dependsOnNormals */ NULL,
-    /* foreachObjectLink */ NULL,
     /* foreachIDLink */ foreachIDLink,
     /* foreachTexLink */ NULL,
     /* freeRuntimeData */ NULL,

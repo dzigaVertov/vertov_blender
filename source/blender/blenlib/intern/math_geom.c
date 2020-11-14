@@ -1418,7 +1418,7 @@ int isect_seg_seg_v2_lambda_mu_db(const double v1[2],
 
 /**
  * \param l1, l2: Coordinates (point of line).
- * \param sp, r:  Coordinate and radius (sphere).
+ * \param sp, r: Coordinate and radius (sphere).
  * \return r_p1, r_p2: Intersection coordinates.
  *
  * \note The order of assignment for intersection points (\a r_p1, \a r_p2) is predictable,
@@ -2298,6 +2298,81 @@ bool isect_plane_plane_v3(const float plane_a[4],
 }
 
 /**
+ * Intersect all planes, calling `callback_fn` for each point that intersects
+ * 3 of the planes that isn't outside any of the other planes.
+ *
+ * This can be thought of as calculating a convex-hull from an array of planes.
+ *
+ * \param eps_coplanar: Epsilon for testing if two planes are aligned (co-planar).
+ * \param eps_isect: Epsilon for testing of a point is behind any of the planes.
+ *
+ * \warning As complexity is a little under `O(N^3)`, this is only suitable for small arrays.
+ *
+ * \note This function could be optimized by some spatial structure.
+ */
+bool isect_planes_v3_fn(
+    const float planes[][4],
+    const int planes_len,
+    const float eps_coplanar,
+    const float eps_isect,
+    void (*callback_fn)(const float co[3], int i, int j, int k, void *user_data),
+    void *user_data)
+{
+  bool found = false;
+
+  float n1n2[3], n2n3[3], n3n1[3];
+
+  for (int i = 0; i < planes_len; i++) {
+    const float *n1 = planes[i];
+    for (int j = i + 1; j < planes_len; j++) {
+      const float *n2 = planes[j];
+      cross_v3_v3v3(n1n2, n1, n2);
+      if (len_squared_v3(n1n2) <= eps_coplanar) {
+        continue;
+      }
+      for (int k = j + 1; k < planes_len; k++) {
+        const float *n3 = planes[k];
+        cross_v3_v3v3(n2n3, n2, n3);
+        if (len_squared_v3(n2n3) <= eps_coplanar) {
+          continue;
+        }
+
+        cross_v3_v3v3(n3n1, n3, n1);
+        if (len_squared_v3(n3n1) <= eps_coplanar) {
+          continue;
+        }
+        const float quotient = -dot_v3v3(n1, n2n3);
+        if (fabsf(quotient) < eps_coplanar) {
+          continue;
+        }
+        const float co_test[3] = {
+            ((n2n3[0] * n1[3]) + (n3n1[0] * n2[3]) + (n1n2[0] * n3[3])) / quotient,
+            ((n2n3[1] * n1[3]) + (n3n1[1] * n2[3]) + (n1n2[1] * n3[3])) / quotient,
+            ((n2n3[2] * n1[3]) + (n3n1[2] * n2[3]) + (n1n2[2] * n3[3])) / quotient,
+        };
+        int i_test;
+        for (i_test = 0; i_test < planes_len; i_test++) {
+          const float *np_test = planes[i_test];
+          if (((dot_v3v3(np_test, co_test) + np_test[3]) > eps_isect)) {
+            /* For low epsilon values the point could intersect it's own plane. */
+            if (!ELEM(i_test, i, j, k)) {
+              break;
+            }
+          }
+        }
+
+        if (i_test == planes_len) { /* ok */
+          callback_fn(co_test, i, j, k, user_data);
+          found = true;
+        }
+      }
+    }
+  }
+
+  return found;
+}
+
+/**
  * Intersect two triangles.
  *
  * \param r_i1, r_i2: Retrieve the overlapping edge between the 2 triangles.
@@ -2322,16 +2397,16 @@ bool isect_tri_tri_v3_ex(const float tri_a[3][3],
   } range[2];
 
   float side[2][3];
-  float ba[3], bc[3], plane_a[4], plane_b[4];
+  double ba[3], bc[3], plane_a[4], plane_b[4];
   *r_tri_a_edge_isect_count = 0;
 
-  sub_v3_v3v3(ba, tri_a[0], tri_a[1]);
-  sub_v3_v3v3(bc, tri_a[2], tri_a[1]);
-  cross_v3_v3v3(plane_a, ba, bc);
-  plane_a[3] = -dot_v3v3(tri_a[1], plane_a);
-  side[1][0] = plane_point_side_v3(plane_a, tri_b[0]);
-  side[1][1] = plane_point_side_v3(plane_a, tri_b[1]);
-  side[1][2] = plane_point_side_v3(plane_a, tri_b[2]);
+  sub_v3db_v3fl_v3fl(ba, tri_a[0], tri_a[1]);
+  sub_v3db_v3fl_v3fl(bc, tri_a[2], tri_a[1]);
+  cross_v3_v3v3_db(plane_a, ba, bc);
+  plane_a[3] = -dot_v3db_v3fl(plane_a, tri_a[1]);
+  side[1][0] = (float)(dot_v3db_v3fl(plane_a, tri_b[0]) + plane_a[3]);
+  side[1][1] = (float)(dot_v3db_v3fl(plane_a, tri_b[1]) + plane_a[3]);
+  side[1][2] = (float)(dot_v3db_v3fl(plane_a, tri_b[2]) + plane_a[3]);
 
   if (!side[1][0] && !side[1][1] && !side[1][2]) {
     /* Coplanar case is not supported. */
@@ -2345,13 +2420,14 @@ bool isect_tri_tri_v3_ex(const float tri_a[3][3],
     return false;
   }
 
-  sub_v3_v3v3(ba, tri_b[0], tri_b[1]);
-  sub_v3_v3v3(bc, tri_b[2], tri_b[1]);
-  cross_v3_v3v3(plane_b, ba, bc);
-  plane_b[3] = -dot_v3v3(tri_b[1], plane_b);
-  side[0][0] = plane_point_side_v3(plane_b, tri_a[0]);
-  side[0][1] = plane_point_side_v3(plane_b, tri_a[1]);
-  side[0][2] = plane_point_side_v3(plane_b, tri_a[2]);
+  sub_v3db_v3fl_v3fl(ba, tri_b[0], tri_b[1]);
+  sub_v3db_v3fl_v3fl(bc, tri_b[2], tri_b[1]);
+  cross_v3_v3v3_db(plane_b, ba, bc);
+  plane_b[3] = -dot_v3db_v3fl(plane_b, tri_b[1]);
+  side[0][0] = (float)(dot_v3db_v3fl(plane_b, tri_a[0]) + plane_b[3]);
+  side[0][1] = (float)(dot_v3db_v3fl(plane_b, tri_a[1]) + plane_b[3]);
+  side[0][2] = (float)(dot_v3db_v3fl(plane_b, tri_a[2]) + plane_b[3]);
+
   if ((side[0][0] && side[0][1] && side[0][2]) && (side[0][0] < 0.0f) == (side[0][1] < 0.0f) &&
       (side[0][0] < 0.0f) == (side[0][2] < 0.0f)) {
     /* All vertices of the 1st triangle are positioned on the same side to the
@@ -2360,8 +2436,8 @@ bool isect_tri_tri_v3_ex(const float tri_a[3][3],
   }
 
   /* Direction of the line that intersects the planes of the triangles. */
-  float isect_dir[3];
-  cross_v3_v3v3(isect_dir, plane_a, plane_b);
+  double isect_dir[3];
+  cross_v3_v3v3_db(isect_dir, plane_a, plane_b);
   for (int i = 0; i < 2; i++) {
     const float(*tri)[3] = i == 0 ? tri_a : tri_b;
     /* Rearrange the triangle so that the vertex that is alone on one side
@@ -2383,37 +2459,35 @@ bool isect_tri_tri_v3_ex(const float tri_a[3][3],
       tri_i[2] = 2;
     }
 
-    float dot_b = dot_v3v3(isect_dir, tri[tri_i[1]]);
-    range[i].min = dot_b;
-    range[i].max = dot_b;
-
+    double dot_b = dot_v3db_v3fl(isect_dir, tri[tri_i[1]]);
     float sidec = side[i][tri_i[1]];
     if (sidec) {
-      float dot_a = dot_v3v3(isect_dir, tri[tri_i[0]]);
-      float dot_c = dot_v3v3(isect_dir, tri[tri_i[2]]);
+      double dot_a = dot_v3db_v3fl(isect_dir, tri[tri_i[0]]);
+      double dot_c = dot_v3db_v3fl(isect_dir, tri[tri_i[2]]);
       float fac0 = sidec / (sidec - side[i][tri_i[0]]);
       float fac1 = sidec / (sidec - side[i][tri_i[2]]);
-      float offset0 = fac0 * (dot_a - dot_b);
-      float offset1 = fac1 * (dot_c - dot_b);
+      double offset0 = fac0 * (dot_a - dot_b);
+      double offset1 = fac1 * (dot_c - dot_b);
       if (offset0 > offset1) {
         /* Sort min max. */
-        SWAP(float, offset0, offset1);
+        SWAP(double, offset0, offset1);
         SWAP(float, fac0, fac1);
         SWAP(int, tri_i[0], tri_i[2]);
       }
 
-      range[i].min += offset0;
-      range[i].max += offset1;
+      range[i].min = (float)(dot_b + offset0);
+      range[i].max = (float)(dot_b + offset1);
       interp_v3_v3v3(range[i].loc[0], tri[tri_i[1]], tri[tri_i[0]], fac0);
       interp_v3_v3v3(range[i].loc[1], tri[tri_i[1]], tri[tri_i[2]], fac1);
     }
     else {
+      range[i].min = range[i].max = (float)dot_b;
       copy_v3_v3(range[i].loc[0], tri[tri_i[1]]);
       copy_v3_v3(range[i].loc[1], tri[tri_i[1]]);
     }
   }
 
-  if ((range[0].max >= range[1].min) && (range[0].min <= range[1].max)) {
+  if ((range[0].max > range[1].min) && (range[0].min < range[1].max)) {
     /* The triangles intersect because they overlap on the intersection line.
      * Now identify the two points of intersection that are in the middle to get the actual
      * intersection between the triangles. (B--C from A--B--C--D) */
@@ -3290,10 +3364,16 @@ float closest_to_line_v3(float r_close[3], const float p[3], const float l1[3], 
 
 float closest_to_line_v2(float r_close[2], const float p[2], const float l1[2], const float l2[2])
 {
-  float h[2], u[2], lambda;
+  float h[2], u[2], lambda, denom;
   sub_v2_v2v2(u, l2, l1);
   sub_v2_v2v2(h, p, l1);
-  lambda = dot_v2v2(u, h) / dot_v2v2(u, u);
+  denom = dot_v2v2(u, u);
+  if (denom == 0.0f) {
+    r_close[0] = l1[0];
+    r_close[1] = l1[1];
+    return 0.0f;
+  }
+  lambda = dot_v2v2(u, h) / denom;
   r_close[0] = l1[0] + u[0] * lambda;
   r_close[1] = l1[1] + u[1] * lambda;
   return lambda;
@@ -3308,12 +3388,12 @@ double closest_to_line_v2_db(double r_close[2],
   sub_v2_v2v2_db(u, l2, l1);
   sub_v2_v2v2_db(h, p, l1);
   denom = dot_v2v2_db(u, u);
-  if (denom < DBL_EPSILON) {
+  if (denom == 0.0) {
     r_close[0] = l1[0];
     r_close[1] = l1[1];
     return 0.0;
   }
-  lambda = dot_v2v2_db(u, h) / dot_v2v2_db(u, u);
+  lambda = dot_v2v2_db(u, h) / denom;
   r_close[0] = l1[0] + u[0] * lambda;
   r_close[1] = l1[1] + u[1] * lambda;
   return lambda;
@@ -3403,7 +3483,7 @@ float line_plane_factor_v3(const float plane_co[3],
 
 /**
  * Ensure the distance between these points is no greater than 'dist'.
- * If it is, scale then both into the center.
+ * If it is, scale them both into the center.
  */
 void limit_dist_v3(float v1[3], float v2[3], const float dist)
 {
@@ -4176,6 +4256,7 @@ int interp_sparse_array(float *array, const int list_size, const float skipval)
   return 1;
 }
 
+/* -------------------------------------------------------------------- */
 /** \name interp_weights_poly_v2, v3
  * \{ */
 
@@ -4469,7 +4550,7 @@ void interp_cubic_v3(float x[3],
  *
  * Compute coordinates (u, v) for point \a st with respect to triangle (\a st0, \a st1, \a st2)
  *
- * \note same basic result as #barycentric_weights_v2, see it's comment for details.
+ * \note same basic result as #barycentric_weights_v2, see its comment for details.
  */
 void resolve_tri_uv_v2(
     float r_uv[2], const float st[2], const float st0[2], const float st1[2], const float st2[2])
@@ -5491,7 +5572,7 @@ void vcloud_estimate_transform_v3(const int list_size,
       stunt[1] = q[1][1];
       stunt[2] = q[2][2];
       /* renormalizing for numeric stability */
-      mul_m3_fl(q, 1.f / len_v3(stunt));
+      mul_m3_fl(q, 1.0f / len_v3(stunt));
 
       /* this is pretty much Polardecompose 'inline' the algo based on Higham's thesis */
       /* without the far case ... but seems to work here pretty neat                   */

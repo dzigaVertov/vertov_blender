@@ -196,7 +196,7 @@ class GreasePencilDisplayPanel:
 
             col.prop(brush, "cursor_color_add", text="Cursor Color")
             if brush.gpencil_sculpt_tool in {'THICKNESS', 'STRENGTH', 'PINCH', 'TWIST'}:
-                col.prop(brush, "cursor_color_subtract", text="Inverse Cursor Color")
+                col.prop(brush, "cursor_color_subtract", text="Inverse Color")
 
         elif ob.mode == 'WEIGHT_GPENCIL':
             col = layout.column(align=True)
@@ -293,12 +293,12 @@ class GPENCIL_MT_snap_pie(Menu):
             "gpencil.snap_to_cursor",
             text="Selection to Cursor",
             icon='RESTRICT_SELECT_OFF'
-            ).use_offset = False
+        ).use_offset = False
         pie.operator(
             "gpencil.snap_to_cursor",
             text="Selection to Cursor (Keep Offset)",
             icon='RESTRICT_SELECT_OFF'
-            ).use_offset = True
+        ).use_offset = True
         pie.separator()
         pie.operator("view3d.snap_cursor_to_center", text="Cursor to World Origin", icon='CURSOR')
         pie.separator()
@@ -404,20 +404,21 @@ class GPENCIL_MT_cleanup(Menu):
 
         layout = self.layout
 
+        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes").mode = 'ACTIVE'
+        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes all Frames").mode = 'ALL'
+
+        layout.separator()
+
         layout.operator("gpencil.frame_clean_loose", text="Delete Loose Points")
-        layout.operator("gpencil.frame_clean_duplicate", text="Delete Duplicated Frames")
 
         if ob.mode != 'PAINT_GPENCIL':
             layout.operator("gpencil.stroke_merge_by_distance", text="Merge by Distance")
 
         layout.separator()
 
-        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes").mode = 'ACTIVE'
-        layout.operator("gpencil.frame_clean_fill", text="Boundary Strokes all Frames").mode = 'ALL'
-
+        layout.operator("gpencil.frame_clean_duplicate", text="Delete Duplicated Frames")
+        layout.operator("gpencil.recalc_geometry", text="Recalculate Geometry")
         if ob.mode != 'PAINT_GPENCIL':
-            layout.separator()
-
             layout.operator("gpencil.reproject")
 
 
@@ -814,7 +815,7 @@ class GPENCIL_MT_layer_mask_menu(Menu):
         for gpl in gpd.layers:
             if gpl != gpl_active and gpl.info not in gpl_active.mask_layers:
                 done = True
-                layout.operator("gpencil.layer_mask_add", text=gpl.info).name=gpl.info
+                layout.operator("gpencil.layer_mask_add", text=gpl.info).name = gpl.info
 
         if done is False:
             layout.label(text="No layers to add")
@@ -841,7 +842,7 @@ class GreasePencilLayerMasksPanel:
             row = layout.row()
             col = row.column()
             col.template_list("GPENCIL_UL_masks", "", gpl, "mask_layers", gpl.mask_layers,
-                            "active_mask_index", rows=rows, sort_lock=True)
+                              "active_mask_index", rows=rows, sort_lock=True)
 
             col2 = row.column(align=True)
             col2.menu("GPENCIL_MT_layer_mask_menu", icon='ADD', text="")
@@ -880,12 +881,17 @@ class GreasePencilLayerDisplayPanel:
         gpd = ob.data
         gpl = gpd.layers.active
 
-        col = layout.row(align=True)
-        col.prop(gpl, "channel_color")
+        use_colors = context.preferences.edit.use_anim_channel_group_colors
 
-        col = layout.row(align=True)
-        col.prop(gpl, "use_solo_mode", text="Show Only On Keyframed")
+        col = layout.column(align=True)
+        col.active = use_colors
+        row = col.row(align=True)
+        row.prop(gpl, "channel_color")
+        if not use_colors:
+            col.label(text="Channel Colors are disabled in Animation preferences")
 
+        row = layout.row(align=True)
+        row.prop(gpl, "use_solo_mode", text="Show Only on Keyframed")
 
 class GreasePencilFlipTintColors(Operator):
     bl_label = "Flip Colors"

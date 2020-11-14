@@ -188,6 +188,19 @@ BoundBox *BKE_gpencil_boundbox_get(Object *ob)
 
   boundbox_gpencil(ob);
 
+  Object *ob_orig = (Object *)DEG_get_original_id(&ob->id);
+  /* Update orig object's boundbox with re-computed evaluated values. This function can be
+   * called with the evaluated object and need update the original object bound box data
+   * to keep both values synchronized. */
+  if (!ELEM(ob_orig, NULL, ob)) {
+    if (ob_orig->runtime.bb == NULL) {
+      ob_orig->runtime.bb = MEM_callocN(sizeof(BoundBox), "GPencil boundbox");
+    }
+    for (int i = 0; i < 8; i++) {
+      copy_v3_v3(ob_orig->runtime.bb->vec[i], ob->runtime.bb->vec[i]);
+    }
+  }
+
   return ob->runtime.bb;
 }
 
@@ -771,7 +784,7 @@ bool BKE_gpencil_stroke_smooth(bGPDstroke *gps, int i, float inf)
   /* Only affect endpoints by a fraction of the normal strength,
    * to prevent the stroke from shrinking too much
    */
-  if ((i == 0) || (i == gps->totpoints - 1)) {
+  if (ELEM(i, 0, gps->totpoints - 1)) {
     inf *= 0.1f;
   }
 
@@ -831,7 +844,7 @@ bool BKE_gpencil_stroke_smooth_strength(bGPDstroke *gps, int point_index, float 
   }
   /* Only affect endpoints by a fraction of the normal influence */
   float inf = influence;
-  if ((point_index == 0) || (point_index == gps->totpoints - 1)) {
+  if (ELEM(point_index, 0, gps->totpoints - 1)) {
     inf *= 0.01f;
   }
   /* Limit max influence to reduce pop effect. */
@@ -895,7 +908,7 @@ bool BKE_gpencil_stroke_smooth_thickness(bGPDstroke *gps, int point_index, float
   }
   /* Only affect endpoints by a fraction of the normal influence */
   float inf = influence;
-  if ((point_index == 0) || (point_index == gps->totpoints - 1)) {
+  if (ELEM(point_index, 0, gps->totpoints - 1)) {
     inf *= 0.01f;
   }
   /* Limit max influence to reduce pop effect. */
@@ -1412,7 +1425,7 @@ bool BKE_gpencil_stroke_trim(bGPdata *gpd, bGPDstroke *gps)
           memcpy(dvert->dw, dvert_src->dw, sizeof(MDeformWeight));
         }
       }
-      if (idx == start || idx == end) {
+      if (ELEM(idx, start, end)) {
         copy_v3_v3(&pt_new->x, point);
       }
     }

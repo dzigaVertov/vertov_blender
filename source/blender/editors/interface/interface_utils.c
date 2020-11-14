@@ -21,7 +21,6 @@
  * \ingroup edinterface
  */
 
-#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -486,7 +485,7 @@ void ui_rna_collection_search_update_fn(const struct bContext *C,
      * name prefix for showing the library status. */
     int name_prefix_offset = cis->name_prefix_offset;
     if (!has_id_icon && cis->is_id && !requires_exact_data_name) {
-      cis->iconid = UI_library_icon_get(cis->data);
+      cis->iconid = UI_icon_from_library(cis->data);
       /* No need to re-allocate, string should be shorter than before (lib status prefix is
        * removed). */
       BKE_id_full_name_ui_prefix_get(name_buf, cis->data, false, UI_SEP_CHAR, &name_prefix_offset);
@@ -646,9 +645,9 @@ bool UI_but_online_manual_id_from_active(const struct bContext *C, char *r_str, 
 }
 
 /* -------------------------------------------------------------------- */
-/* Modal Button Store API */
-
 /** \name Button Store
+ *
+ * Modal Button Store API.
  *
  * Store for modal operators & handlers to register button pointers
  * which are maintained while drawing or NULL when removed.
@@ -793,7 +792,7 @@ void UI_butstore_update(uiBlock *block)
   /* warning, loop-in-loop, in practice we only store <10 buttons at a time,
    * so this isn't going to be a problem, if that changes old-new mapping can be cached first */
   LISTBASE_FOREACH (uiButStore *, bs_handle, &block->butstore) {
-    BLI_assert((bs_handle->block == NULL) || (bs_handle->block == block) ||
+    BLI_assert(ELEM(bs_handle->block, NULL, block) ||
                (block->oldblock && block->oldblock == bs_handle->block));
 
     if (bs_handle->block == block->oldblock) {

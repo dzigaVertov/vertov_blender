@@ -336,7 +336,7 @@ bool ED_gpencil_has_keyframe_v3d(Scene *UNUSED(scene), Object *ob, int cfra)
     bGPDlayer *gpl = BKE_gpencil_layer_active_get(ob->data);
     if (gpl) {
       if (gpl->actframe) {
-        // XXX: assumes that frame has been fetched already
+        /* XXX: assumes that frame has been fetched already */
         return (gpl->actframe->framenum == cfra);
       }
       /* XXX: disabled as could be too much of a penalty */
@@ -556,7 +556,7 @@ bool ED_gpencil_stroke_can_use_direct(const ScrArea *area, const bGPDstroke *gps
   /* filter stroke types by flags + spacetype */
   if (gps->flag & GP_STROKE_3DSPACE) {
     /* 3D strokes - only in 3D view */
-    return ((area->spacetype == SPACE_VIEW3D) || (area->spacetype == SPACE_PROPERTIES));
+    return (ELEM(area->spacetype, SPACE_VIEW3D, SPACE_PROPERTIES));
   }
   if (gps->flag & GP_STROKE_2DIMAGE) {
     /* Special "image" strokes - only in Image Editor */
@@ -1431,7 +1431,7 @@ void ED_gpencil_reset_layers_parent(Depsgraph *depsgraph, Object *obact, bGPdata
   LISTBASE_FOREACH (bGPDlayer *, gpl, &gpd->layers) {
     if (gpl->parent != NULL) {
       /* calculate new matrix */
-      if ((gpl->partype == PAROBJECT) || (gpl->partype == PARSKEL)) {
+      if (ELEM(gpl->partype, PAROBJECT, PARSKEL)) {
         invert_m4_m4(cur_mat, gpl->parent->obmat);
         copy_v3_v3(gpl_loc, obact->obmat[3]);
       }
@@ -2295,7 +2295,7 @@ static void gpencil_insert_point(bGPdata *gpd,
     gpencil_copy_points(gps, pt, pt_final, i, i2);
 
     /* create new point duplicating point and copy location */
-    if ((i == a_idx) || (i == b_idx)) {
+    if (ELEM(i, a_idx, b_idx)) {
       i2++;
       pt_final = &gps->points[i2];
       gpencil_copy_points(gps, pt, pt_final, i, i2);
@@ -2538,7 +2538,7 @@ void ED_gpencil_select_toggle_all(bContext *C, int action)
     CTX_DATA_BEGIN (C, bGPDstroke *, gps, editable_gpencil_strokes) {
       if (gps->flag & GP_STROKE_SELECT) {
         action = SEL_DESELECT;
-        break;  // XXX: this only gets out of the inner loop...
+        break; /* XXX: this only gets out of the inner loop. */
       }
     }
     CTX_DATA_END;
@@ -2591,9 +2591,11 @@ void ED_gpencil_select_toggle_all(bContext *C, int action)
           case SEL_SELECT:
             pt->flag |= GP_SPOINT_SELECT;
             break;
-          // case SEL_DESELECT:
-          //  pt->flag &= ~GP_SPOINT_SELECT;
-          //  break;
+#if 0
+          case SEL_DESELECT:
+           pt->flag &= ~GP_SPOINT_SELECT;
+           break;
+#endif
           case SEL_INVERT:
             pt->flag ^= GP_SPOINT_SELECT;
             break;
@@ -2997,6 +2999,40 @@ void ED_gpencil_sbuffer_vertex_color_set(Depsgraph *depsgraph,
   }
 }
 
+/* Helper to get the bigger 2D bound box points. */
+static void gpencil_projected_2d_bound_box(GP_SpaceConversion *gsc,
+                                           bGPDstroke *gps,
+                                           const float diff_mat[4][4],
+                                           float r_min[2],
+                                           float r_max[2])
+{
+  float bounds[8][2];
+  BoundBox bb;
+  BKE_boundbox_init_from_minmax(&bb, gps->boundbox_min, gps->boundbox_max);
+
+  /* Project 8 vertices in 2D. */
+  for (int i = 0; i < 8; i++) {
+    bGPDspoint pt_dummy, pt_dummy_ps;
+    copy_v3_v3(&pt_dummy.x, bb.vec[i]);
+    gpencil_point_to_parent_space(&pt_dummy, diff_mat, &pt_dummy_ps);
+    gpencil_point_to_xy_fl(gsc, gps, &pt_dummy_ps, &bounds[i][0], &bounds[i][1]);
+  }
+
+  /* Take extremes. */
+  INIT_MINMAX2(r_min, r_max);
+  for (int i = 0; i < 8; i++) {
+    minmax_v2v2_v2(r_min, r_max, bounds[i]);
+  }
+
+  /* Ensure the bounding box is oriented to axis. */
+  if (r_max[0] < r_min[0]) {
+    SWAP(float, r_min[0], r_max[0]);
+  }
+  if (r_max[1] < r_min[1]) {
+    SWAP(float, r_min[1], r_max[1]);
+  }
+}
+
 /* Check if the stroke collides with brush. */
 bool ED_gpencil_stroke_check_collision(GP_SpaceConversion *gsc,
                                        bGPDstroke *gps,
@@ -3005,31 +3041,15 @@ bool ED_gpencil_stroke_check_collision(GP_SpaceConversion *gsc,
                                        const float diff_mat[4][4])
 {
   const int offset = (int)ceil(sqrt((radius * radius) * 2));
-  bGPDspoint pt_dummy, pt_dummy_ps;
-  float boundbox_min[2] = {0.0f};
-  float boundbox_max[2] = {0.0f};
+  float boundbox_min[2];
+  float boundbox_max[2];
 
   /* Check we have something to use (only for old files). */
   if (is_zero_v3(gps->boundbox_min)) {
     BKE_gpencil_stroke_boundingbox_calc(gps);
   }
 
-  /* Convert bound box to 2d */
-  copy_v3_v3(&pt_dummy.x, gps->boundbox_min);
-  gpencil_point_to_parent_space(&pt_dummy, diff_mat, &pt_dummy_ps);
-  gpencil_point_to_xy_fl(gsc, gps, &pt_dummy_ps, &boundbox_min[0], &boundbox_min[1]);
-
-  copy_v3_v3(&pt_dummy.x, gps->boundbox_max);
-  gpencil_point_to_parent_space(&pt_dummy, diff_mat, &pt_dummy_ps);
-  gpencil_point_to_xy_fl(gsc, gps, &pt_dummy_ps, &boundbox_max[0], &boundbox_max[1]);
-
-  /* Ensure the bounding box is oriented to axis. */
-  if (boundbox_max[0] < boundbox_min[0]) {
-    SWAP(float, boundbox_min[0], boundbox_max[0]);
-  }
-  if (boundbox_max[1] < boundbox_min[1]) {
-    SWAP(float, boundbox_min[1], boundbox_max[1]);
-  }
+  gpencil_projected_2d_bound_box(gsc, gps, diff_mat, boundbox_min, boundbox_max);
 
   rcti rect_stroke = {boundbox_min[0], boundbox_max[0], boundbox_min[1], boundbox_max[1]};
 
@@ -3045,8 +3065,8 @@ bool ED_gpencil_stroke_check_collision(GP_SpaceConversion *gsc,
  *
  * \param gps: Stroke to check.
  * \param gsc: Space conversion data.
- * \param mouse:  Mouse position.
- * \param diff_mat:  View matrix.
+ * \param mouse: Mouse position.
+ * \param diff_mat: View matrix.
  * \return True if the point is inside.
  */
 bool ED_gpencil_stroke_point_is_inside(bGPDstroke *gps,

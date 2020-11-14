@@ -128,6 +128,8 @@ void drw_resource_buffer_finish(ViewportMemoryPool *vmempool)
     GPU_uniformbuf_update(vmempool->obinfos_ubo[i], data_infos);
   }
 
+  DRW_uniform_attrs_pool_flush_all(vmempool->obattrs_ubo_pool);
+
   /* Aligned alloc to avoid unaligned memcpy. */
   DRWCommandChunk *chunk_tmp = MEM_mallocN_aligned(sizeof(DRWCommandChunk), 16, "tmp call chunk");
   DRWCommandChunk *chunk;
@@ -199,13 +201,18 @@ static void drw_shgroup_uniform_create_ex(DRWShadingGroup *shgroup,
     case DRW_UNIFORM_BLOCK_REF:
       uni->block_ref = (GPUUniformBuf **)value;
       break;
+    case DRW_UNIFORM_IMAGE:
     case DRW_UNIFORM_TEXTURE:
       uni->texture = (GPUTexture *)value;
       uni->sampler_state = sampler_state;
       break;
+    case DRW_UNIFORM_IMAGE_REF:
     case DRW_UNIFORM_TEXTURE_REF:
       uni->texture_ref = (GPUTexture **)value;
       uni->sampler_state = sampler_state;
+      break;
+    case DRW_UNIFORM_BLOCK_OBATTRS:
+      uni->uniform_attrs = (GPUUniformAttrList *)value;
       break;
     default:
       uni->pvalue = (const float *)value;
@@ -259,6 +266,20 @@ void DRW_shgroup_uniform_texture_ref_ex(DRWShadingGroup *shgroup,
 void DRW_shgroup_uniform_texture_ref(DRWShadingGroup *shgroup, const char *name, GPUTexture **tex)
 {
   DRW_shgroup_uniform_texture_ref_ex(shgroup, name, tex, GPU_SAMPLER_MAX);
+}
+
+void DRW_shgroup_uniform_image(DRWShadingGroup *shgroup, const char *name, const GPUTexture *tex)
+{
+  BLI_assert(tex != NULL);
+  int loc = GPU_shader_get_texture_binding(shgroup->shader, name);
+  drw_shgroup_uniform_create_ex(shgroup, loc, DRW_UNIFORM_IMAGE, tex, 0, 0, 1);
+}
+
+void DRW_shgroup_uniform_image_ref(DRWShadingGroup *shgroup, const char *name, GPUTexture **tex)
+{
+  BLI_assert(tex != NULL);
+  int loc = GPU_shader_get_texture_binding(shgroup->shader, name);
+  drw_shgroup_uniform_create_ex(shgroup, loc, DRW_UNIFORM_IMAGE_REF, tex, 0, 0, 1);
 }
 
 void DRW_shgroup_uniform_block(DRWShadingGroup *shgroup,
@@ -494,7 +515,7 @@ static void drw_call_obinfos_init(DRWObjectInfos *ob_infos, Object *ob)
   /* Random float value. */
   uint random = (DST.dupli_source) ?
                     DST.dupli_source->random_id :
-                    /* TODO(fclem) this is rather costly to do at runtime. Maybe we can
+                    /* TODO(fclem): this is rather costly to do at runtime. Maybe we can
                      * put it in ob->runtime and make depsgraph ensure it is up to date. */
                     BLI_hash_int_2d(BLI_hash_string(ob->id.name + 2), 0);
   ob_infos->ob_random = random * (1.0f / (float)0xFFFFFFFF);
@@ -593,6 +614,15 @@ static DRWResourceHandle drw_resource_handle(DRWShadingGroup *shgroup,
 
       drw_call_obinfos_init(ob_infos, ob);
     }
+  }
+
+  if (shgroup->uniform_attrs) {
+    drw_uniform_attrs_pool_update(DST.vmempool->obattrs_ubo_pool,
+                                  shgroup->uniform_attrs,
+                                  &DST.ob_handle,
+                                  ob,
+                                  DST.dupli_parent,
+                                  DST.dupli_source);
   }
 
   return DST.ob_handle;
@@ -1168,6 +1198,7 @@ void DRW_buffer_add_entry_array(DRWCallBuffer *callbuf, const void *attr[], uint
 static void drw_shgroup_init(DRWShadingGroup *shgroup, GPUShader *shader)
 {
   shgroup->uniforms = NULL;
+  shgroup->uniform_attrs = NULL;
 
   int view_ubo_location = GPU_shader_get_builtin_block(shader, GPU_UNIFORM_BLOCK_VIEW);
   int model_ubo_location = GPU_shader_get_builtin_block(shader, GPU_UNIFORM_BLOCK_MODEL);
@@ -1312,6 +1343,13 @@ void DRW_shgroup_add_material_resources(DRWShadingGroup *grp, struct GPUMaterial
   GPUUniformBuf *ubo = GPU_material_uniform_buffer_get(material);
   if (ubo != NULL) {
     DRW_shgroup_uniform_block(grp, GPU_UBO_BLOCK_NAME, ubo);
+  }
+
+  GPUUniformAttrList *uattrs = GPU_material_uniform_attributes(material);
+  if (uattrs != NULL) {
+    int loc = GPU_shader_get_uniform_block_binding(grp->shader, GPU_ATTRIBUTE_UBO_BLOCK_NAME);
+    drw_shgroup_uniform_create_ex(grp, loc, DRW_UNIFORM_BLOCK_OBATTRS, uattrs, 0, 0, 1);
+    grp->uniform_attrs = uattrs;
   }
 }
 
@@ -1931,7 +1969,7 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
 {
   DRWPass *pass = BLI_memblock_alloc(DST.vmempool->passes);
   pass->state = state | DRW_STATE_PROGRAM_POINT_SIZE;
-  if (((G.debug_value > 20) && (G.debug_value < 30)) || (G.debug & G_DEBUG)) {
+  if (G.debug & G_DEBUG_GPU) {
     BLI_strncpy(pass->name, name, MAX_PASS_NAME);
   }
 
@@ -1946,6 +1984,8 @@ DRWPass *DRW_pass_create(const char *name, DRWState state)
   return pass;
 }
 
+/* Create an instance of the original pass that will execute the same drawcalls but with its own
+ * DRWState. */
 DRWPass *DRW_pass_create_instance(const char *name, DRWPass *original, DRWState state)
 {
   DRWPass *pass = DRW_pass_create(name, state);
@@ -1964,27 +2004,16 @@ void DRW_pass_link(DRWPass *first, DRWPass *second)
 
 bool DRW_pass_is_empty(DRWPass *pass)
 {
+  if (pass->original) {
+    return DRW_pass_is_empty(pass->original);
+  }
+
   LISTBASE_FOREACH (DRWShadingGroup *, shgroup, &pass->shgroups) {
     if (!DRW_shgroup_is_empty(shgroup)) {
       return false;
     }
   }
   return true;
-}
-
-void DRW_pass_state_set(DRWPass *pass, DRWState state)
-{
-  pass->state = state | DRW_STATE_PROGRAM_POINT_SIZE;
-}
-
-void DRW_pass_state_add(DRWPass *pass, DRWState state)
-{
-  pass->state |= state;
-}
-
-void DRW_pass_state_remove(DRWPass *pass, DRWState state)
-{
-  pass->state &= ~state;
 }
 
 void DRW_pass_foreach_shgroup(DRWPass *pass,

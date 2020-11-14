@@ -843,7 +843,7 @@ static void viewrotate_apply(ViewOpsData *vod, const int event_xy[2])
      * This works by blending two horizons:
      * - Rotated-horizon: `cross_v3_v3v3(xaxis, zvec_global, m_inv[2])`
      *   When only this is used, this turntable rotation works - but it's side-ways
-     *   (as if the entire turn-table has been placed on it's side)
+     *   (as if the entire turn-table has been placed on its side)
      *   While there is no gimble lock, it's also awkward to use.
      * - Un-rotated-horizon: `m_inv[0]`
      *   When only this is used, the turntable rotation can have gimbal lock.
@@ -999,7 +999,7 @@ static int viewrotate_invoke(bContext *C, wmOperator *op, const wmEvent *event)
     int event_xy[2];
 
     if (event->type == MOUSEPAN) {
-      if (U.uiflag2 & USER_TRACKPAD_NATURAL) {
+      if (event->is_direction_inverted) {
         event_xy[0] = 2 * event->x - event->prevx;
         event_xy[1] = 2 * event->y - event->prevy;
       }
@@ -2139,7 +2139,7 @@ static void viewzoom_apply_camera(ViewOpsData *vod,
                                      zoomfac_prev,
                                      &vod->prev.time);
 
-  if (zfac != 1.0f && zfac != 0.0f) {
+  if (!ELEM(zfac, 1.0f, 0.0f)) {
     /* calculate inverted, then invert again (needed because of camera zoom scaling) */
     zfac = 1.0f / zfac;
     view_zoom_to_window_xy_camera(vod->scene,
@@ -2383,7 +2383,7 @@ static int viewzoom_invoke(bContext *C, wmOperator *op, const wmEvent *event)
     viewzoom_exec(C, op);
   }
   else {
-    if (event->type == MOUSEZOOM || event->type == MOUSEPAN) {
+    if (ELEM(event->type, MOUSEZOOM, MOUSEPAN)) {
 
       if (U.uiflag & USER_ZOOM_HORIZ) {
         vod->init.event_xy[0] = vod->prev.event_xy[0] = event->x;
@@ -2764,7 +2764,7 @@ void VIEW3D_OT_dolly(wmOperatorType *ot)
 /* -------------------------------------------------------------------- */
 /** \name View All Operator
  *
- * Move & Zoom the view to fit all of it's contents.
+ * Move & Zoom the view to fit all of its contents.
  * \{ */
 
 static bool view3d_object_skip_minmax(const View3D *v3d,
@@ -2787,6 +2787,25 @@ static bool view3d_object_skip_minmax(const View3D *v3d,
   }
 
   return false;
+}
+
+static void view3d_object_calc_minmax(Depsgraph *depsgraph,
+                                      Scene *scene,
+                                      Object *ob_eval,
+                                      const bool only_center,
+                                      float min[3],
+                                      float max[3])
+{
+  /* Account for duplis. */
+  if (BKE_object_minmax_dupli(depsgraph, scene, ob_eval, min, max, false) == 0) {
+    /* Use if duplis aren't found. */
+    if (only_center) {
+      minmax_v3v3_v3(min, max, ob_eval->obmat[3]);
+    }
+    else {
+      BKE_object_minmax(ob_eval, min, max, false);
+    }
+  }
 }
 
 static void view3d_from_minmax(bContext *C,
@@ -2902,7 +2921,7 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
   View3D *v3d = CTX_wm_view3d(C);
   RegionView3D *rv3d = CTX_wm_region_view3d(C);
   Scene *scene = CTX_data_scene(C);
-  const Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
   ViewLayer *view_layer_eval = DEG_get_evaluated_view_layer(depsgraph);
   Base *base_eval;
   const bool use_all_regions = RNA_boolean_get(op->ptr, "use_all_regions");
@@ -2936,13 +2955,7 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
       if (view3d_object_skip_minmax(v3d, rv3d, ob, skip_camera, &only_center)) {
         continue;
       }
-
-      if (only_center) {
-        minmax_v3v3_v3(min, max, base_eval->object->obmat[3]);
-      }
-      else {
-        BKE_object_minmax(base_eval->object, min, max, false);
-      }
+      view3d_object_calc_minmax(depsgraph, scene, base_eval->object, only_center, min, max);
       changed = true;
     }
   }
@@ -2961,9 +2974,14 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
      * object, but in this case there is no change in the scene,
      * only the cursor so I choice a ED_region_tag like
      * view3d_smooth_view do for the center_cursor.
-     * See bug #22640
+     * See bug T22640.
      */
     return OPERATOR_FINISHED;
+  }
+
+  if (RV3D_CLIPPING_ENABLED(v3d, rv3d)) {
+    /* This is an approximation, see function documentation for details. */
+    ED_view3d_clipping_clamp_minmax(rv3d, min, max);
   }
 
   if (use_all_regions) {
@@ -3108,18 +3126,7 @@ static int viewselected_exec(bContext *C, wmOperator *op)
         if (view3d_object_skip_minmax(v3d, rv3d, ob, skip_camera, &only_center)) {
           continue;
         }
-
-        /* account for duplis */
-        if (BKE_object_minmax_dupli(depsgraph, scene, base_eval->object, min, max, false) == 0) {
-          /* use if duplis not found */
-          if (only_center) {
-            minmax_v3v3_v3(min, max, base_eval->object->obmat[3]);
-          }
-          else {
-            BKE_object_minmax(base_eval->object, min, max, false);
-          }
-        }
-
+        view3d_object_calc_minmax(depsgraph, scene, base_eval->object, only_center, min, max);
         ok = 1;
       }
     }
@@ -3127,6 +3134,11 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 
   if (ok == 0) {
     return OPERATOR_FINISHED;
+  }
+
+  if (RV3D_CLIPPING_ENABLED(v3d, rv3d)) {
+    /* This is an approximation, see function documentation for details. */
+    ED_view3d_clipping_clamp_minmax(rv3d, min, max);
   }
 
   if (use_all_regions) {
@@ -3639,6 +3651,17 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
     MEM_SAFE_FREE(depth_temp.depths);
   }
 
+  /* Resize border to the same ratio as the window. */
+  {
+    const float region_aspect = (float)region->winx / (float)region->winy;
+    if (((float)BLI_rcti_size_x(&rect) / (float)BLI_rcti_size_y(&rect)) < region_aspect) {
+      BLI_rcti_resize_x(&rect, (int)(BLI_rcti_size_y(&rect) * region_aspect));
+    }
+    else {
+      BLI_rcti_resize_y(&rect, (int)(BLI_rcti_size_x(&rect) / region_aspect));
+    }
+  }
+
   cent[0] = (((float)rect.xmin) + ((float)rect.xmax)) / 2;
   cent[1] = (((float)rect.ymin) + ((float)rect.ymax)) / 2;
 
@@ -3660,6 +3683,9 @@ static int view3d_zoom_border_exec(bContext *C, wmOperator *op)
     negate_v3_v3(new_ofs, p);
 
     new_dist = len_v3(dvec);
+
+    /* Account for the lens, without this a narrow lens zooms in too close. */
+    new_dist *= (v3d->lens / DEFAULT_SENSOR_WIDTH);
 
     /* ignore dist_range min */
     dist_range[0] = v3d->clip_start * 1.5f;
@@ -3818,12 +3844,12 @@ void VIEW3D_OT_zoom_camera_1_to_1(wmOperatorType *ot)
  * \{ */
 
 static const EnumPropertyItem prop_view_items[] = {
-    {RV3D_VIEW_LEFT, "LEFT", ICON_TRIA_LEFT, "Left", "View From the Left"},
-    {RV3D_VIEW_RIGHT, "RIGHT", ICON_TRIA_RIGHT, "Right", "View From the Right"},
-    {RV3D_VIEW_BOTTOM, "BOTTOM", ICON_TRIA_DOWN, "Bottom", "View From the Bottom"},
-    {RV3D_VIEW_TOP, "TOP", ICON_TRIA_UP, "Top", "View From the Top"},
-    {RV3D_VIEW_FRONT, "FRONT", 0, "Front", "View From the Front"},
-    {RV3D_VIEW_BACK, "BACK", 0, "Back", "View From the Back"},
+    {RV3D_VIEW_LEFT, "LEFT", ICON_TRIA_LEFT, "Left", "View from the Left"},
+    {RV3D_VIEW_RIGHT, "RIGHT", ICON_TRIA_RIGHT, "Right", "View from the Right"},
+    {RV3D_VIEW_BOTTOM, "BOTTOM", ICON_TRIA_DOWN, "Bottom", "View from the Bottom"},
+    {RV3D_VIEW_TOP, "TOP", ICON_TRIA_UP, "Top", "View from the Top"},
+    {RV3D_VIEW_FRONT, "FRONT", 0, "Front", "View from the Front"},
+    {RV3D_VIEW_BACK, "BACK", 0, "Back", "View from the Back"},
     {0, NULL, 0, NULL, NULL},
 };
 
@@ -3900,6 +3926,7 @@ static void axis_set_view(bContext *C,
                           region,
                           smooth_viewtx,
                           &(const V3D_SmoothParams){
+                              .camera_old = camera_eval,
                               .ofs = ofs,
                               .quat = quat,
                               .dist = &dist,
@@ -3955,8 +3982,9 @@ static int view_axis_exec(bContext *C, wmOperator *op)
     Object *obact = CTX_data_active_object(C);
     if (obact != NULL) {
       float twmat[3][3];
+      Object *obedit = CTX_data_edit_object(C);
       /* same as transform gizmo when normal is set */
-      ED_getTransformOrientationMatrix(C, twmat, V3D_AROUND_ACTIVE);
+      ED_getTransformOrientationMatrix(C, obact, obedit, V3D_AROUND_ACTIVE, twmat);
       align_quat = align_quat_buf;
       mat3_to_quat(align_quat, twmat);
       invert_qt_normalized(align_quat);
@@ -4816,7 +4844,7 @@ void VIEW3D_OT_background_image_add(wmOperatorType *ot)
                                  FILE_OPENFILE,
                                  WM_FILESEL_FILEPATH | WM_FILESEL_RELPATH,
                                  FILE_DEFAULTDISPLAY,
-                                 FILE_SORT_ALPHA);
+                                 FILE_SORT_DEFAULT);
 }
 
 /** \} */

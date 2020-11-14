@@ -32,15 +32,11 @@ set(INC
   ../../modifiers
   ../../python
   ../../shader_fx
-  ../../render/extern/include
+  ../../render
   ../../windowmanager
   ../../../../intern/clog
   ../../../../intern/glew-mx
   ../../../../intern/guardedalloc
-)
-
-set(INC_SYS
-  ${GLEW_INCLUDE_PATH}
 )
 
 set(SRC
@@ -81,7 +77,6 @@ set(LIB
   bf_windowmanager
 )
 
-add_definitions(${GL_DEFINITIONS})
 
 if(WITH_PYTHON)
   add_definitions(-DWITH_PYTHON)
@@ -89,6 +84,12 @@ endif()
 
 if(WITH_INTERNATIONAL)
   add_definitions(-DWITH_INTERNATIONAL)
+endif()
+
+if(WITH_EXPERIMENTAL_FEATURES)
+  add_definitions(-DWITH_GEOMETRY_NODES)
+  add_definitions(-DWITH_POINT_CLOUD)
+  add_definitions(-DWITH_HAIR_NODES)
 endif()
 
 blender_add_lib(bf_editor_object "${SRC}" "${INC}" "${INC_SYS}" "${LIB}")

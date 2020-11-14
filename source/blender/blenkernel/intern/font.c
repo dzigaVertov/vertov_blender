@@ -155,7 +155,7 @@ IDTypeInfo IDType_ID_VF = {
     .name = "Font",
     .name_plural = "fonts",
     .translation_context = BLT_I18NCONTEXT_ID_VFONT,
-    .flags = 0,
+    .flags = IDTYPE_FLAGS_NO_ANIMDATA,
 
     .init_data = vfont_init_data,
     .copy_data = vfont_copy_data,
@@ -168,6 +168,8 @@ IDTypeInfo IDType_ID_VF = {
     .blend_read_data = vfont_blend_read_data,
     .blend_read_lib = NULL,
     .blend_read_expand = NULL,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 /***************************** VFont *******************************/
@@ -947,7 +949,7 @@ static bool vfont_to_curve(Object *ob,
       //      CLOG_WARN(&LOG, "linewidth exceeded: %c%c%c...", mem[i], mem[i+1], mem[i+2]);
       for (j = i; j && (mem[j] != '\n') && (chartransdata[j].dobreak == 0); j--) {
         bool dobreak = false;
-        if (mem[j] == ' ' || mem[j] == '-') {
+        if (ELEM(mem[j], ' ', '-')) {
           ct -= (i - (j - 1));
           cnr -= (i - (j - 1));
           if (mem[j] == ' ') {
@@ -1187,6 +1189,14 @@ static bool vfont_to_curve(Object *ob,
         ct_first = chartransdata + i_textbox;
         ct_last = chartransdata + (is_last_filled_textbox ? slen : i_textbox_next - 1);
         lines = ct_last->linenr - ct_first->linenr + 1;
+
+        if (cu->overflow == CU_OVERFLOW_TRUNCATE) {
+          /* Ensure overflow doesn't truncate text, before centering vertically
+           * giving odd/buggy results, see: T66614. */
+          if ((tb_index == cu->totbox - 1) && (last_line != -1)) {
+            lines = last_line - ct_first->linenr;
+          }
+        }
 
         textbox_scale(&tb_scale, &cu->tb[tb_index], 1.0f / font_size);
         /* The initial Y origin of the textbox is hardcoded to 1.0f * text scale. */

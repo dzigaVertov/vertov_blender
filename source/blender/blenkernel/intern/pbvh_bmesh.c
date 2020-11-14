@@ -36,8 +36,6 @@
 #include "bmesh.h"
 #include "pbvh_intern.h"
 
-#include <assert.h>
-
 /* Avoid skinny faces */
 #define USE_EDGEQUEUE_EVEN_SUBDIV
 #ifdef USE_EDGEQUEUE_EVEN_SUBDIV
@@ -65,6 +63,7 @@
 static void pbvh_bmesh_verify(PBVH *pbvh);
 #endif
 
+/* -------------------------------------------------------------------- */
 /** \name BMesh Utility API
  *
  * Use some local functions which assume triangles.

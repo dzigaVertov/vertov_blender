@@ -150,15 +150,7 @@ endif()
 
 if(NOT ${CMAKE_GENERATOR} MATCHES "Xcode")
   # Force CMAKE_OSX_DEPLOYMENT_TARGET for makefiles, will not work else (CMake bug?)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  string(APPEND CMAKE_C_FLAGS " -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  string(APPEND CMAKE_CXX_FLAGS " -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
   add_definitions("-DMACOSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-endif()
-
-if(${CMAKE_GENERATOR} MATCHES "Xcode")
-  # Generate schemes in Blender.xcodeproj/xcshareddata/xcschemes/ early, at
-  # configuration time, not when Xcode is opened.
-  # This gets rid of "Manage schemes automatically" confirmation dialog that
-  # appears whenever CMake is run.
-  set(CMAKE_XCODE_GENERATE_SCHEME ON)
 endif()

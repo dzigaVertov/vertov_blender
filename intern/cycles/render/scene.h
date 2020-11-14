@@ -59,6 +59,7 @@ class Progress;
 class BakeManager;
 class BakeData;
 class RenderStats;
+class SceneUpdateStats;
 class Volume;
 
 /* Scene Device Data */
@@ -260,6 +261,9 @@ class Scene : public NodeOwner {
   /* mutex must be locked manually by callers */
   thread_mutex mutex;
 
+  /* scene update statistics */
+  SceneUpdateStats *update_stats;
+
   Scene(const SceneParams &params, Device *device);
   ~Scene();
 
@@ -279,6 +283,8 @@ class Scene : public NodeOwner {
   void device_free();
 
   void collect_statistics(RenderStats *stats);
+
+  void enable_update_stats();
 
   bool update(Progress &progress, bool &kernel_switch_needed);
 
@@ -315,6 +321,18 @@ class Scene : public NodeOwner {
     delete_node_impl(node);
     (void)owner;
   }
+
+  /* Remove all nodes in the set from the appropriate data arrays, and tag the
+   * specific managers for an update. This assumes that the scene owns the nodes.
+   */
+  template<typename T> void delete_nodes(const set<T *> &nodes)
+  {
+    delete_nodes(nodes, this);
+  }
+
+  /* Same as above, but specify the actual owner of all the nodes in the set.
+   */
+  template<typename T> void delete_nodes(const set<T *> &nodes, const NodeOwner *owner);
 
  protected:
   /* Check if some heavy data worth logging was updated.
@@ -374,6 +392,16 @@ template<> void Scene::delete_node_impl(Object *node);
 template<> void Scene::delete_node_impl(ParticleSystem *node);
 
 template<> void Scene::delete_node_impl(Shader *node);
+
+template<> void Scene::delete_nodes(const set<Light *> &nodes, const NodeOwner *owner);
+
+template<> void Scene::delete_nodes(const set<Geometry *> &nodes, const NodeOwner *owner);
+
+template<> void Scene::delete_nodes(const set<Object *> &nodes, const NodeOwner *owner);
+
+template<> void Scene::delete_nodes(const set<ParticleSystem *> &nodes, const NodeOwner *owner);
+
+template<> void Scene::delete_nodes(const set<Shader *> &nodes, const NodeOwner *owner);
 
 CCL_NAMESPACE_END
 

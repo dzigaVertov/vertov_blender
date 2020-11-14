@@ -29,6 +29,9 @@ extern "C" {
 
 struct ARegionType;
 struct BMEditMesh;
+struct BlendDataReader;
+struct BlendLibReader;
+struct BlendWriter;
 struct CustomData_MeshMasks;
 struct DepsNodeHandle;
 struct Depsgraph;
@@ -40,8 +43,6 @@ struct ModifierData;
 struct Object;
 struct Scene;
 struct bArmature;
-struct BlendWriter;
-struct BlendDataReader;
 
 typedef enum {
   /* Should not be used, only for None modifier type */
@@ -115,11 +116,6 @@ typedef enum {
   eModifierTypeFlag_AcceptsBMesh = (1 << 11),
 } ModifierTypeFlag;
 
-/* IMPORTANT! Keep ObjectWalkFunc and IDWalkFunc signatures compatible. */
-typedef void (*ObjectWalkFunc)(void *userData,
-                               struct Object *ob,
-                               struct Object **obpoin,
-                               int cb_flag);
 typedef void (*IDWalkFunc)(void *userData, struct Object *ob, struct ID **idpoin, int cb_flag);
 typedef void (*TexWalkFunc)(void *userData,
                             struct Object *ob,
@@ -170,8 +166,14 @@ typedef struct ModifierTypeInfo {
   /* The size of the modifier data type, used by allocation. */
   int structSize;
 
+  /* StructRNA of this modifier. This is typically something like RNA_*Modifier. */
+  struct StructRNA *srna;
+
   ModifierTypeType type;
   ModifierTypeFlag flags;
+
+  /* Icon of the modifier. Usually something like ICON_MOD_*. */
+  int icon;
 
   /********************* Non-optional functions *********************/
 
@@ -326,25 +328,12 @@ typedef struct ModifierTypeInfo {
   bool (*dependsOnNormals)(struct ModifierData *md);
 
   /**
-   * Should call the given walk function on with a pointer to each Object
-   * pointer that the modifier data stores. This is used for linking on file
-   * load and for unlinking objects or forwarding object references.
-   *
-   * This function is optional.
-   */
-  void (*foreachObjectLink)(struct ModifierData *md,
-                            struct Object *ob,
-                            ObjectWalkFunc walk,
-                            void *userData);
-
-  /**
    * Should call the given walk function with a pointer to each ID
    * pointer (i.e. each data-block pointer) that the modifier data
    * stores. This is used for linking on file load and for
    * unlinking data-blocks or forwarding data-block references.
    *
-   * This function is optional. If it is not present, foreachObjectLink
-   * will be used.
+   * This function is optional.
    */
   void (*foreachIDLink)(struct ModifierData *md,
                         struct Object *ob,
@@ -408,6 +397,7 @@ const ModifierTypeInfo *BKE_modifier_get_info(ModifierType type);
 
 /* For modifier UI panels. */
 void BKE_modifier_type_panel_id(ModifierType type, char *r_idname);
+void BKE_modifier_panel_expand(struct ModifierData *md);
 
 /* Modifier utility calls, do call through type pointer and return
  * default values if pointer is optional.
@@ -439,11 +429,12 @@ bool BKE_modifier_is_non_geometrical(ModifierData *md);
 bool BKE_modifier_is_enabled(const struct Scene *scene,
                              struct ModifierData *md,
                              int required_mode);
-void BKE_modifier_set_error(struct ModifierData *md, const char *format, ...)
-    ATTR_PRINTF_FORMAT(2, 3);
+void BKE_modifier_set_error(const struct Object *ob,
+                            struct ModifierData *md,
+                            const char *format,
+                            ...) ATTR_PRINTF_FORMAT(3, 4);
 bool BKE_modifier_is_preview(struct ModifierData *md);
 
-void BKE_modifiers_foreach_object_link(struct Object *ob, ObjectWalkFunc walk, void *userData);
 void BKE_modifiers_foreach_ID_link(struct Object *ob, IDWalkFunc walk, void *userData);
 void BKE_modifiers_foreach_tex_link(struct Object *ob, TexWalkFunc walk, void *userData);
 
@@ -544,6 +535,12 @@ struct Mesh *BKE_modifier_get_evaluated_mesh_from_evaluated_object(struct Object
                                                                    const bool get_cage_mesh);
 
 void BKE_modifier_check_uuids_unique_and_report(const struct Object *object);
+
+void BKE_modifier_blend_write(struct BlendWriter *writer, struct ListBase *modbase);
+void BKE_modifier_blend_read_data(struct BlendDataReader *reader,
+                                  struct ListBase *lb,
+                                  struct Object *ob);
+void BKE_modifier_blend_read_lib(struct BlendLibReader *reader, struct Object *ob);
 
 #ifdef __cplusplus
 }

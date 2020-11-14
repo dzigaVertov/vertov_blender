@@ -42,6 +42,7 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_armature.h"
 #include "BKE_blender_version.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
@@ -59,7 +60,6 @@
 
 #include "DEG_depsgraph_query.h"
 
-#include "ED_armature.h"
 #include "ED_info.h"
 
 #include "UI_resources.h"
@@ -252,7 +252,7 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
         stats->totbonesel++;
       }
 
-      /* if this is a connected child and it's parent is being moved, remove our root */
+      /* if this is a connected child and its parent is being moved, remove our root */
       if ((ebo->flag & BONE_CONNECTED) && (ebo->flag & BONE_ROOTSEL) && ebo->parent &&
           (ebo->parent->flag & BONE_TIPSEL)) {
         stats->totvertsel--;
@@ -503,7 +503,7 @@ static void get_stats_string(
     else if (obedit->type == OB_ARMATURE) {
       *ofs += BLI_snprintf(info + *ofs,
                            len - *ofs,
-                           TIP_("Verts:%s/%s | Bones:%s/%s"),
+                           TIP_("Joints:%s/%s | Bones:%s/%s"),
                            stats_fmt->totvertsel,
                            stats_fmt->totvert,
                            stats_fmt->totbonesel,
@@ -664,6 +664,7 @@ void ED_info_draw_stats(
     EDGES,
     FACES,
     TRIS,
+    JOINTS,
     BONES,
     LAYERS,
     FRAMES,
@@ -678,6 +679,7 @@ void ED_info_draw_stats(
   STRNCPY(labels[EDGES], IFACE_("Edges"));
   STRNCPY(labels[FACES], IFACE_("Faces"));
   STRNCPY(labels[TRIS], IFACE_("Triangles"));
+  STRNCPY(labels[JOINTS], IFACE_("Joints"));
   STRNCPY(labels[BONES], IFACE_("Bones"));
   STRNCPY(labels[LAYERS], IFACE_("Layers"));
   STRNCPY(labels[FRAMES], IFACE_("Frames"));
@@ -709,7 +711,7 @@ void ED_info_draw_stats(
       stats_row(col1, labels[TRIS], col2, stats_fmt.tottri, NULL, y, height);
     }
     else if (obedit->type == OB_ARMATURE) {
-      stats_row(col1, labels[VERTS], col2, stats_fmt.totvertsel, stats_fmt.totvert, y, height);
+      stats_row(col1, labels[JOINTS], col2, stats_fmt.totvertsel, stats_fmt.totvert, y, height);
       stats_row(col1, labels[BONES], col2, stats_fmt.totbonesel, stats_fmt.totbone, y, height);
     }
     else {

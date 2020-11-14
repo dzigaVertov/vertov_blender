@@ -763,7 +763,7 @@ GHOST_IWindow *GHOST_SystemCocoa::createWindow(const char *title,
 /**
  * Create a new offscreen context.
  * Never explicitly delete the context, use #disposeContext() instead.
- * \return  The new context (or 0 if creation failed).
+ * \return The new context (or 0 if creation failed).
  */
 GHOST_IContext *GHOST_SystemCocoa::createOffscreenContext(GHOST_GLSettings glSettings)
 {
@@ -778,8 +778,8 @@ GHOST_IContext *GHOST_SystemCocoa::createOffscreenContext(GHOST_GLSettings glSet
 
 /**
  * Dispose of a context.
- * \param   context Pointer to the context to be disposed.
- * \return  Indication of success.
+ * \param context Pointer to the context to be disposed.
+ * \return Indication of success.
  */
 GHOST_TSuccess GHOST_SystemCocoa::disposeContext(GHOST_IContext *context)
 {
@@ -1589,7 +1589,7 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
         }
         case GHOST_kGrabWrap:  // Wrap cursor at area/window boundaries
         {
-          NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+          NSPoint mousePos = [event locationInWindow];
           GHOST_TInt32 x_mouse = mousePos.x;
           GHOST_TInt32 y_mouse = mousePos.y;
           GHOST_Rect bounds, windowBounds, correctedBounds;
@@ -1599,7 +1599,7 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
             window->getClientBounds(bounds);
 
           /* Switch back to Cocoa coordinates orientation
-           * (y=0 at bottom, the same as blender internal btw!), and to client coordinates. */
+           * (y=0 at bottom, the same as blender internal BTW!), and to client coordinates. */
           window->getClientBounds(windowBounds);
           window->screenToClient(bounds.m_l, bounds.m_b, correctedBounds.m_l, correctedBounds.m_t);
           window->screenToClient(bounds.m_r, bounds.m_t, correctedBounds.m_r, correctedBounds.m_b);
@@ -1639,7 +1639,7 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
         }
         default: {
           // Normal cursor operation: send mouse position in window
-          NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+          NSPoint mousePos = [event locationInWindow];
           GHOST_TInt32 x, y;
 
           window->clientToScreenIntern(mousePos.x, mousePos.y, x, y);
@@ -1699,7 +1699,7 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
         pushEvent(new GHOST_EventWheel([event timestamp] * 1000, window, delta));
       }
       else {
-        NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+        NSPoint mousePos = [event locationInWindow];
         GHOST_TInt32 x, y;
         double dx;
         double dy;
@@ -1716,13 +1716,19 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
         }
         window->clientToScreenIntern(mousePos.x, mousePos.y, x, y);
 
-        pushEvent(new GHOST_EventTrackpad(
-            [event timestamp] * 1000, window, GHOST_kTrackpadEventScroll, x, y, dx, dy));
+        pushEvent(new GHOST_EventTrackpad([event timestamp] * 1000,
+                                          window,
+                                          GHOST_kTrackpadEventScroll,
+                                          x,
+                                          y,
+                                          dx,
+                                          dy,
+                                          [event isDirectionInvertedFromDevice]));
       }
     } break;
 
     case NSEventTypeMagnify: {
-      NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+      NSPoint mousePos = [event locationInWindow];
       GHOST_TInt32 x, y;
       window->clientToScreenIntern(mousePos.x, mousePos.y, x, y);
       pushEvent(new GHOST_EventTrackpad([event timestamp] * 1000,
@@ -1731,19 +1737,20 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
                                         x,
                                         y,
                                         [event magnification] * 125.0 + 0.1,
-                                        0));
+                                        0,
+                                        false));
     } break;
 
     case NSEventTypeSmartMagnify: {
-      NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+      NSPoint mousePos = [event locationInWindow];
       GHOST_TInt32 x, y;
       window->clientToScreenIntern(mousePos.x, mousePos.y, x, y);
       pushEvent(new GHOST_EventTrackpad(
-          [event timestamp] * 1000, window, GHOST_kTrackpadEventSmartMagnify, x, y, 0, 0));
+          [event timestamp] * 1000, window, GHOST_kTrackpadEventSmartMagnify, x, y, 0, 0, false));
     } break;
 
     case NSEventTypeRotate: {
-      NSPoint mousePos = [cocoawindow mouseLocationOutsideOfEventStream];
+      NSPoint mousePos = [event locationInWindow];
       GHOST_TInt32 x, y;
       window->clientToScreenIntern(mousePos.x, mousePos.y, x, y);
       pushEvent(new GHOST_EventTrackpad([event timestamp] * 1000,
@@ -1752,7 +1759,8 @@ GHOST_TSuccess GHOST_SystemCocoa::handleMouseEvent(void *eventPtr)
                                         x,
                                         y,
                                         [event rotation] * -5.0,
-                                        0));
+                                        0,
+                                        false));
     }
     default:
       return GHOST_kFailure;
@@ -1838,7 +1846,7 @@ GHOST_TSuccess GHOST_SystemCocoa::handleKeyEvent(void *eventPtr)
                                      keyCode,
                                      ascii,
                                      utf8_buf,
-                                     false));
+                                     [event isARepeat]));
 #if 0
         printf("Key down rawCode=0x%x charsIgnoringModifiers=%c keyCode=%u ascii=%i %c utf8=%s\n",
                [event keyCode],

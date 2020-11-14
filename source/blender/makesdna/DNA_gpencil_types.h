@@ -174,13 +174,13 @@ typedef enum eGPDpalette_Flag {
 /* GP Curve Point */
 
 typedef struct bGPDcurve_point {
-  /** Bezier Triple for the handles and control points */
+  /** Bezier Triple for the handles and control points. */
   BezTriple bezt;
   /** Pressure of input device (from 0 to 1) at this point. */
   float pressure;
   /** Color strength (used for alpha factor). */
   float strength;
-  /** Index of corresponding point in gps->points */
+  /** Index of corresponding point in gps->points. */
   int point_index;
 
   /** Additional options. */
@@ -190,12 +190,12 @@ typedef struct bGPDcurve_point {
   float uv_fac;
   /** Uv rotation for dot mode. */
   float uv_rot;
-  /** Uv for fill mode */
+  /** Uv for fill mode. */
   float uv_fill[2];
 
   /** Vertex Color RGBA (A=mix factor). */
   float vert_color[4];
-  char _pad2[4];
+  char _pad[4];
 } bGPDcurve_point;
 
 /* bGPDcurve_point->flag */
@@ -638,9 +638,9 @@ typedef struct bGPdata {
   int flag;
   /** Default resolution for generated curves using curve editing method. */
   int curve_edit_resolution;
-  /** Curve Editing error threshold */
+  /** Curve Editing error threshold. */
   float curve_edit_threshold;
-  /** Curve Editing corner angle (less or equal is treated as corner) */
+  /** Curve Editing corner angle (less or equal is treated as corner). */
   float curve_edit_corner_angle;
 
   /* Palettes */

@@ -66,6 +66,11 @@ Alembic::Abc::OObject ABCCurveWriter::get_alembic_object() const
   return abc_curve_;
 }
 
+Alembic::Abc::OCompoundProperty ABCCurveWriter::abc_prop_for_custom_props()
+{
+  return abc_schema_prop_for_custom_props(abc_curve_schema_);
+}
+
 void ABCCurveWriter::do_write(HierarchyContext &context)
 {
   Curve *curve = static_cast<Curve *>(context.object->data);
@@ -130,7 +135,7 @@ void ABCCurveWriter::do_write(HierarchyContext &context)
       }
     }
 
-    if (nurbs->knotsu != NULL) {
+    if (nurbs->knotsu != nullptr) {
       const size_t num_knots = KNOTSU(nurbs);
 
       /* Add an extra knot at the beginning and end of the array since most apps
@@ -184,7 +189,7 @@ ABCCurveMeshWriter::ABCCurveMeshWriter(const ABCWriterConstructorArgs &args)
 Mesh *ABCCurveMeshWriter::get_export_mesh(Object *object_eval, bool &r_needsfree)
 {
   Mesh *mesh_eval = BKE_object_get_evaluated_mesh(object_eval);
-  if (mesh_eval != NULL) {
+  if (mesh_eval != nullptr) {
     /* Mesh_eval only exists when generative modifiers are in use. */
     r_needsfree = false;
     return mesh_eval;

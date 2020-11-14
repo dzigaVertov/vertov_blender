@@ -72,6 +72,7 @@ void drw_texture_set_parameters(GPUTexture *tex, DRWTextureFlag flags)
   else {
     GPU_texture_filter_mode(tex, flags & DRW_TEX_FILTER);
   }
+  GPU_texture_anisotropic_filter(tex, false);
   GPU_texture_wrap_mode(tex, flags & DRW_TEX_WRAP, true);
   GPU_texture_compare_mode(tex, flags & DRW_TEX_COMPARE);
 }
@@ -112,7 +113,8 @@ GPUTexture *DRW_texture_create_3d(
     int w, int h, int d, eGPUTextureFormat format, DRWTextureFlag flags, const float *fpixels)
 {
   int mips = (flags & DRW_TEX_MIPMAP) ? 9999 : 1;
-  GPUTexture *tex = GPU_texture_create_3d(__func__, w, h, d, mips, format, fpixels);
+  GPUTexture *tex = GPU_texture_create_3d(
+      __func__, w, h, d, mips, format, GPU_DATA_FLOAT, fpixels);
   drw_texture_set_parameters(tex, flags);
 
   return tex;

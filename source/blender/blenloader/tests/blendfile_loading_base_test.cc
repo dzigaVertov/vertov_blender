@@ -48,6 +48,8 @@
 #include "WM_api.h"
 #include "wm.h"
 
+#include "CLG_log.h"
+
 BlendfileLoadingBaseTest::~BlendfileLoadingBaseTest()
 {
 }
@@ -58,18 +60,20 @@ void BlendfileLoadingBaseTest::SetUpTestCase()
 
   /* Minimal code to make loading a blendfile and constructing a depsgraph not crash, copied from
    * main() in creator.c. */
+  CLG_init();
   BLI_threadapi_init();
 
   DNA_sdna_current_init();
   BKE_blender_globals_init();
 
   BKE_idtype_init();
+  BKE_appdir_init();
   IMB_init();
   BKE_images_init();
   BKE_modifier_init();
   DEG_register_node_types();
   RNA_init();
-  init_nodesystem();
+  BKE_node_system_init();
 
   G.background = true;
   G.factory_startup = true;
@@ -100,6 +104,8 @@ void BlendfileLoadingBaseTest::TearDownTestCase()
 
   BKE_tempdir_session_purge();
 
+  CLG_exit();
+
   testing::Test::TearDownTestCase();
 }
 
@@ -121,7 +127,7 @@ bool BlendfileLoadingBaseTest::blendfile_load(const char *filepath)
   char abspath[FILENAME_MAX];
   BLI_path_join(abspath, sizeof(abspath), test_assets_dir.c_str(), filepath, NULL);
 
-  bfile = BLO_read_from_file(abspath, BLO_READ_SKIP_NONE, NULL /* reports */);
+  bfile = BLO_read_from_file(abspath, BLO_READ_SKIP_NONE, nullptr /* reports */);
   if (bfile == nullptr) {
     ADD_FAILURE() << "Unable to load file '" << filepath << "' from test assets dir '"
                   << test_assets_dir << "'";
@@ -138,7 +144,7 @@ void BlendfileLoadingBaseTest::blendfile_free()
 
   wmWindowManager *wm = static_cast<wmWindowManager *>(bfile->main->wm.first);
   if (wm != nullptr) {
-    wm_close_and_free(NULL, wm);
+    wm_close_and_free(nullptr, wm);
   }
   BLO_blendfiledata_free(bfile);
   bfile = nullptr;

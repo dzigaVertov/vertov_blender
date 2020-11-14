@@ -48,3 +48,6 @@ Desktop.ini
 waveletNoiseTile.bin
 /data
 /salida
+/CMakeCache.txt
+/CMakeFiles/
+/compile_commands.json

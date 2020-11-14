@@ -84,9 +84,7 @@ extern struct DrawEngineType draw_engine_eevee_type;
 
 #define EEVEE_PROBE_MAX min_ii(MAX_PROBE, GPU_max_texture_layers() / 6)
 #define EEVEE_VELOCITY_TILE_SIZE 32
-#define USE_VOLUME_OPTI \
-  (GLEW_ARB_shader_image_load_store && GLEW_ARB_shading_language_420pack && \
-   !GPU_crappy_amd_driver())
+#define USE_VOLUME_OPTI (GPU_shader_image_load_store_support())
 
 #define SWAP_DOUBLE_BUFFERS() \
   { \
@@ -711,7 +709,7 @@ typedef struct EEVEE_EffectsInfo {
   int motion_blur_max;           /* Maximum distance in pixels a motion blured pixel can cover. */
   float motion_blur_near_far[2]; /* Camera near/far clip distances (positive). */
   bool cam_params_init;
-  /* TODO(fclem) Only used in render mode for now.
+  /* TODO(fclem): Only used in render mode for now.
    * This is because we are missing a per scene persistent place to hold this. */
   struct EEVEE_MotionBlurData motion_blur;
   /* Velocity Pass */
@@ -736,6 +734,7 @@ typedef struct EEVEE_EffectsInfo {
   float prev_persmat[4][4];
   /* Lookdev */
   int sphere_size;
+  eDRWLevelOfDetail sphere_lod;
   int anchor[2];
   struct DRWView *lookdev_view;
   /* Bloom */
@@ -1121,7 +1120,7 @@ struct GPUShader *EEVEE_shaders_volumes_clear_sh_get(void);
 struct GPUShader *EEVEE_shaders_volumes_scatter_sh_get(void);
 struct GPUShader *EEVEE_shaders_volumes_scatter_with_lights_sh_get(void);
 struct GPUShader *EEVEE_shaders_volumes_integration_sh_get(void);
-struct GPUShader *EEVEE_shaders_volumes_resolve_sh_get(void);
+struct GPUShader *EEVEE_shaders_volumes_resolve_sh_get(bool accum);
 struct GPUShader *EEVEE_shaders_volumes_accum_sh_get(void);
 struct GPUShader *EEVEE_shaders_ggx_lut_sh_get(void);
 struct GPUShader *EEVEE_shaders_ggx_refraction_lut_sh_get(void);
@@ -1359,6 +1358,7 @@ void EEVEE_render_update_passes(struct RenderEngine *engine,
                                 struct ViewLayer *view_layer);
 
 /** eevee_lookdev.c */
+void EEVEE_lookdev_init(EEVEE_Data *vedata);
 void EEVEE_lookdev_cache_init(EEVEE_Data *vedata,
                               EEVEE_ViewLayerData *sldata,
                               DRWPass *pass,

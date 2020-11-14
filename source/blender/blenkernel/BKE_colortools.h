@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+struct BlendDataReader;
+struct BlendWriter;
 struct ColorManagedColorspaceSettings;
 struct ColorManagedDisplaySettings;
 struct ColorManagedViewSettings;
@@ -36,8 +38,6 @@ struct Histogram;
 struct ImBuf;
 struct Scopes;
 struct rctf;
-struct BlendWriter;
-struct BlendDataReader;
 
 void BKE_curvemapping_set_defaults(
     struct CurveMapping *cumap, int tot, float minx, float miny, float maxx, float maxy);
@@ -138,6 +138,11 @@ void BKE_color_managed_view_settings_init_default(
 void BKE_color_managed_view_settings_copy(struct ColorManagedViewSettings *new_settings,
                                           const struct ColorManagedViewSettings *settings);
 void BKE_color_managed_view_settings_free(struct ColorManagedViewSettings *settings);
+
+void BKE_color_managed_view_settings_blend_write(struct BlendWriter *writer,
+                                                 struct ColorManagedViewSettings *settings);
+void BKE_color_managed_view_settings_blend_read_data(struct BlendDataReader *reader,
+                                                     struct ColorManagedViewSettings *settings);
 
 void BKE_color_managed_colorspace_settings_init(
     struct ColorManagedColorspaceSettings *colorspace_settings);

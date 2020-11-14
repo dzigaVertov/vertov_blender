@@ -137,7 +137,7 @@ static struct {
   struct GPUShader *scatter_sh;
   struct GPUShader *scatter_with_lights_sh;
   struct GPUShader *volumetric_integration_sh;
-  struct GPUShader *volumetric_resolve_sh;
+  struct GPUShader *volumetric_resolve_sh[2];
   struct GPUShader *volumetric_accum_sh;
 
   /* Shader strings */
@@ -647,7 +647,8 @@ GPUShader *EEVEE_shaders_effect_motion_blur_velocity_tiles_expand_sh_get(void)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Ambient Occlusion */
+/** \name Ambient Occlusion
+ * \{ */
 
 GPUShader *EEVEE_shaders_effect_ambient_occlusion_sh_get(void)
 {
@@ -679,7 +680,8 @@ GPUShader *EEVEE_shaders_effect_ambient_occlusion_debug_sh_get(void)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Render Passes */
+/** \name Render Passes
+ * \{ */
 
 GPUShader *EEVEE_shaders_renderpasses_post_process_sh_get(void)
 {
@@ -693,7 +695,8 @@ GPUShader *EEVEE_shaders_renderpasses_post_process_sh_get(void)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Screen Raytrace */
+/** \name Screen Raytrace
+ * \{ */
 
 struct GPUShader *EEVEE_shaders_effect_screen_raytrace_sh_get(EEVEE_SSRShaderOptions options)
 {
@@ -730,7 +733,8 @@ struct GPUShader *EEVEE_shaders_effect_screen_raytrace_sh_get(EEVEE_SSRShaderOpt
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Shadows */
+/** \name Shadows
+ * \{ */
 
 struct GPUShader *EEVEE_shaders_shadow_sh_get()
 {
@@ -753,7 +757,8 @@ struct GPUShader *EEVEE_shaders_shadow_accum_sh_get()
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Subsurface */
+/** \name Subsurface
+ * \{ */
 
 struct GPUShader *EEVEE_shaders_subsurface_first_pass_sh_get()
 {
@@ -786,7 +791,8 @@ struct GPUShader *EEVEE_shaders_subsurface_translucency_sh_get()
 
 /** \} */
 /* -------------------------------------------------------------------- */
-/** \name Volumes */
+/** \name Volumes
+ * \{ */
 
 struct GPUShader *EEVEE_shaders_volumes_clear_sh_get()
 {
@@ -848,13 +854,16 @@ struct GPUShader *EEVEE_shaders_volumes_integration_sh_get()
   return e_data.volumetric_integration_sh;
 }
 
-struct GPUShader *EEVEE_shaders_volumes_resolve_sh_get()
+struct GPUShader *EEVEE_shaders_volumes_resolve_sh_get(bool accum)
 {
-  if (e_data.volumetric_resolve_sh == NULL) {
-    e_data.volumetric_resolve_sh = DRW_shader_create_fullscreen_with_shaderlib(
-        datatoc_volumetric_resolve_frag_glsl, e_data.lib, SHADER_DEFINES);
+  const int index = accum ? 1 : 0;
+  if (e_data.volumetric_resolve_sh[index] == NULL) {
+    e_data.volumetric_resolve_sh[index] = DRW_shader_create_fullscreen_with_shaderlib(
+        datatoc_volumetric_resolve_frag_glsl,
+        e_data.lib,
+        accum ? "#define VOLUMETRICS_ACCUM\n" SHADER_DEFINES : SHADER_DEFINES);
   }
-  return e_data.volumetric_resolve_sh;
+  return e_data.volumetric_resolve_sh[index];
 }
 
 struct GPUShader *EEVEE_shaders_volumes_accum_sh_get()
@@ -1403,7 +1412,8 @@ void EEVEE_shaders_free(void)
   DRW_SHADER_FREE_SAFE(e_data.scatter_sh);
   DRW_SHADER_FREE_SAFE(e_data.scatter_with_lights_sh);
   DRW_SHADER_FREE_SAFE(e_data.volumetric_integration_sh);
-  DRW_SHADER_FREE_SAFE(e_data.volumetric_resolve_sh);
+  DRW_SHADER_FREE_SAFE(e_data.volumetric_resolve_sh[0]);
+  DRW_SHADER_FREE_SAFE(e_data.volumetric_resolve_sh[1]);
   DRW_SHADER_FREE_SAFE(e_data.volumetric_accum_sh);
   DRW_SHADER_FREE_SAFE(e_data.probe_filter_glossy_sh);
   DRW_SHADER_FREE_SAFE(e_data.probe_filter_diffuse_sh);

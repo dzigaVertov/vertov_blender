@@ -38,6 +38,7 @@
 #include "BKE_context.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
+#include "BKE_screen.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -51,6 +52,65 @@
 #include "UI_resources.h"
 
 #include "buttons_intern.h" /* own include */
+
+/* -------------------------------------------------------------------- */
+/** \name Start / Clear Search Filter Operators
+ *
+ *  \note Almost a duplicate of the file browser operator #FILE_OT_start_filter.
+ * \{ */
+
+static int buttons_start_filter_exec(bContext *C, wmOperator *UNUSED(op))
+{
+  SpaceProperties *space = CTX_wm_space_properties(C);
+  ScrArea *area = CTX_wm_area(C);
+  ARegion *region = BKE_area_find_region_type(area, RGN_TYPE_HEADER);
+
+  ARegion *region_ctx = CTX_wm_region(C);
+  CTX_wm_region_set(C, region);
+  UI_textbutton_activate_rna(C, region, space, "search_filter");
+  CTX_wm_region_set(C, region_ctx);
+
+  return OPERATOR_FINISHED;
+}
+
+void BUTTONS_OT_start_filter(struct wmOperatorType *ot)
+{
+  /* Identifiers. */
+  ot->name = "Filter";
+  ot->description = "Start entering filter text";
+  ot->idname = "BUTTONS_OT_start_filter";
+
+  /* Callbacks. */
+  ot->exec = buttons_start_filter_exec;
+  ot->poll = ED_operator_buttons_active;
+}
+
+static int buttons_clear_filter_exec(bContext *C, wmOperator *UNUSED(op))
+{
+  SpaceProperties *space = CTX_wm_space_properties(C);
+
+  space->runtime->search_string[0] = '\0';
+
+  ScrArea *area = CTX_wm_area(C);
+  ED_region_search_filter_update(area, CTX_wm_region(C));
+  ED_area_tag_redraw(area);
+
+  return OPERATOR_FINISHED;
+}
+
+void BUTTONS_OT_clear_filter(struct wmOperatorType *ot)
+{
+  /* Identifiers. */
+  ot->name = "Clear Filter";
+  ot->description = "Clear the search filter";
+  ot->idname = "BUTTONS_OT_clear_filter";
+
+  /* Callbacks. */
+  ot->exec = buttons_clear_filter_exec;
+  ot->poll = ED_operator_buttons_active;
+}
+
+/** \} */
 
 /* -------------------------------------------------------------------- */
 /** \name Pin ID Operator
@@ -186,7 +246,7 @@ static int file_browse_exec(bContext *C, wmOperator *op)
     ED_undo_push(C, undostr);
   }
 
-  /* Special annoying exception, filesel on redo panel [#26618]. */
+  /* Special annoying exception, filesel on redo panel T26618. */
   {
     wmOperator *redo_op = WM_operator_last_redo(C);
     if (redo_op) {
@@ -318,7 +378,7 @@ void BUTTONS_OT_file_browse(wmOperatorType *ot)
                                  FILE_OPENFILE,
                                  WM_FILESEL_FILEPATH | WM_FILESEL_RELPATH,
                                  FILE_DEFAULTDISPLAY,
-                                 FILE_SORT_ALPHA);
+                                 FILE_SORT_DEFAULT);
 }
 
 /* Second operator, only difference from BUTTONS_OT_file_browse is WM_FILESEL_DIRECTORY. */
@@ -345,7 +405,7 @@ void BUTTONS_OT_directory_browse(wmOperatorType *ot)
                                  FILE_OPENFILE,
                                  WM_FILESEL_DIRECTORY | WM_FILESEL_RELPATH,
                                  FILE_DEFAULTDISPLAY,
-                                 FILE_SORT_ALPHA);
+                                 FILE_SORT_DEFAULT);
 }
 
 /** \} */

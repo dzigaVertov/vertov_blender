@@ -2492,7 +2492,7 @@ static int Vector_swizzle_set(VectorObject *self, PyObject *value, void *closure
   swizzleClosure = POINTER_AS_INT(closure);
 
   /* We must first copy current vec into tvec, else some org values may be lost.
-   * See [#31760].
+   * See T31760.
    * Assuming self->size can't be higher than MAX_DIMENSIONS! */
   memcpy(tvec, self->vec, self->size * sizeof(float));
 
@@ -2504,7 +2504,7 @@ static int Vector_swizzle_set(VectorObject *self, PyObject *value, void *closure
   }
 
   /* We must copy back the whole tvec into vec, else some changes may be lost (e.g. xz...).
-   * See [#31760]. */
+   * See T31760. */
   memcpy(self->vec, tvec, self->size * sizeof(float));
   /* continue with BaseMathObject_WriteCallback at the end */
 
@@ -3042,11 +3042,15 @@ PyTypeObject vector_Type = {
     /* Methods to implement standard operations */
 
     (destructor)BaseMathObject_dealloc, /* destructor tp_dealloc; */
-    (printfunc)NULL,                    /* printfunc tp_print; */
-    NULL,                               /* getattrfunc tp_getattr; */
-    NULL,                               /* setattrfunc tp_setattr; */
-    NULL,                               /* cmpfunc tp_compare; */
-    (reprfunc)Vector_repr,              /* reprfunc tp_repr; */
+#if PY_VERSION_HEX >= 0x03080000
+    0, /* tp_vectorcall_offset */
+#else
+    (printfunc)NULL, /* printfunc tp_print */
+#endif
+    NULL,                  /* getattrfunc tp_getattr; */
+    NULL,                  /* setattrfunc tp_setattr; */
+    NULL,                  /* cmpfunc tp_compare; */
+    (reprfunc)Vector_repr, /* reprfunc tp_repr; */
 
     /* Method suites for standard classes */
 
@@ -3061,7 +3065,7 @@ PyTypeObject vector_Type = {
 #ifndef MATH_STANDALONE
     (reprfunc)Vector_str, /* reprfunc tp_str; */
 #else
-    NULL, /* reprfunc tp_str; */
+    NULL,            /* reprfunc tp_str; */
 #endif
     NULL, /* getattrofunc tp_getattro; */
     NULL, /* setattrofunc tp_setattro; */

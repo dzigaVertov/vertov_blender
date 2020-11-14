@@ -375,6 +375,7 @@ WARN_MSGID_NOT_CAPITALIZED_ALLOWED = {
     "multi-res modifier",
     "non-triangle face",
     "normal",
+    "performance impact!",
     "right",
     "the lazy dog",
     "unable to load movie clip",

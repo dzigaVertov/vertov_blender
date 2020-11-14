@@ -26,11 +26,16 @@
 
 #include "RNA_types.h"
 
+#include "BKE_context.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct ARegion;
+struct BlendDataReader;
+struct BlendLibReader;
+struct BlendWriter;
 struct Header;
 struct ID;
 struct LibraryForeachIDData;
@@ -106,7 +111,7 @@ typedef struct SpaceType {
   void (*gizmos)(void);
 
   /* return context data */
-  int (*context)(const struct bContext *C, const char *member, struct bContextDataResult *result);
+  bContextDataCallback context;
 
   /* Used when we want to replace an ID by another (or NULL). */
   void (*id_remap)(struct ScrArea *area,
@@ -181,7 +186,7 @@ typedef struct ARegionType {
   void (*cursor)(struct wmWindow *win, struct ScrArea *area, struct ARegion *region);
 
   /* return context data */
-  int (*context)(const struct bContext *C, const char *member, struct bContextDataResult *result);
+  bContextDataCallback context;
 
   /* Is called whenever the current visible View2D's region changes.
    *
@@ -273,6 +278,19 @@ typedef struct PanelType {
   ExtensionRNA rna_ext;
 } PanelType;
 
+/* #PanelType.flag */
+enum {
+  PANEL_TYPE_DEFAULT_CLOSED = (1 << 0),
+  PANEL_TYPE_NO_HEADER = (1 << 1),
+  /** Makes buttons in the header shrink/stretch to fill full layout width. */
+  PANEL_TYPE_HEADER_EXPAND = (1 << 2),
+  PANEL_TYPE_LAYOUT_VERT_BAR = (1 << 3),
+  /** This panel type represents data external to the UI. */
+  PANEL_TYPE_INSTANCED = (1 << 4),
+  /** Draw panel like a box widget. */
+  PANEL_TYPE_DRAW_BOX = (1 << 6),
+};
+
 /* uilist types */
 
 /* Draw an item in the uiList */
@@ -360,8 +378,8 @@ typedef struct Menu {
 
 /* spacetypes */
 struct SpaceType *BKE_spacetype_from_id(int spaceid);
-struct ARegionType *BKE_regiontype_from_id_or_first(struct SpaceType *st, int regionid);
-struct ARegionType *BKE_regiontype_from_id(struct SpaceType *st, int regionid);
+struct ARegionType *BKE_regiontype_from_id_or_first(const struct SpaceType *st, int regionid);
+struct ARegionType *BKE_regiontype_from_id(const struct SpaceType *st, int regionid);
 const struct ListBase *BKE_spacetypes_list(void);
 void BKE_spacetype_register(struct SpaceType *st);
 bool BKE_spacetype_exists(int spaceid);
@@ -382,7 +400,7 @@ void BKE_spacedata_callback_id_remap_set(void (*func)(
 void BKE_spacedata_id_unref(struct ScrArea *area, struct SpaceLink *sl, struct ID *id);
 
 /* area/regions */
-struct ARegion *BKE_area_region_copy(struct SpaceType *st, struct ARegion *region);
+struct ARegion *BKE_area_region_copy(const struct SpaceType *st, const struct ARegion *region);
 void BKE_area_region_free(struct SpaceType *st, struct ARegion *region);
 void BKE_area_region_panels_free(struct ListBase *panels);
 void BKE_screen_area_free(struct ScrArea *area);
@@ -446,6 +464,21 @@ void BKE_screen_remove_unused_scredges(struct bScreen *screen);
 void BKE_screen_remove_unused_scrverts(struct bScreen *screen);
 
 void BKE_screen_header_alignment_reset(struct bScreen *screen);
+
+/* .blend file I/O */
+void BKE_screen_view3d_shading_blend_write(struct BlendWriter *writer,
+                                           struct View3DShading *shading);
+void BKE_screen_view3d_shading_blend_read_data(struct BlendDataReader *reader,
+                                               struct View3DShading *shading);
+
+void BKE_screen_area_map_blend_write(struct BlendWriter *writer, struct ScrAreaMap *area_map);
+bool BKE_screen_area_map_blend_read_data(struct BlendDataReader *reader,
+                                         struct ScrAreaMap *area_map);
+void BKE_screen_view3d_do_versions_250(struct View3D *v3d, ListBase *regions);
+void BKE_screen_area_blend_read_lib(struct BlendLibReader *reader,
+                                    struct ID *parent_id,
+                                    struct ScrArea *area);
+bool BKE_screen_blend_read_data(struct BlendDataReader *reader, struct bScreen *screen);
 
 #ifdef __cplusplus
 }

@@ -33,14 +33,15 @@
 struct ARegion;
 struct ARegionType;
 struct PanelType;
+struct PointerRNA;
 struct Scene;
 struct SpaceLink;
 struct SpaceType;
+struct uiBlock;
 struct uiLayout;
 struct wmDrawBuffer;
 struct wmTimer;
 struct wmTooltipState;
-struct PointerRNA;
 
 /* TODO Doing this is quite ugly :)
  * Once the top-bar is merged bScreen should be refactored to use ScrAreaMap. */
@@ -94,7 +95,7 @@ typedef struct bScreen {
   /** If set, screen has timer handler added in window. */
   struct wmTimer *animtimer;
   /** Context callback. */
-  void *context;
+  void /*bContextDataCallback*/ *context;
 
   /** Runtime. */
   struct wmTooltipState *tool_tip;
@@ -143,6 +144,10 @@ typedef struct Panel_Runtime {
    * This avoids freeing the same pointer twice when panels are removed.
    */
   struct PointerRNA *custom_data_ptr;
+
+  /* Pointer to the panel's block. Useful when changes to panel #uiBlocks
+   * need some context from traversal of the panel "tree". */
+  struct uiBlock *block;
 } Panel_Runtime;
 
 /** The part from uiBlock that needs saved in file. */
@@ -165,9 +170,8 @@ typedef struct Panel {
   /** Panel size excluding children. */
   int blocksizex, blocksizey;
   short labelofs;
-  char _pad[4];
   short flag, runtime_flag;
-  short snap;
+  char _pad[6];
   /** Panels are aligned according to increasing sort-order. */
   int sortorder;
   /** Runtime for panel manipulation. */
@@ -177,6 +181,34 @@ typedef struct Panel {
 
   Panel_Runtime runtime;
 } Panel;
+
+/**
+ * Used for passing expansion between instanced panel data and the panels themselves.
+ * There are 16 defines because the expansion data is typically stored in a short.
+ *
+ * \note Expansion for instanced panels is stored in depth first order. For example, the value of
+ * UI_SUBPANEL_DATA_EXPAND_2 correspond to mean the expansion of the second subpanel or the first
+ * subpanel's first subpanel.
+ */
+typedef enum uiPanelDataExpansion {
+  UI_PANEL_DATA_EXPAND_ROOT = (1 << 0),
+  UI_SUBPANEL_DATA_EXPAND_1 = (1 << 1),
+  UI_SUBPANEL_DATA_EXPAND_2 = (1 << 2),
+  UI_SUBPANEL_DATA_EXPAND_3 = (1 << 3),
+  UI_SUBPANEL_DATA_EXPAND_4 = (1 << 4),
+  UI_SUBPANEL_DATA_EXPAND_5 = (1 << 5),
+  UI_SUBPANEL_DATA_EXPAND_6 = (1 << 6),
+  UI_SUBPANEL_DATA_EXPAND_7 = (1 << 7),
+  UI_SUBPANEL_DATA_EXPAND_8 = (1 << 8),
+  UI_SUBPANEL_DATA_EXPAND_9 = (1 << 9),
+  UI_SUBPANEL_DATA_EXPAND_10 = (1 << 10),
+  UI_SUBPANEL_DATA_EXPAND_11 = (1 << 11),
+  UI_SUBPANEL_DATA_EXPAND_12 = (1 << 12),
+  UI_SUBPANEL_DATA_EXPAND_13 = (1 << 13),
+  UI_SUBPANEL_DATA_EXPAND_14 = (1 << 14),
+  UI_SUBPANEL_DATA_EXPAND_15 = (1 << 15),
+  UI_SUBPANEL_DATA_EXPAND_16 = (1 << 16),
+} uiPanelDataExpansion;
 
 /**
  * Notes on Panel Categories:
@@ -289,10 +321,6 @@ typedef struct uiPreview {
   char _pad1[6];
 } uiPreview;
 
-/* These two lines with # tell makesdna this struct can be excluded.
- * Should be: #ifndef WITH_GLOBAL_AREA_WRITING */
-#
-#
 typedef struct ScrGlobalAreaData {
   /* Global areas have a non-dynamic size. That means, changing the window
    * size doesn't affect their size at all. However, they can still be
@@ -543,28 +571,6 @@ enum {
   PNL_INSTANCED_LIST_ORDER_CHANGED = (1 << 7),
 };
 
-/** #Panel.snap - for snapping to screen edges */
-#define PNL_SNAP_NONE 0
-/* #define PNL_SNAP_TOP     1 */
-/* #define PNL_SNAP_RIGHT       2 */
-#define PNL_SNAP_BOTTOM 4
-/* #define PNL_SNAP_LEFT        8 */
-
-/* #define PNL_SNAP_DIST        9.0 */
-
-/* paneltype flag */
-enum {
-  PNL_DEFAULT_CLOSED = (1 << 0),
-  PNL_NO_HEADER = (1 << 1),
-  /** Makes buttons in the header shrink/stretch to fill full layout width. */
-  PNL_LAYOUT_HEADER_EXPAND = (1 << 2),
-  PNL_LAYOUT_VERT_BAR = (1 << 3),
-  /** This panel type represents data external to the UI. */
-  PNL_INSTANCED = (1 << 4),
-  /** Draw panel like a box widget. */
-  PNL_DRAW_BOX = (1 << 6),
-};
-
 /* Fallback panel category (only for old scripts which need updating) */
 #define PNL_CATEGORY_FALLBACK "Misc"
 
@@ -687,6 +693,14 @@ enum {
   /** When the user sets the region is hidden,
    * needed for floating regions that may be hidden for other reasons. */
   RGN_FLAG_HIDDEN_BY_USER = (1 << 7),
+  /** Property search filter is active. */
+  RGN_FLAG_SEARCH_FILTER_ACTIVE = (1 << 8),
+  /**
+   * Update the expansion of the region's panels and switch contexts. Only Set
+   * temporarily when the search filter is updated and cleared at the end of the
+   * region's layout pass. so that expansion is still interactive,
+   */
+  RGN_FLAG_SEARCH_FILTER_UPDATE = (1 << 9),
 };
 
 /** #ARegion.do_draw */

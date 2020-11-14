@@ -19,7 +19,7 @@
  *
  * \name Generic Gizmos.
  *
- * This is exposes pre-defined gizmos for re-use.
+ * This is exposes predefined gizmos for re-use.
  */
 
 #pragma once
@@ -42,13 +42,13 @@ void ED_gizmotypes_blank_3d(void);
 void ED_gizmotypes_snap_3d(void);
 
 struct ARegion;
-struct bContext;
 struct Depsgraph;
 struct Object;
 struct SnapObjectContext;
-struct wmWindowManager;
 struct View3D;
+struct bContext;
 struct wmGizmo;
+struct wmWindowManager;
 
 /* -------------------------------------------------------------------- */
 /* Shape Presets

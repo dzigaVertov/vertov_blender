@@ -101,13 +101,16 @@ typedef struct OVERLAY_PassList {
   DRWPass *extra_grid_ps;
   DRWPass *gpencil_canvas_ps;
   DRWPass *facing_ps[2];
+  DRWPass *fade_ps[2];
   DRWPass *grid_ps;
   DRWPass *image_background_ps;
+  DRWPass *image_background_scene_ps;
   DRWPass *image_empties_ps;
   DRWPass *image_empties_back_ps;
   DRWPass *image_empties_blend_ps;
   DRWPass *image_empties_front_ps;
   DRWPass *image_foreground_ps;
+  DRWPass *image_foreground_scene_ps;
   DRWPass *metaball_ps[2];
   DRWPass *motion_paths_ps;
   DRWPass *outlines_prepass_ps;
@@ -119,6 +122,7 @@ typedef struct OVERLAY_PassList {
   DRWPass *particle_ps;
   DRWPass *pointcloud_ps;
   DRWPass *sculpt_mask_ps;
+  DRWPass *volume_ps;
   DRWPass *wireframe_ps;
   DRWPass *wireframe_xray_ps;
   DRWPass *xray_fade_ps;
@@ -128,7 +132,7 @@ typedef struct OVERLAY_PassList {
 typedef struct OVERLAY_ShadingData {
   /** Grid */
   float grid_axes[3], grid_distance;
-  float zplane_axes[3], grid_mesh_size;
+  float zplane_axes[3], grid_size[3];
   float grid_steps[8];
   float inv_viewport_size[2];
   float grid_line_size;
@@ -137,6 +141,7 @@ typedef struct OVERLAY_ShadingData {
   int zneg_flag;
   /** Wireframe */
   float wire_step_param;
+  float wire_opacity;
   /** Edit Curve */
   float edit_curve_normal_length;
   /** Edit Mesh */
@@ -271,6 +276,7 @@ typedef struct OVERLAY_PrivateData {
   DRWShadingGroup *edit_uv_stretching_grp;
   DRWShadingGroup *extra_grid_grp;
   DRWShadingGroup *facing_grp[2];
+  DRWShadingGroup *fade_grp[2];
   DRWShadingGroup *motion_path_lines_grp;
   DRWShadingGroup *motion_path_points_grp;
   DRWShadingGroup *outlines_grp;
@@ -286,6 +292,7 @@ typedef struct OVERLAY_PrivateData {
   DRWShadingGroup *particle_shapes_grp;
   DRWShadingGroup *pointcloud_dots_grp;
   DRWShadingGroup *sculpt_mask_grp;
+  DRWShadingGroup *volume_selection_surface_grp;
   DRWShadingGroup *wires_grp[2][2];      /* With and without coloring. */
   DRWShadingGroup *wires_all_grp[2][2];  /* With and without coloring. */
   DRWShadingGroup *wires_hair_grp[2][2]; /* With and without coloring. */
@@ -355,6 +362,7 @@ typedef struct OVERLAY_PrivateData {
     bool do_uv_shadow_overlay;
     bool do_uv_stretching_overlay;
     bool do_tiled_image_overlay;
+    bool do_tiled_image_border_overlay;
 
     bool do_faces;
     bool do_face_dots;
@@ -512,6 +520,10 @@ void OVERLAY_edit_text_cache_init(OVERLAY_Data *vedata);
 void OVERLAY_edit_text_cache_populate(OVERLAY_Data *vedata, Object *ob);
 void OVERLAY_edit_text_draw(OVERLAY_Data *vedata);
 
+void OVERLAY_volume_cache_init(OVERLAY_Data *vedata);
+void OVERLAY_volume_cache_populate(OVERLAY_Data *vedata, Object *ob);
+void OVERLAY_volume_draw(OVERLAY_Data *vedata);
+
 void OVERLAY_edit_mesh_init(OVERLAY_Data *vedata);
 void OVERLAY_edit_mesh_cache_init(OVERLAY_Data *vedata);
 void OVERLAY_edit_mesh_cache_populate(OVERLAY_Data *vedata, Object *ob);
@@ -569,6 +581,12 @@ void OVERLAY_facing_cache_populate(OVERLAY_Data *vedata, Object *ob);
 void OVERLAY_facing_draw(OVERLAY_Data *vedata);
 void OVERLAY_facing_infront_draw(OVERLAY_Data *vedata);
 
+void OVERLAY_fade_init(OVERLAY_Data *vedata);
+void OVERLAY_fade_cache_init(OVERLAY_Data *vedata);
+void OVERLAY_fade_cache_populate(OVERLAY_Data *vedata, Object *ob);
+void OVERLAY_fade_draw(OVERLAY_Data *vedata);
+void OVERLAY_fade_infront_draw(OVERLAY_Data *vedata);
+
 void OVERLAY_grid_init(OVERLAY_Data *vedata);
 void OVERLAY_grid_cache_init(OVERLAY_Data *vedata);
 void OVERLAY_grid_draw(OVERLAY_Data *vedata);
@@ -580,6 +598,7 @@ void OVERLAY_image_empty_cache_populate(OVERLAY_Data *vedata, Object *ob);
 void OVERLAY_image_cache_finish(OVERLAY_Data *vedata);
 void OVERLAY_image_draw(OVERLAY_Data *vedata);
 void OVERLAY_image_background_draw(OVERLAY_Data *vedata);
+void OVERLAY_image_scene_background_draw(OVERLAY_Data *vedata);
 void OVERLAY_image_in_front_draw(OVERLAY_Data *vedata);
 
 void OVERLAY_metaball_cache_init(OVERLAY_Data *vedata);
@@ -688,7 +707,8 @@ GPUShader *OVERLAY_shader_paint_wire(void);
 GPUShader *OVERLAY_shader_particle_dot(void);
 GPUShader *OVERLAY_shader_particle_shape(void);
 GPUShader *OVERLAY_shader_sculpt_mask(void);
-GPUShader *OVERLAY_shader_volume_velocity(bool use_needle);
+GPUShader *OVERLAY_shader_volume_velocity(bool use_needle, bool use_mac);
+GPUShader *OVERLAY_shader_volume_gridlines(bool color_with_flags, bool color_range);
 GPUShader *OVERLAY_shader_wireframe(bool custom_bias);
 GPUShader *OVERLAY_shader_wireframe_select(void);
 GPUShader *OVERLAY_shader_xray_fade(void);

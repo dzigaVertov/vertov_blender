@@ -20,6 +20,8 @@
 
 #include <Python.h>
 
+#include <string.h>
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_utildefines.h"
@@ -368,6 +370,11 @@ static const char *idp_try_read_name(PyObject *name_obj)
     if (name_size > MAX_IDPROP_NAME) {
       PyErr_SetString(PyExc_KeyError,
                       "the length of IDProperty names is limited to 63 characters");
+      return NULL;
+    }
+
+    if (strchr(name, '\"') || strchr(name, '\\') || strchr(name, '\'')) {
+      PyErr_SetString(PyExc_KeyError, "IDProperty names cannot include \", \\, or \'");
       return NULL;
     }
   }
@@ -1190,8 +1197,12 @@ PyTypeObject BPy_IDGroup_Type = {
 
     /* Methods to implement standard operations */
 
-    NULL,                       /* destructor tp_dealloc; */
-    (printfunc)NULL,            /* printfunc tp_print; */
+    NULL, /* destructor tp_dealloc; */
+#if PY_VERSION_HEX >= 0x03080000
+    0, /* tp_vectorcall_offset */
+#else
+    (printfunc)NULL, /* printfunc tp_print */
+#endif
     NULL,                       /* getattrfunc tp_getattr; */
     NULL,                       /* setattrfunc tp_setattr; */
     NULL,                       /* cmpfunc tp_compare; */
@@ -1599,8 +1610,12 @@ PyTypeObject BPy_IDArray_Type = {
 
     /* Methods to implement standard operations */
 
-    NULL,                       /* destructor tp_dealloc; */
-    (printfunc)NULL,            /* printfunc tp_print; */
+    NULL, /* destructor tp_dealloc; */
+#if PY_VERSION_HEX >= 0x03080000
+    0, /* tp_vectorcall_offset */
+#else
+    (printfunc)NULL, /* printfunc tp_print */
+#endif
     NULL,                       /* getattrfunc tp_getattr; */
     NULL,                       /* setattrfunc tp_setattr; */
     NULL,                       /* cmpfunc tp_compare; */
@@ -1716,8 +1731,12 @@ PyTypeObject BPy_IDGroup_Iter_Type = {
 
     /* Methods to implement standard operations */
 
-    NULL,                        /* destructor tp_dealloc; */
-    (printfunc)NULL,             /* printfunc tp_print; */
+    NULL, /* destructor tp_dealloc; */
+#if PY_VERSION_HEX >= 0x03080000
+    0, /* tp_vectorcall_offset */
+#else
+    (printfunc)NULL, /* printfunc tp_print */
+#endif
     NULL,                        /* getattrfunc tp_getattr; */
     NULL,                        /* setattrfunc tp_setattr; */
     NULL,                        /* cmpfunc tp_compare; */

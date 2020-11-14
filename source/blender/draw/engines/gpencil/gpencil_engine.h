@@ -62,7 +62,7 @@ typedef struct gpMaterial {
   float stroke_color[4];
   float fill_color[4];
   float fill_mix_color[4];
-  float fill_uv_transform[3][2], _pad0[2];
+  float fill_uv_transform[3][2], alignment_rot_cos, alignment_rot_sin;
   float stroke_texture_mix;
   float stroke_u_scale;
   float fill_texture_mix;
@@ -80,6 +80,8 @@ typedef struct gpMaterial {
 #define GP_STROKE_TEXTURE_STENCIL (1 << 4)
 #define GP_STROKE_TEXTURE_PREMUL (1 << 5)
 #define GP_STROKE_DOTS (1 << 6)
+#define GP_STROKE_HOLDOUT (1 << 7)
+#define GP_FILL_HOLDOUT (1 << 8)
 #define GP_FILL_TEXTURE_USE (1 << 10)
 #define GP_FILL_TEXTURE_PREMUL (1 << 11)
 #define GP_FILL_TEXTURE_CLIP (1 << 12)
@@ -194,6 +196,10 @@ typedef struct GPENCIL_tObject {
   float plane_mat[4][4];
 
   bool is_drawmode3d;
+
+  /* Use Material Holdout. */
+  bool do_mat_holdout;
+
 } GPENCIL_tObject;
 
 /* *********** LISTS *********** */

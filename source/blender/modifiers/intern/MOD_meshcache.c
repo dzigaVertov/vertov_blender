@@ -28,6 +28,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_defaults.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
@@ -57,16 +58,9 @@ static void initData(ModifierData *md)
 {
   MeshCacheModifierData *mcmd = (MeshCacheModifierData *)md;
 
-  mcmd->flag = 0;
-  mcmd->type = MOD_MESHCACHE_TYPE_MDD;
-  mcmd->interp = MOD_MESHCACHE_INTERP_LINEAR;
-  mcmd->frame_scale = 1.0f;
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(mcmd, modifier));
 
-  mcmd->factor = 1.0f;
-
-  /* (Y, Z). Blender default */
-  mcmd->forward_axis = 1;
-  mcmd->up_axis = 2;
+  MEMCPY_STRUCT_AFTER(mcmd, DNA_struct_default_get(MeshCacheModifierData), modifier);
 }
 
 static bool dependsOnTime(ModifierData *md)
@@ -177,13 +171,13 @@ static void meshcache_do(MeshCacheModifierData *mcmd,
 
     /* we could support any object type */
     if (UNLIKELY(ob->type != OB_MESH)) {
-      BKE_modifier_set_error(&mcmd->modifier, "'Integrate' only valid for Mesh objects");
+      BKE_modifier_set_error(ob, &mcmd->modifier, "'Integrate' only valid for Mesh objects");
     }
     else if (UNLIKELY(me->totvert != numVerts)) {
-      BKE_modifier_set_error(&mcmd->modifier, "'Integrate' original mesh vertex mismatch");
+      BKE_modifier_set_error(ob, &mcmd->modifier, "'Integrate' original mesh vertex mismatch");
     }
     else if (UNLIKELY(me->totpoly == 0)) {
-      BKE_modifier_set_error(&mcmd->modifier, "'Integrate' requires faces");
+      BKE_modifier_set_error(ob, &mcmd->modifier, "'Integrate' requires faces");
     }
     else {
       /* the moons align! */
@@ -222,7 +216,7 @@ static void meshcache_do(MeshCacheModifierData *mcmd,
   /* -------------------------------------------------------------------- */
   /* Apply the transformation matrix (if needed) */
   if (UNLIKELY(err_str)) {
-    BKE_modifier_set_error(&mcmd->modifier, "%s", err_str);
+    BKE_modifier_set_error(ob, &mcmd->modifier, "%s", err_str);
   }
   else if (ok) {
     bool use_matrix = false;
@@ -380,9 +374,11 @@ ModifierTypeInfo modifierType_MeshCache = {
     /* name */ "MeshCache",
     /* structName */ "MeshCacheModifierData",
     /* structSize */ sizeof(MeshCacheModifierData),
+    /* srna */ &RNA_MeshCacheModifier,
     /* type */ eModifierTypeType_OnlyDeform,
     /* flags */ eModifierTypeFlag_AcceptsCVs | eModifierTypeFlag_AcceptsVertexCosOnly |
         eModifierTypeFlag_SupportsEditmode,
+    /* icon */ ICON_MOD_MESHDEFORM, /* TODO: Use correct icon. */
 
     /* copyData */ BKE_modifier_copydata_generic,
 
@@ -402,7 +398,6 @@ ModifierTypeInfo modifierType_MeshCache = {
     /* updateDepsgraph */ NULL,
     /* dependsOnTime */ dependsOnTime,
     /* dependsOnNormals */ NULL,
-    /* foreachObjectLink */ NULL,
     /* foreachIDLink */ NULL,
     /* foreachTexLink */ NULL,
     /* freeRuntimeData */ NULL,

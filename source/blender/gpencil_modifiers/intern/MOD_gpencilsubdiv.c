@@ -22,6 +22,7 @@
  */
 
 #include <stdio.h>
+#include <string.h> /* For #MEMCPY_STRUCT_AFTER. */
 
 #include "MEM_guardedalloc.h"
 
@@ -30,6 +31,7 @@
 
 #include "BLT_translation.h"
 
+#include "DNA_defaults.h"
 #include "DNA_gpencil_modifier_types.h"
 #include "DNA_gpencil_types.h"
 #include "DNA_meshdata_types.h"
@@ -58,9 +60,10 @@
 static void initData(GpencilModifierData *md)
 {
   SubdivGpencilModifierData *gpmd = (SubdivGpencilModifierData *)md;
-  gpmd->pass_index = 0;
-  gpmd->level = 1;
-  gpmd->material = NULL;
+
+  BLI_assert(MEMCMP_STRUCT_AFTER_IS_ZERO(gpmd, modifier));
+
+  MEMCPY_STRUCT_AFTER(gpmd, DNA_struct_default_get(SubdivGpencilModifierData), modifier);
 }
 
 static void copyData(const GpencilModifierData *md, GpencilModifierData *target)
@@ -99,6 +102,11 @@ static void deformStroke(GpencilModifierData *md,
   }
 
   BKE_gpencil_stroke_subdivide(gpd, gps, mmd->level, mmd->type);
+
+  /* If the stroke is cyclic, must generate the closing geometry. */
+  if (gps->flag & GP_STROKE_CYCLIC) {
+    BKE_gpencil_stroke_close(gps);
+  }
 }
 
 static void bakeModifier(struct Main *UNUSED(bmain),
@@ -170,7 +178,6 @@ GpencilModifierTypeInfo modifierType_Gpencil_Subdiv = {
     /* isDisabled */ NULL,
     /* updateDepsgraph */ NULL,
     /* dependsOnTime */ NULL,
-    /* foreachObjectLink */ NULL,
     /* foreachIDLink */ foreachIDLink,
     /* foreachTexLink */ NULL,
     /* panelRegister */ panelRegister,

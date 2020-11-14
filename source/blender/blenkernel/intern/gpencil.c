@@ -155,6 +155,12 @@ static void greasepencil_blend_write(BlendWriter *writer, ID *id, const void *id
           BLO_write_struct_array(writer, bGPDspoint, gps->totpoints, gps->points);
           BLO_write_struct_array(writer, bGPDtriangle, gps->tot_triangles, gps->triangles);
           BKE_defvert_blend_write(writer, gps->totpoints, gps->dvert);
+          if (gps->editcurve != NULL) {
+            bGPDcurve *gpc = gps->editcurve;
+            BLO_write_struct(writer, bGPDcurve, gpc);
+            BLO_write_struct_array(
+                writer, bGPDcurve_point, gpc->tot_curve_points, gpc->curve_points);
+          }
         }
       }
     }
@@ -295,6 +301,8 @@ IDTypeInfo IDType_ID_GD = {
     .blend_read_data = greasepencil_blend_read_data,
     .blend_read_lib = greasepencil_blend_read_lib,
     .blend_read_expand = greasepencil_blend_read_expand,
+
+    .blend_read_undo_preserve = NULL,
 };
 
 /* ************************************************** */
@@ -926,6 +934,17 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src,
       gps_dst->dvert = NULL;
     }
   }
+  else {
+    gps_dst->points = NULL;
+    gps_dst->dvert = NULL;
+  }
+
+  if (dup_curve && gps_src->editcurve != NULL) {
+    gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
+  }
+  else {
+    gps_dst->editcurve = NULL;
+  }
 
   if (dup_curve && gps_src->editcurve != NULL) {
     gps_dst->editcurve = BKE_gpencil_stroke_curve_duplicate(gps_src->editcurve);
@@ -1034,20 +1053,6 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
 }
 
 /**
- * Standard API to make a copy of GP data-block, separate from copying its data.
- *
- * \param bmain: Main pointer
- * \param gpd: Grease pencil data-block
- * \return Pointer to new data-block
- */
-bGPdata *BKE_gpencil_copy(Main *bmain, const bGPdata *gpd)
-{
-  bGPdata *gpd_copy;
-  BKE_id_copy(bmain, &gpd->id, (ID **)&gpd_copy);
-  return gpd_copy;
-}
-
-/**
  * Make a copy of a given gpencil data-block.
  *
  * XXX: Should this be deprecated?
@@ -1071,7 +1076,7 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
   }
   else {
     BLI_assert(bmain != NULL);
-    BKE_id_copy(bmain, &gpd_src->id, (ID **)&gpd_dst);
+    gpd_dst = (bGPdata *)BKE_id_copy(bmain, &gpd_src->id);
   }
 
   /* Copy internal data (layers, etc.) */
@@ -2118,12 +2123,12 @@ void BKE_gpencil_material_remap(struct bGPdata *gpd,
 
 /**
  * Load a table with material conversion index for merged materials.
- * \param ob: Grease pencil object
- * \param hue_threshold: Threshold for Hue
- * \param sat_threshold: Threshold for Saturation
- * \param val_threshold: Threshold for Value
- * \param r_mat_table : return material table
- * \return True if done
+ * \param ob: Grease pencil object.
+ * \param hue_threshold: Threshold for Hue.
+ * \param sat_threshold: Threshold for Saturation.
+ * \param val_threshold: Threshold for Value.
+ * \param r_mat_table: return material table.
+ * \return True if done.
  */
 bool BKE_gpencil_merge_materials_table_get(Object *ob,
                                            const float hue_threshold,
@@ -2665,6 +2670,12 @@ void BKE_gpencil_visible_stroke_iter(ViewLayer *view_layer,
         layer_cb(gpl, act_gpf, NULL, thunk);
       }
 
+      /* If layer solo mode and Paint mode, only keyframes with data are displayed. */
+      if (GPENCIL_PAINT_MODE(gpd) && (gpl->flag & GP_LAYER_SOLO_MODE) &&
+          (act_gpf->framenum != cfra)) {
+        continue;
+      }
+
       LISTBASE_FOREACH (bGPDstroke *, gps, &act_gpf->strokes) {
         if (gps->totpoints == 0) {
           continue;
@@ -2773,7 +2784,7 @@ void BKE_gpencil_parent_matrix_get(const Depsgraph *depsgraph,
     return;
   }
 
-  if ((gpl->partype == PAROBJECT) || (gpl->partype == PARSKEL)) {
+  if (ELEM(gpl->partype, PAROBJECT, PARSKEL)) {
     mul_m4_m4m4(diff_mat, obparent_eval->obmat, gpl->inverse);
     add_v3_v3(diff_mat[3], ob_eval->obmat[3]);
     return;
@@ -2815,7 +2826,7 @@ void BKE_gpencil_update_layer_parent(const Depsgraph *depsgraph, Object *ob)
     if ((gpl->parent != NULL) && (gpl->actframe != NULL)) {
       Object *ob_parent = DEG_get_evaluated_object(depsgraph, gpl->parent);
       /* calculate new matrix */
-      if ((gpl->partype == PAROBJECT) || (gpl->partype == PARSKEL)) {
+      if (ELEM(gpl->partype, PAROBJECT, PARSKEL)) {
         copy_m4_m4(cur_mat, ob_parent->obmat);
       }
       else if (gpl->partype == PARBONE) {
@@ -2842,4 +2853,25 @@ void BKE_gpencil_update_layer_parent(const Depsgraph *depsgraph, Object *ob)
     }
   }
 }
+
+/**
+ * Find material by name prefix.
+ * \param ob: Object pointer
+ * \param name_prefix: Prefix name of the material
+ * \return  Index
+ */
+int BKE_gpencil_material_find_index_by_name_prefix(Object *ob, const char *name_prefix)
+{
+  const int name_prefix_len = strlen(name_prefix);
+  for (int i = 0; i < ob->totcol; i++) {
+    Material *ma = BKE_object_material_get(ob, i + 1);
+    if ((ma != NULL) && (ma->gp_style != NULL) &&
+        (STREQLEN(ma->id.name + 2, name_prefix, name_prefix_len))) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 /** \} */

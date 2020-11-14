@@ -20,15 +20,28 @@ set(GMP_EXTRA_ARGS -enable-cxx)
 
 if(WIN32)
   # Shared for windows because static libs will drag in a libgcc dependency.
-  set(GMP_OPTIONS --disable-static --enable-shared --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32)
+  set(GMP_OPTIONS --disable-static --enable-shared --enable-fat --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32)
 else()
   set(GMP_OPTIONS --enable-static --disable-shared )
 endif()
 
-if(APPLE AND ("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64"))
+if(APPLE)
+  if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
+    set(GMP_OPTIONS
+      ${GMP_OPTIONS}
+      --disable-assembly
+    )
+  else()
+    set(GMP_OPTIONS
+      ${GMP_OPTIONS}
+      --with-pic
+    )
+  endif()
+elseif(UNIX)
   set(GMP_OPTIONS
-     ${GMP_OPTIONS}
-     --disable-assembly
+    ${GMP_OPTIONS}
+    --with-pic
+    --enable-fat
   )
 endif()
 
