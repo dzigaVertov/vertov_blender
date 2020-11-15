@@ -118,6 +118,15 @@ typedef struct EditBone {
     void *p;
     int i;
   } temp;
+
+  
+  /*gomez poser flag */
+  int poser_flag;
+  /** handle bones for Gposer */
+  /* char _pad2[4]; */
+  struct EditBone *gp_lhandle;
+  struct EditBone *gp_rhandle;
+  
 } EditBone;
 
 
