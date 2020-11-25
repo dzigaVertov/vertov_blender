@@ -39,6 +39,7 @@
 #  include "BLI_math_mpq.hh"
 #  include "BLI_mpq2.hh"
 #  include "BLI_mpq3.hh"
+#  include "BLI_set.hh"
 #  include "BLI_span.hh"
 #  include "BLI_task.h"
 #  include "BLI_threads.h"
@@ -76,16 +77,26 @@ bool Vert::operator==(const Vert &other) const
 
 uint64_t Vert::hash() const
 {
-  return co_exact.hash();
+  uint64_t x = *reinterpret_cast<const uint64_t *>(&co.x);
+  uint64_t y = *reinterpret_cast<const uint64_t *>(&co.y);
+  uint64_t z = *reinterpret_cast<const uint64_t *>(&co.z);
+  x = (x >> 56) ^ (x >> 46) ^ x;
+  y = (y >> 55) ^ (y >> 45) ^ y;
+  z = (z >> 54) ^ (z >> 44) ^ z;
+  return x ^ y ^ z;
 }
 
 std::ostream &operator<<(std::ostream &os, const Vert *v)
 {
+  constexpr int dbg_level = 0;
   os << "v" << v->id;
   if (v->orig != NO_INDEX) {
     os << "o" << v->orig;
   }
   os << v->co;
+  if (dbg_level > 0) {
+    os << "=" << v->co_exact;
+  }
   return os;
 }
 
@@ -141,15 +152,15 @@ bool Plane::exact_populated() const
 
 uint64_t Plane::hash() const
 {
-  constexpr uint64_t h1 = 33;
-  constexpr uint64_t h2 = 37;
-  constexpr uint64_t h3 = 39;
-  uint64_t hashx = hash_mpq_class(this->norm_exact.x);
-  uint64_t hashy = hash_mpq_class(this->norm_exact.y);
-  uint64_t hashz = hash_mpq_class(this->norm_exact.z);
-  uint64_t hashd = hash_mpq_class(this->d_exact);
-  uint64_t ans = hashx ^ (hashy * h1) ^ (hashz * h1 * h2) ^ (hashd * h1 * h2 * h3);
-  return ans;
+  uint64_t x = *reinterpret_cast<const uint64_t *>(&this->norm.x);
+  uint64_t y = *reinterpret_cast<const uint64_t *>(&this->norm.y);
+  uint64_t z = *reinterpret_cast<const uint64_t *>(&this->norm.z);
+  uint64_t d = *reinterpret_cast<const uint64_t *>(&this->d);
+  x = (x >> 56) ^ (x >> 46) ^ x;
+  y = (y >> 55) ^ (y >> 45) ^ y;
+  z = (z >> 54) ^ (z >> 44) ^ z;
+  d = (d >> 53) ^ (d >> 43) ^ d;
+  return x ^ y ^ z ^ d;
 }
 
 std::ostream &operator<<(std::ostream &os, const Plane *plane)
@@ -259,10 +270,7 @@ std::ostream &operator<<(std::ostream &os, const Face *f)
 {
   os << "f" << f->id << "o" << f->orig << "[";
   for (const Vert *v : *f) {
-    os << "v" << v->id;
-    if (v->orig != NO_INDEX) {
-      os << "o" << v->orig;
-    }
+    os << v;
     if (v != f->vert[f->size() - 1]) {
       os << " ";
     }
@@ -314,7 +322,7 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
     {
     }
 
-    uint32_t hash() const
+    uint64_t hash() const
     {
       return vert->hash();
     }
@@ -325,7 +333,7 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
     }
   };
 
-  VectorSet<VSetKey> vset_; /* TODO: replace with Set */
+  Set<VSetKey> vset_;
 
   /**
    * Ownership of the Vert memory is here, so destroying this reclaims that memory.
@@ -433,8 +441,7 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
 
   const Vert *find_vert(const mpq3 &co)
   {
-    const Vert *ans;
-    Vert vtry(co, double3(), NO_INDEX, NO_INDEX);
+    Vert vtry(co, double3(co[0].get_d(), co[1].get_d(), co[2].get_d()), NO_INDEX, NO_INDEX);
     VSetKey vskey(&vtry);
     if (intersect_use_threading) {
 #  ifdef USE_SPINLOCK
@@ -443,13 +450,7 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
       BLI_mutex_lock(mutex_);
 #  endif
     }
-    int i = vset_.index_of_try(vskey);
-    if (i == -1) {
-      ans = nullptr;
-    }
-    else {
-      ans = vset_[i].vert;
-    }
+    const VSetKey *lookup = vset_.lookup_key_ptr(vskey);
     if (intersect_use_threading) {
 #  ifdef USE_SPINLOCK
       BLI_spin_unlock(&lock_);
@@ -457,7 +458,10 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
       BLI_mutex_unlock(mutex_);
 #  endif
     }
-    return ans;
+    if (!lookup) {
+      return nullptr;
+    }
+    return lookup->vert;
   }
 
   /**
@@ -492,8 +496,8 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
       BLI_mutex_lock(mutex_);
 #  endif
     }
-    int i = vset_.index_of_try(vskey);
-    if (i == -1) {
+    const VSetKey *lookup = vset_.lookup_key_ptr(vskey);
+    if (!lookup) {
       vskey.vert = new Vert(mco, dco, next_vert_id_++, orig);
       vset_.add_new(vskey);
       allocated_verts_.append(std::unique_ptr<Vert>(vskey.vert));
@@ -505,7 +509,7 @@ class IMeshArena::IMeshArenaImpl : NonCopyable, NonMovable {
        * This is the intended semantics: if the Vert already
        * exists then we are merging verts and using the first-seen
        * one as the canonical one. */
-      ans = vset_[i].vert;
+      ans = lookup->vert;
     }
     if (intersect_use_threading) {
 #  ifdef USE_SPINLOCK
@@ -650,7 +654,7 @@ void IMesh::populate_vert(int max_verts)
   vert_populated_ = true;
 }
 
-void IMesh::erase_face_positions(int f_index, Span<bool> face_pos_erase, IMeshArena *arena)
+bool IMesh::erase_face_positions(int f_index, Span<bool> face_pos_erase, IMeshArena *arena)
 {
   const Face *cur_f = this->face(f_index);
   int cur_len = cur_f->size();
@@ -661,12 +665,18 @@ void IMesh::erase_face_positions(int f_index, Span<bool> face_pos_erase, IMeshAr
     }
   }
   if (num_to_erase == 0) {
-    return;
+    return false;
   }
   int new_len = cur_len - num_to_erase;
   if (new_len < 3) {
-    /* Invalid erase. Don't do anything. */
-    return;
+    /* This erase causes removal of whole face.
+     * Because this may be called from a loop over the face array,
+     * we don't want to compress that array right here; instead will
+     * mark with null pointer and caller should call remove_null_faces().
+     * the loop is done.
+     */
+    this->face_[f_index] = NULL;
+    return true;
   }
   Array<const Vert *> new_vert(new_len);
   Array<int> new_edge_orig(new_len);
@@ -682,6 +692,31 @@ void IMesh::erase_face_positions(int f_index, Span<bool> face_pos_erase, IMeshAr
   }
   BLI_assert(new_index == new_len);
   this->face_[f_index] = arena->add_face(new_vert, cur_f->orig, new_edge_orig, new_is_intersect);
+  return false;
+}
+
+void IMesh::remove_null_faces()
+{
+  int64_t nullcount = 0;
+  for (Face *f : this->face_) {
+    if (f == nullptr) {
+      ++nullcount;
+    }
+  }
+  if (nullcount == 0) {
+    return;
+  }
+  int64_t new_size = this->face_.size() - nullcount;
+  int64_t copy_to_index = 0;
+  int64_t copy_from_index = 0;
+  Array<Face *> new_face(new_size);
+  while (copy_from_index < face_.size()) {
+    Face *f_from = face_[copy_from_index++];
+    if (f_from) {
+      new_face[copy_to_index++] = f_from;
+    }
+  }
+  this->face_ = new_face;
 }
 
 std::ostream &operator<<(std::ostream &os, const IMesh &mesh)
