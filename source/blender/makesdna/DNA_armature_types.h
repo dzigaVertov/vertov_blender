@@ -28,6 +28,10 @@
 #include "DNA_listBase.h"
 #include "DNA_curve_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct AnimData;
 
 /* this system works on different transformation space levels;
@@ -306,3 +310,7 @@ typedef enum eBone_BBoneHandleType {
 } eBone_BBoneHandleType;
 
 #define MAXBONENAME 64
+
+#ifdef __cplusplus
+}
+#endif
