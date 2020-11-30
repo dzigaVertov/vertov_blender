@@ -113,8 +113,6 @@ typedef struct Bone {
   struct Bone *gp_lhandle;
   struct Bone *gp_rhandle;
   struct BezTriple bezt;
-  
-
 } Bone;
 
 typedef struct bArmature {
@@ -155,6 +153,9 @@ typedef struct bArmature {
   unsigned int layer_used;
   /** For buttons to work, both variables in this order together. */
   unsigned int layer, layer_protected;
+
+  /** Gposer batch cache */
+  struct GposerBatchCache *gposer_batch_cache;
 } bArmature;
 
 /* armature->flag */

@@ -51,10 +51,105 @@
 
 #include "overlay_private.h"
 
+/* For Gposer */
+#include "GPU_batch.h"
+
 #define BONE_VAR(eBone, pchan, var) ((eBone) ? (eBone->var) : (pchan->var))
 #define BONE_FLAG(eBone, pchan) ((eBone) ? (eBone->flag) : (pchan->bone->flag))
 
 #define PT_DEFAULT_RAD 0.05f /* radius of the point batch. */
+
+/* gposer code batch cache definition */
+/** Opaque type hiding blender::gpu::VertBuf. */
+typedef struct GPUVertBuf GPUVertBuf;
+
+typedef struct GposerBatchCache {
+  /* Following GpencilBatchCache here  */
+  GPUVertBuf *gposer_points_vbo; 
+  GPUBatch *gposer_handles_batch;
+  GPUBatch *gposer_controls_batch;
+
+  /** Cache is dirty */
+  bool is_dirty;
+} GposerBatchCache;
+
+static void gposer_batch_cache_clear(GposerBatchCache *cache)
+{
+  if (!cache){
+    return;
+  }
+
+  GPU_BATCH_DISCARD_SAFE(cache->gposer_handles_batch);
+  GPU_BATCH_DISCARD_SAFE(cache->gposer_controls_batch);
+  GPU_VERTBUF_DISCARD_SAFE(cache->gposer_points_vbo);
+  cache->is_dirty = true;
+  
+}
+
+
+static bool gposer_batch_cache_valid(GposerBatchCache *cache){
+  return cache->is_dirty;
+}
+
+static GposerBatchCache *gposer_batch_cache_init(Object *ob){
+  bArmature *arm = ob->data;
+  GposerBatchCache *cache = arm->gposer_batch_cache;
+
+  if( !cache){
+    cache = arm->gposer_batch_cache = MEM_callocN(sizeof(*cache), __func__);
+  }
+  else {
+    memset(cache, 0, sizeof(*cache));
+  }
+
+  cache->is_dirty = true;
+  return cache;  
+}
+
+static GposerBatchCache *gposer_batch_cache_get(Object *ob)
+{
+  bArmature *arm = ob->data;
+  GposerBatchCache *cache = arm->gposer_batch_cache;
+
+  if (!gposer_batch_cache_valid(cache)){
+    gposer_batch_cache_clear(cache);
+    return gposer_batch_cache_init(ob);
+  }
+
+  return cache;
+}
+
+static void DRW_gposer_batch_cache_free(bArmature *arm){
+  gposer_batch_cache_clear(arm->gposer_batch_cache);
+  MEM_SAFE_FREE(arm->gposer_batch_cache);
+  }
+
+typedef struct gposerCtrlVert {
+  float pos[3];
+  int data;
+} gposerCtrlVert;
+
+
+static GPUVertFormat *gposer_ctrl_format(void)
+{
+  static GPUVertFormat format = {0};
+  if (format.attr_len == 0) {
+    /* initialize vertex formats */
+    GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+    GPU_vertformat_attr_add(&format, "data", GPU_COMP_U8, 1, GPU_FETCH_INT);
+  }
+  return &format;
+}
+
+
+typedef struct gposerControlsIterData {
+  gposerCtrlVert *verts;
+  int vgindex;
+} gposerControlsIterData;
+
+
+
+
 
 typedef struct ArmatureDrawContext {
   /* Current armature object */
@@ -138,7 +233,7 @@ void OVERLAY_armature_cache_init(OVERLAY_Data *vedata)
                                    ((draw_ctx->object_mode & OB_MODE_WEIGHT_PAINT) == 0) &&
                                    draw_ctx->object_pose != NULL;
   DRWState state;
-
+  
   if (pd->armature.do_pose_fade_geom) {
     state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL | DRW_STATE_BLEND_ALPHA;
     DRW_PASS_CREATE(psl->armature_bone_select_ps, state | pd->clipping_state);
@@ -1981,11 +2076,6 @@ static void draw_armature_edit(ArmatureDrawContext *ctx)
   }
 }
 
-/* Gposer helper function */
-static void draw_gposer_controls(ArmatureDrawContext *ctx){
-  printf("%s\n", ctx->ob->id.name);
-}
-
 static void draw_armature_pose(ArmatureDrawContext *ctx)
 {
   Object *ob = ctx->ob;
@@ -2052,6 +2142,7 @@ static void draw_armature_pose(ArmatureDrawContext *ctx)
     }
   }
 
+  
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next, index += 0x10000) {
     Bone *bone = pchan->bone;
     const bool bone_visible = (bone->flag & (BONE_HIDDEN_P | BONE_HIDDEN_PG)) == 0;
@@ -2088,7 +2179,7 @@ static void draw_armature_pose(ArmatureDrawContext *ctx)
         }
 
         draw_bone_relations(ctx, NULL, pchan, arm, boneflag, constflag);
-
+	
         if ((pchan->custom) && !(arm->flag & ARM_NO_CUSTOM)) {
           draw_bone_update_disp_matrix_custom(pchan);
           draw_bone_custom_shape(ctx, NULL, pchan, arm, boneflag, constflag, select_id);
@@ -2203,15 +2294,27 @@ void OVERLAY_edit_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
   draw_armature_edit(&arm_ctx);
 }
 
+
+static struct GPUBatch *DRW_cache_gposer_handles_get(Object *ob, OVERLAY_PrivateData *pd){
+  GposerBatchCache *cache = gposer_batch_cache_get(ob);
+  
+}
+
 void OVERLAY_pose_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
 {
   OVERLAY_PrivateData *pd = vedata->stl->pd;
   ArmatureDrawContext arm_ctx;
+
   armature_context_setup(&arm_ctx, pd, ob, true, false, true, NULL);
   draw_armature_pose(&arm_ctx);
-  bArmature *arm = (bArmature*)ob->data;
-  if ((arm->flag & IS_GPOSER_ARM) != 0){
-    draw_gposer_controls(&arm_ctx);
+  /* TODO add gposer draw code here */
+  if (pd->edit_gpencil_curve_handle_grp) {
+    printf("at least we have the handle group\n");
+    struct GPUBatch *geom = DRW_cache_gposer_handles_get(ob, pd);
+  }
+
+  if (pd->edit_gpencil_curve_points_grp) {
+    printf("at least we have the curve points group\n");
   }
 }
 
@@ -2257,6 +2360,7 @@ void OVERLAY_pose_cache_populate(OVERLAY_Data *vedata, Object *ob)
   OVERLAY_PrivateData *pd = vedata->stl->pd;
 
   struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
+
   if (geom) {
     if (POSE_is_driven_by_active_armature(ob)) {
       DRW_shgroup_call(pd->armature_bone_select_act_grp, geom, ob);

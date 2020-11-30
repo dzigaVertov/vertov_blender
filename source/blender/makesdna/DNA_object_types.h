@@ -52,6 +52,10 @@ struct SculptSession;
 struct SoftBody;
 struct bGPdata;
 
+/** Gposer draw data */
+struct GposerBatchCache;  
+  
+
 /* Vertex Groups - Name Info */
 typedef struct bDeformGroup {
   struct bDeformGroup *next, *prev;

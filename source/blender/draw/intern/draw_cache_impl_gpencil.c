@@ -786,6 +786,7 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
   bGPDcurve *editcurve = gps->editcurve;
   gpEditCurveIterData *iter = (gpEditCurveIterData *)thunk;
   const int v = gps->runtime.curve_start;
+
   gpEditCurveVert *vert_ptr = iter->verts + v;
   /* Hide points when the curve is unselected. Passing the control point
    * as handle produces the point shader skip it if you are not in ALL mode. */

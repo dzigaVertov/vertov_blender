@@ -116,7 +116,7 @@ typedef struct bAnimVizSettings {
   short recalc;
 
   /* Motion Path Settings ------------------- */
-  /** #eMotionPath_Types. */
+  /** #MotionPath_Types. */
   short path_type;
   /** Number of frames between points indicated on the paths. */
   short path_step;
