@@ -88,7 +88,13 @@ static void gposer_batch_cache_clear(GposerBatchCache *cache)
 
 
 static bool gposer_batch_cache_valid(GposerBatchCache *cache){
-  return cache->is_dirty;
+  if (cache == NULL){
+    return false;
+  }
+  if (cache->is_dirty){
+    return cache->is_dirty;
+  }
+  return false;
 }
 
 static GposerBatchCache *gposer_batch_cache_init(Object *ob){
@@ -148,6 +154,102 @@ typedef struct gposerControlsIterData {
 } gposerControlsIterData;
 
 
+/** Counts the number of gposer controls in the armature object.  Returns *4  */
+static void gposer_ctrls_count(Object *ob, int *total){
+  bPoseChannel *pchan;
+  int count = 0;
+  for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next){
+    if((pchan->bone->poser_flag & IS_CONTROL) != 0){
+      count++;
+    }   
+  }
+  (*total) = count * 4;  
+}
+/** Generates vertices of handles segments from the ctrl's beztriple */
+static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *iter){
+  bPoseChannel *pchan;
+  gposerCtrlVert *g_vert = iter->verts;
+  float zer[3] = {0.0,0.0,0.0};
+  for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next){
+    if ((pchan->bone->poser_flag & IS_CONTROL) == 0){
+      continue;
+    }
+
+    Bone *ctrl = pchan->bone;
+    BezTriple bezt = ctrl->bezt;
+
+    if (bezt.vec) {
+      /* First segment. */
+      copy_v3_v3(g_vert->pos, bezt.vec[0]);
+
+      g_vert->data = 0;
+      g_vert++;
+
+      copy_v3_v3(g_vert->pos, bezt.vec[1]);
+      g_vert->data = 0;
+      g_vert++;
+
+      /* Second segment */
+      copy_v3_v3(g_vert->pos, bezt.vec[1]);
+      g_vert->data = 0;
+      g_vert++;
+
+      copy_v3_v3(g_vert->pos, bezt.vec[2]);
+      g_vert->data = 0;
+      g_vert++;
+    } else {
+      /* First segment. */
+      copy_v3_v3(g_vert->pos, zer);
+      g_vert->data = 0;
+      g_vert++;
+
+      copy_v3_v3(g_vert->pos, zer);
+      g_vert->data = 0;
+      g_vert++;
+
+      /* Second segment */
+      copy_v3_v3(g_vert->pos, zer);
+      g_vert->data = 0;
+      g_vert++;
+
+      copy_v3_v3(g_vert->pos, zer);
+      g_vert->data = 0;
+      g_vert++;
+      
+    }
+  }
+}
+
+/** Generate vbos and batches  */
+static void gposer_batches_ensure(Object *ob, GposerBatchCache *cache){
+  /* Create VBO. */
+  GPUVertFormat *format = gposer_ctrl_format();
+  cache->gposer_points_vbo = GPU_vertbuf_create_with_format(format);
+
+  /* Count data. */
+  int num_tips;
+  gposer_ctrls_count(ob, &num_tips);
+
+  if (num_tips > 0){
+
+    GPU_vertbuf_data_alloc(cache->gposer_points_vbo, num_tips);
+    gposerControlsIterData iter;
+    iter.verts = (gposerCtrlVert *)GPU_vertbuf_get_data(cache->gposer_points_vbo);
+
+    /* Fill buffers with data.  */
+    gposer_copy_beztriples_values(ob, &iter);
+
+    cache->gposer_handles_batch = GPU_batch_create(
+						   GPU_PRIM_LINES, cache->gposer_points_vbo,NULL);
+    GPU_batch_vertbuf_add(cache->gposer_handles_batch, cache->gposer_points_vbo);
+
+    cache->gposer_controls_batch = GPU_batch_create(GPU_PRIM_POINTS, cache->gposer_points_vbo, NULL);
+    GPU_batch_vertbuf_add(cache->gposer_controls_batch, cache->gposer_points_vbo);
+  }
+
+  cache->is_dirty = false;
+  
+}
 
 
 
@@ -2297,6 +2399,8 @@ void OVERLAY_edit_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
 
 static struct GPUBatch *DRW_cache_gposer_handles_get(Object *ob, OVERLAY_PrivateData *pd){
   GposerBatchCache *cache = gposer_batch_cache_get(ob);
+  gposer_batches_ensure(ob, cache);
+  return cache->gposer_handles_batch;
   
 }
 
@@ -2309,13 +2413,13 @@ void OVERLAY_pose_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
   draw_armature_pose(&arm_ctx);
   /* TODO add gposer draw code here */
   if (pd->edit_gpencil_curve_handle_grp) {
-    printf("at least we have the handle group\n");
     struct GPUBatch *geom = DRW_cache_gposer_handles_get(ob, pd);
+    if (geom){
+      DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_handle_grp, geom, ob);
+    }
   }
 
-  if (pd->edit_gpencil_curve_points_grp) {
-    printf("at least we have the curve points group\n");
-  }
+
 }
 
 void OVERLAY_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
@@ -2390,6 +2494,12 @@ void OVERLAY_armature_draw(OVERLAY_Data *vedata)
 
   DRW_draw_pass(psl->armature_transp_ps[0]);
   DRW_draw_pass(psl->armature_ps[0]);
+
+  if (psl->edit_gpencil_curve_ps){
+    printf("está el pase\n");
+    DRW_draw_pass(psl->edit_gpencil_curve_ps);
+  }
+
 }
 
 void OVERLAY_armature_in_front_draw(OVERLAY_Data *vedata)
@@ -2399,6 +2509,11 @@ void OVERLAY_armature_in_front_draw(OVERLAY_Data *vedata)
   if (psl->armature_bone_select_ps == NULL || DRW_state_is_select()) {
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
+
+    if (psl->edit_gpencil_curve_ps){
+      printf("está el pase\n");
+      DRW_draw_pass(psl->edit_gpencil_curve_ps);
+    }
   }
 }
 

@@ -92,7 +92,7 @@ void BKE_gposer_calchandleNurb_intern(Bone *bone,
   const float eps = 1e-5;
 
   /* assume normal handle until we check */
-  bezt->f5 = HD_AUTOTYPE_NORMAL;
+  bezt->auto_handle_type = HD_AUTOTYPE_NORMAL;
 
   if (bezt->h1 == 0 && bezt->h2 == 0) {
     return;
@@ -164,7 +164,7 @@ void BKE_gposer_calchandleNurb_intern(Bone *bone,
           float ydiff2 = next->vec[1][1] - bezt->vec[1][1];
           if ((ydiff1 <= 0.0f && ydiff2 <= 0.0f) || (ydiff1 >= 0.0f && ydiff2 >= 0.0f)) {
             bezt->vec[0][1] = bezt->vec[1][1];
-            bezt->f5 = HD_AUTOTYPE_SPECIAL;
+            bezt->auto_handle_type = HD_AUTOTYPE_LOCKED_FINAL;
           }
           else { /* handles should not be beyond y coord of two others */
             if (ydiff1 <= 0.0f) {
@@ -191,7 +191,7 @@ void BKE_gposer_calchandleNurb_intern(Bone *bone,
           float ydiff2 = next->vec[1][1] - bezt->vec[1][1];
           if ((ydiff1 <= 0.0f && ydiff2 <= 0.0f) || (ydiff1 >= 0.0f && ydiff2 >= 0.0f)) {
             bezt->vec[2][1] = bezt->vec[1][1];
-            bezt->f5 = HD_AUTOTYPE_SPECIAL;
+            bezt->auto_handle_type = HD_AUTOTYPE_LOCKED_FINAL;
           }
           else { /* handles should not be beyond y coord of two others */
             if (ydiff1 <= 0.0f) {

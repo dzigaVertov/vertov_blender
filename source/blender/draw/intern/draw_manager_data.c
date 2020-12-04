@@ -774,6 +774,7 @@ void DRW_shgroup_call_ex(DRWShadingGroup *shgroup,
   if (G.f & G_FLAG_PICKSEL) {
     drw_command_set_select_id(shgroup, NULL, DST.select_id);
   }
+
   DRWResourceHandle handle = drw_resource_handle(shgroup, ob ? ob->obmat : obmat, ob);
   drw_command_draw(shgroup, geom, handle);
 

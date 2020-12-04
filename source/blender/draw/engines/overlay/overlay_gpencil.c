@@ -347,7 +347,6 @@ static void OVERLAY_edit_gpencil_cache_populate(OVERLAY_Data *vedata, Object *ob
   if (pd->edit_gpencil_curve_handle_grp) {
     struct GPUBatch *geom = DRW_cache_gpencil_edit_curve_handles_get(ob, pd->cfra);
     if (geom) {
-      
       DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_handle_grp, geom, ob);
     }
   }
