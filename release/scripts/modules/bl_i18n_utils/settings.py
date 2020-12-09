@@ -29,7 +29,11 @@ import json
 import os
 import sys
 
-import bpy
+try:
+    import bpy
+except ModuleNotFoundError:
+    print("Could not import bpy, some features are not available when not run from Blender.")
+    bpy = None
 
 ###############################################################################
 # MISC
@@ -97,8 +101,10 @@ LANGUAGES = (
     (47, "Slovak (Slovenčina)", "sk_SK"),
 )
 
-# Default context, in py!
-DEFAULT_CONTEXT = bpy.app.translations.contexts.default
+# Default context, in py (keep in sync with `BLT_translation.h`)!
+if bpy is not None:
+    assert(bpy.app.translations.contexts.default == "*")
+DEFAULT_CONTEXT = "*"
 
 # Name of language file used by Blender to generate translations' menu.
 LANGUAGES_FILE = "languages"
