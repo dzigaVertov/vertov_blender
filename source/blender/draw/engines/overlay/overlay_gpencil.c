@@ -159,8 +159,6 @@ void OVERLAY_edit_gpencil_cache_init(OVERLAY_Data *vedata)
     DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
     DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
     DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
-    printf("show handles gpencil: %d\n",pd->edit_curve.show_handles );
-    printf("handle_display gpencil: %d\n", pd->edit_curve.handle_display);
     DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
 
     sh = OVERLAY_shader_edit_curve_point();
@@ -349,6 +347,7 @@ static void OVERLAY_edit_gpencil_cache_populate(OVERLAY_Data *vedata, Object *ob
   if (pd->edit_gpencil_curve_handle_grp) {
     struct GPUBatch *geom = DRW_cache_gpencil_edit_curve_handles_get(ob, pd->cfra);
     if (geom) {
+      
       DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_handle_grp, geom, ob);
     }
   }

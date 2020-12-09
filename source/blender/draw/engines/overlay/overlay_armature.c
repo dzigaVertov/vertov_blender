@@ -92,9 +92,9 @@ static bool gposer_batch_cache_valid(GposerBatchCache *cache){
     return false;
   }
   if (cache->is_dirty){
-    return cache->is_dirty;
+    return false;
   }
-  return false;
+  return true;
 }
 
 static GposerBatchCache *gposer_batch_cache_init(Object *ob){
@@ -182,11 +182,11 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
       /* First segment. */
       copy_v3_v3(g_vert->pos, bezt.vec[0]);
 
-      g_vert->data = 0;
+      g_vert->data = 238;
       g_vert++;
 
       copy_v3_v3(g_vert->pos, bezt.vec[1]);
-      g_vert->data = 0;
+      g_vert->data = 230;
       g_vert++;
 
       /* Second segment */
@@ -195,7 +195,7 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
       g_vert++;
 
       copy_v3_v3(g_vert->pos, bezt.vec[2]);
-      g_vert->data = 0;
+      g_vert->data = 238;
       g_vert++;
     } else {
       /* First segment. */
@@ -505,25 +505,39 @@ void OVERLAY_armature_cache_init(OVERLAY_Data *vedata)
     }
   }
   /* adding gposer overlay code*/
-  struct GPUShader *sh;
-  DRWShadingGroup *grp = NULL;
+  if (draw_ctx->object_mode == OB_MODE_POSE){
+    Object *ob = draw_ctx->obact;
+    bArmature *arm = ob->data;
+    if (arm->flag & IS_GPOSER_ARM){
+      View3D *v3d = draw_ctx->v3d;
+      pd->edit_curve.show_handles = v3d->overlay.handle_display != CURVE_HANDLE_NONE;
+      pd->edit_curve.handle_display = v3d->overlay.handle_display;
+      struct GPUShader *sh;
+      DRWShadingGroup *grp = NULL;
+    
 
-  state = DRW_STATE_WRITE_COLOR;
-  DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state);
-  sh = OVERLAY_shader_edit_curve_handle();
-  pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
-  DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
-  DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
-  DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
-  printf("show handles: %d\n",pd->edit_curve.show_handles );
-  printf("handle_display: %d\n", pd->edit_curve.handle_display);
-  DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
+      state = DRW_STATE_WRITE_COLOR;
+      DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state);
+      sh = OVERLAY_shader_edit_curve_handle();
+      pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
+      DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
+      DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
+      DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
+      
+      sh = OVERLAY_shader_edit_curve_point();
+      pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
+      DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
+      DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
+  }
+
+  };
+
+
   
-  sh = OVERLAY_shader_edit_curve_point();
-  pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
-  DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
-  DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
-  DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
+
+  
 }
 
 /* -------------------------------------------------------------------- */
@@ -2441,20 +2455,23 @@ void OVERLAY_pose_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
 
   armature_context_setup(&arm_ctx, pd, ob, true, false, true, NULL);
   draw_armature_pose(&arm_ctx);
-  /* TODO add gposer draw code here */
+  /* Gposer batch */
   if (pd->edit_gpencil_curve_handle_grp) {
     struct GPUBatch *geom = DRW_cache_gposer_handles_get(ob, pd);
     if (geom){
       DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_handle_grp, geom, ob);
     }
   }
-
+  
   if (pd->edit_gpencil_curve_points_grp) {
     struct GPUBatch *geom = DRW_cache_gposer_points_get(ob, pd);
     if (geom){
       DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_points_grp, geom, ob);
     }
   }
+
+  
+  
 
 
 }
@@ -2572,5 +2589,8 @@ void OVERLAY_pose_draw(OVERLAY_Data *vedata)
 
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
+    if (psl->edit_gpencil_curve_ps){
+      DRW_draw_pass(psl->edit_gpencil_curve_ps);
+    }
   }
 }
