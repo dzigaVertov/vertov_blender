@@ -424,22 +424,22 @@ void OVERLAY_armature_cache_init(OVERLAY_Data *vedata)
       DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
 
       /* adding gposer overlay code*/
-      state = DRW_STATE_WRITE_COLOR;
-      DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state);
-      sh = OVERLAY_shader_edit_curve_handle();
-      pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
-      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
-      DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
-      DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
-      printf("show handles: %d\n",pd->edit_curve.show_handles );
-      printf("handle_display: %d\n", pd->edit_curve.handle_display);
-      DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
+      /* state = DRW_STATE_WRITE_COLOR; */
+      /* DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state); */
+      /* sh = OVERLAY_shader_edit_curve_handle(); */
+      /* pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps); */
+      /* DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo); */
+      /* DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles); */
+      /* DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display); */
+      /* printf("show handles: %d\n",pd->edit_curve.show_handles ); */
+      /* printf("handle_display: %d\n", pd->edit_curve.handle_display); */
+      /* DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA); */
 
-      sh = OVERLAY_shader_edit_curve_point();
-      pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
-      DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
-      DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
-      DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
+      /* sh = OVERLAY_shader_edit_curve_point(); */
+      /* pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps); */
+      /* DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo); */
+      /* DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles); */
+      /* DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display); */
     }
     {
       format = formats->instance_extra;
@@ -504,6 +504,26 @@ void OVERLAY_armature_cache_init(OVERLAY_Data *vedata)
       cb->wire = BUF_LINE(grp, format);
     }
   }
+  /* adding gposer overlay code*/
+  struct GPUShader *sh;
+  DRWShadingGroup *grp = NULL;
+
+  state = DRW_STATE_WRITE_COLOR;
+  DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state);
+  sh = OVERLAY_shader_edit_curve_handle();
+  pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+  DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
+  DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
+  DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
+  printf("show handles: %d\n",pd->edit_curve.show_handles );
+  printf("handle_display: %d\n", pd->edit_curve.handle_display);
+  DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
+  
+  sh = OVERLAY_shader_edit_curve_point();
+  pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+  DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
+  DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
+  DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
 }
 
 /* -------------------------------------------------------------------- */
