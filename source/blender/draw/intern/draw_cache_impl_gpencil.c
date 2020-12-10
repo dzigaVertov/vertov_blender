@@ -804,12 +804,10 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
     /* First segment. */
     copy_v3_v3(vert_ptr->pos, bezt->vec[0]);
     vert_ptr->data = vflag[0];
-    printf("vflag[0]: %d\n",vflag[0] );
     vert_ptr++;
 
     copy_v3_v3(vert_ptr->pos, bezt->vec[1]);
     vert_ptr->data = vflag[1];
-    printf("vflag[1]: %d\n",vflag[1] );
     vert_ptr++;
 
     /* Second segment. */
@@ -819,7 +817,6 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
 
     copy_v3_v3(vert_ptr->pos, bezt->vec[2]);
     vert_ptr->data = vflag[2];
-    printf("vflag[2]: %d\n",vflag[2] );
     vert_ptr++;
   }
 }
