@@ -48,6 +48,7 @@
 
 #include "draw_common.h"
 #include "draw_manager_text.h"
+#include "draw_cache_impl.h"
 
 #include "overlay_private.h"
 
@@ -165,6 +166,28 @@ static void gposer_ctrls_count(Object *ob, int *total){
   }
   (*total) = count * 4;  
 }
+
+#define BEZIER_HANDLE 1 << 3
+#define COLOR_SHIFT 5
+/** Just copying gpencil_beztriple_vflag_get here */
+static char gposer_beztriple_vflag_get(char flag,
+                                        char col_id,
+                                        bool handle_point,
+                                        const bool handle_selected)
+{
+  char vflag = 0;
+  SET_FLAG_FROM_TEST(vflag, (flag & SELECT), VFLAG_VERT_SELECTED);
+  SET_FLAG_FROM_TEST(vflag, handle_point, BEZIER_HANDLE);
+  SET_FLAG_FROM_TEST(vflag, handle_selected, VFLAG_VERT_SELECTED_BEZT_HANDLE);
+  /* Reuse flag of Freestyle to indicate is GPencil data. */
+  vflag |= VFLAG_EDGE_FREESTYLE;
+
+  /* Handle color id. */
+  vflag |= col_id << COLOR_SHIFT;
+  return vflag;
+}
+
+
 /** Generates vertices of handles segments from the ctrl's beztriple */
 static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *iter){
   bPoseChannel *pchan;
@@ -179,23 +202,30 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
     BezTriple bezt = ctrl->bezt;
 
     if (bezt.vec) {
+      const bool handle_selected = BEZT_ISSEL_ANY(&bezt);
+      const char vflag[3] = {
+	gposer_beztriple_vflag_get(bezt.f1, bezt.h1, true, handle_selected),
+        gposer_beztriple_vflag_get(bezt.f2, bezt.h1, false, handle_selected),
+        gposer_beztriple_vflag_get(bezt.f3, bezt.h2, true, handle_selected),
+      };
+      
       /* First segment. */
       copy_v3_v3(g_vert->pos, bezt.vec[0]);
 
-      g_vert->data = 238;
+      g_vert->data = vflag[0];
       g_vert++;
 
       copy_v3_v3(g_vert->pos, bezt.vec[1]);
-      g_vert->data = 230;
+      g_vert->data = vflag[1];
       g_vert++;
 
       /* Second segment */
       copy_v3_v3(g_vert->pos, bezt.vec[1]);
-      g_vert->data = 0;
+      g_vert->data = vflag[1];
       g_vert++;
 
       copy_v3_v3(g_vert->pos, bezt.vec[2]);
-      g_vert->data = 238;
+      g_vert->data = vflag[2];
       g_vert++;
     } else {
       /* First segment. */
@@ -499,16 +529,16 @@ void OVERLAY_armature_cache_init(OVERLAY_Data *vedata)
     
 
       state = DRW_STATE_WRITE_COLOR;
-      DRW_PASS_CREATE(psl->edit_gpencil_curve_ps, state |pd->clipping_state);
+      DRW_PASS_CREATE(psl->gposer_ctrls_ps, state |pd->clipping_state);
       sh = OVERLAY_shader_edit_curve_handle();
-      pd->edit_gpencil_curve_handle_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+      pd->gposer_handle_grp = grp = DRW_shgroup_create(sh, psl->gposer_ctrls_ps);
       DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
       DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
       DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
       DRW_shgroup_state_enable(grp, DRW_STATE_BLEND_ALPHA);
       
       sh = OVERLAY_shader_edit_curve_point();
-      pd->edit_gpencil_curve_points_grp = grp = DRW_shgroup_create(sh, psl->edit_gpencil_curve_ps);
+      pd->gposer_points_grp = grp = DRW_shgroup_create(sh, psl->gposer_ctrls_ps);
       DRW_shgroup_uniform_block(grp, "globalsBlock", G_draw.block_ubo);
       DRW_shgroup_uniform_bool_copy(grp, "showCurveHandles", pd->edit_curve.show_handles);
       DRW_shgroup_uniform_int_copy(grp, "curveHandleDisplay", pd->edit_curve.handle_display);
@@ -2438,17 +2468,17 @@ void OVERLAY_pose_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
   armature_context_setup(&arm_ctx, pd, ob, true, false, true, NULL);
   draw_armature_pose(&arm_ctx);
   /* Gposer batch */
-  if (pd->edit_gpencil_curve_handle_grp) {
+  if (pd->gposer_handle_grp) {
     struct GPUBatch *geom = DRW_cache_gposer_handles_get(ob, pd);
     if (geom){
-      DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_handle_grp, geom, ob);
+      DRW_shgroup_call_no_cull(pd->gposer_handle_grp, geom, ob);
     }
   }
   
-  if (pd->edit_gpencil_curve_points_grp) {
+  if (pd->gposer_points_grp) {
     struct GPUBatch *geom = DRW_cache_gposer_points_get(ob, pd);
     if (geom){
-      DRW_shgroup_call_no_cull(pd->edit_gpencil_curve_points_grp, geom, ob);
+      DRW_shgroup_call_no_cull(pd->gposer_points_grp, geom, ob);
     }
   }
 
@@ -2531,10 +2561,9 @@ void OVERLAY_armature_draw(OVERLAY_Data *vedata)
   DRW_draw_pass(psl->armature_transp_ps[0]);
   DRW_draw_pass(psl->armature_ps[0]);
 
-  if (psl->edit_gpencil_curve_ps){
-    DRW_draw_pass(psl->edit_gpencil_curve_ps);
-   
-  }
+  /* if (psl->gposer_ctrls_ps){ */
+  /*   DRW_draw_pass(psl->gposer_ctrls_ps);   */
+  /* } */
 
 }
 
@@ -2546,9 +2575,9 @@ void OVERLAY_armature_in_front_draw(OVERLAY_Data *vedata)
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
 
-    if (psl->edit_gpencil_curve_ps){
-      DRW_draw_pass(psl->edit_gpencil_curve_ps);
-    }
+    /* if (psl->gposer_ctrls_ps){ */
+    /*   DRW_draw_pass(psl->gposer_ctrls_ps); */
+    /* } */
   }
 }
 
@@ -2571,8 +2600,8 @@ void OVERLAY_pose_draw(OVERLAY_Data *vedata)
 
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
-    if (psl->edit_gpencil_curve_ps){
-      DRW_draw_pass(psl->edit_gpencil_curve_ps);
+    if (psl->gposer_ctrls_ps){
+      DRW_draw_pass(psl->gposer_ctrls_ps);
     }
   }
 }
