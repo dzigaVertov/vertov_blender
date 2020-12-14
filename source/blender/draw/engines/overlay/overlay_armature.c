@@ -2561,9 +2561,9 @@ void OVERLAY_armature_draw(OVERLAY_Data *vedata)
   DRW_draw_pass(psl->armature_transp_ps[0]);
   DRW_draw_pass(psl->armature_ps[0]);
 
-  /* if (psl->gposer_ctrls_ps){ */
-  /*   DRW_draw_pass(psl->gposer_ctrls_ps);   */
-  /* } */
+  if (psl->gposer_ctrls_ps){
+    DRW_draw_pass(psl->gposer_ctrls_ps);
+  }
 
 }
 
@@ -2575,9 +2575,9 @@ void OVERLAY_armature_in_front_draw(OVERLAY_Data *vedata)
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
 
-    /* if (psl->gposer_ctrls_ps){ */
-    /*   DRW_draw_pass(psl->gposer_ctrls_ps); */
-    /* } */
+    if (psl->gposer_ctrls_ps){
+      DRW_draw_pass(psl->gposer_ctrls_ps);
+    }
   }
 }
 

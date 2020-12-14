@@ -2530,6 +2530,7 @@ void BKE_pchan_rebuild_gposer_handles(bPose *pose, bPoseChannel *pchan)
 {
   pchan->gp_lhandle = pose_channel_find_bone(pose, pchan->bone->gp_lhandle);
   pchan->gp_rhandle = pose_channel_find_bone(pose, pchan->bone->gp_rhandle);
+  printf("%s called\n",__func__ );
 }
 
 
@@ -2746,6 +2747,35 @@ void BKE_pose_where_is_bone(struct Depsgraph *depsgraph,
   copy_v3_v3(pchan->pose_head, pchan->pose_mat[3]);
   /* calculate tail */
   BKE_pose_where_is_bone_tail(pchan);
+
+  /* Gposer updating control bone beztriple not sure if this is a good place to do it */
+  bArmature *arm = ob->data;
+  if (arm->flag & IS_GPOSER_ARM){
+    if (pchan->bone->poser_flag & IS_CONTROL){
+      float *pos_control = pchan->bone->bezt.vec[1];
+      float pchan_mtx_in[4][4];
+      float pchan_mtx_out[4][4];
+      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+      copy_v3_v3(pos_control, pchan_mtx_out[3]);
+    } else if (pchan->bone->poser_flag & IS_HANDLE_LEFT){
+      float *pos_lhandle = pchan->bone->gp_lhandle->bezt.vec[0];
+      float pchan_mtx_in[4][4];
+      float pchan_mtx_out[4][4];
+      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+      copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
+    } else if (pchan->bone->poser_flag & IS_HANDLE_RIGHT){
+      float *pos_rhandle = pchan->bone->gp_lhandle->bezt.vec[2];
+      float pchan_mtx_in[4][4];
+      float pchan_mtx_out[4][4];
+      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+      copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
+    }
+    
+  }
+  
 }
 
 /* This only reads anim data from channels, and writes to channels */

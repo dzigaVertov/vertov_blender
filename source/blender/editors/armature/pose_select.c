@@ -77,10 +77,27 @@ static void pose_do_bone_select(bPoseChannel *pchan, const int select_mode)
     case SEL_SELECT:
       if (!(pchan->bone->flag & BONE_UNSELECTABLE)) {
         pchan->bone->flag |= BONE_SELECTED;
+	/* Gposer handle selection update */
+	if (pchan->bone->poser_flag & IS_HANDLE_LEFT){
+	  BEZT_SEL_IDX(&(pchan->bone->gp_lhandle->bezt), 0);
+	} else if (pchan->bone->poser_flag & IS_HANDLE_RIGHT){
+	  BEZT_SEL_IDX(&(pchan->bone->gp_lhandle->bezt), 2);
+	} else if (pchan->bone->poser_flag & IS_CONTROL){
+	  BEZT_SEL_IDX(&(pchan->bone->bezt), 1);
+	}	
       }
       break;
     case SEL_DESELECT:
       pchan->bone->flag &= ~(BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
+      	/* Gposer handle selection update */
+	if (pchan->bone->poser_flag & IS_HANDLE_LEFT){
+	  BEZT_DESEL_IDX(&(pchan->bone->gp_lhandle->bezt), 0);
+	} else if (pchan->bone->poser_flag & IS_HANDLE_RIGHT){
+	  BEZT_DESEL_IDX(&(pchan->bone->gp_lhandle->bezt), 2);
+	} else if (pchan->bone->poser_flag & IS_CONTROL){
+	  BEZT_DESEL_IDX(&(pchan->bone->bezt), 1);
+	}	
+
       break;
     case SEL_INVERT:
       if (pchan->bone->flag & BONE_SELECTED) {
@@ -224,6 +241,15 @@ bool ED_armature_pose_select_pick_with_buffer(ViewLayer *view_layer,
         }
       }
     }
+
+    /* Gposer handle selection update */
+    if (nearBone->poser_flag & IS_HANDLE_LEFT){
+      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+    } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+    } else if (nearBone->poser_flag & IS_CONTROL){
+      BEZT_SEL_IDX(&(nearBone->bezt), 1);
+    }	
 
     if (ob_act) {
       /* in weightpaint we select the associated vertex group too */
