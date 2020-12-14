@@ -1508,13 +1508,9 @@ void recalcData_pose(TransInfo *t)
 	  bPoseChannel *pchan = td->extra;
 	  Bone *bone = pchan->bone;
 
-	  if (bone->poser_flag & IS_CONTROL){
-	    /* printf("bone: %s\t lhandle: %s\n", bone->name, bone->gp_lhandle->name ); */
-	    
+	  if (bone->poser_flag & IS_CONTROL & IS_HANDLE_LEFT & IS_HANDLE_RIGHT){
 	    BKE_gposer_update_bone_beztriple(bone, pchan, pose);
-
 	    BKE_gposer_calchandleNurb_intern(bone, 1, false, false, 0);
-
 	    /* Copiar los valores al hueso */
 	    BKE_gposer_update_handle(bone, pchan, pose);
 	  }
