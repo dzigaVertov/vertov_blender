@@ -2340,9 +2340,9 @@ void GPENCIL_OT_fit_curve(wmOperatorType *ot)
 	      10000);
   
   /* Save the grease pencil object */
-  RNA_def_pointer_runtime(ot->srna,
-			  "ob_gp",&RNA_Object, "grease pencil object",
-			  "The grease pencil object to be fitted");
+  /* RNA_def_pointer_runtime(ot->srna, */
+/* 			  "ob_gp",&RNA_Object, "grease pencil object", */
+/* 			  "The grease pencil object to be fitted"); */
   
 }
 
