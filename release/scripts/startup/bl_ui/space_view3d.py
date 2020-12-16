@@ -6503,6 +6503,10 @@ class VIEW3D_PT_overlay_pose(Panel):
             sub = row.row()
             sub.active = display_all and overlay.show_xray_bone
             sub.prop(overlay, "xray_alpha_bone", text="Fade Geometry")
+            if context.active_object.data.is_gposer_armature:
+                row = col.row()
+                row.prop(overlay, "display_handle", text="Gposer Handles")
+                
         else:
             row = col.row()
             row.prop(overlay, "show_xray_bone")
