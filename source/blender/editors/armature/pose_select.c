@@ -83,7 +83,11 @@ static void pose_do_bone_select(bPoseChannel *pchan, const int select_mode)
 	} else if (pchan->bone->poser_flag & IS_HANDLE_RIGHT){
 	  BEZT_SEL_IDX(&(pchan->bone->gp_lhandle->bezt), 2);
 	} else if (pchan->bone->poser_flag & IS_CONTROL){
+	  BEZT_SEL_IDX(&(pchan->bone->bezt), 0);
 	  BEZT_SEL_IDX(&(pchan->bone->bezt), 1);
+	  BEZT_SEL_IDX(&(pchan->bone->bezt), 2);
+	  pchan->bone->gp_lhandle->flag |= BONE_SELECTED;
+	  pchan->bone->gp_rhandle->flag |= BONE_SELECTED;
 	}	
       }
       break;
@@ -216,16 +220,55 @@ bool ED_armature_pose_select_pick_with_buffer(ViewLayer *view_layer,
       }
       nearBone->flag |= (BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
       arm->act_bone = nearBone;
+
+      /* Gposer handle selection update */
+      if ((arm->flag & IS_GPOSER_ARM) && (nearBone->flag & BONE_SELECTED)){
+	if (nearBone->poser_flag & IS_HANDLE_LEFT){
+	  BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+	} else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+	  BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+	} else if (nearBone->poser_flag & IS_CONTROL){
+	  BEZT_SEL_ALL(&(nearBone->bezt));
+	  nearBone->gp_lhandle->flag |= BONE_SELECTED;
+	  nearBone->gp_rhandle->flag |= BONE_SELECTED;
+	}	
+      }
     }
     else {
       if (extend) {
         nearBone->flag |= (BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
         arm->act_bone = nearBone;
+	
+	/* Gposer handle selection update */
+	if ((arm->flag & IS_GPOSER_ARM) && (nearBone->flag & BONE_SELECTED)){
+	  if (nearBone->poser_flag & IS_HANDLE_LEFT){
+	    BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+	  } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+	    BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+	  } else if (nearBone->poser_flag & IS_CONTROL){
+	    BEZT_SEL_ALL(&(nearBone->bezt));
+	    nearBone->gp_lhandle->flag |= BONE_SELECTED;
+	    nearBone->gp_rhandle->flag |= BONE_SELECTED;
+	  }	
+	}
       }
       else if (deselect) {
         nearBone->flag &= ~(BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
+
+	/* Gposer handle selection update */
+	if ((arm->flag & IS_GPOSER_ARM) && (nearBone->flag & BONE_SELECTED)){
+	  if (nearBone->poser_flag & IS_HANDLE_LEFT){
+	    BEZT_DESEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+	  } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+	    BEZT_DESEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+	  } else if (nearBone->poser_flag & IS_CONTROL){
+	    BEZT_DESEL_ALL(&(nearBone->bezt));
+	  }	
+
+	}
       }
       else if (toggle) {
+
         if (nearBone->flag & BONE_SELECTED) {
           /* if not active, we make it active */
           if (nearBone != arm->act_bone) {
@@ -233,24 +276,42 @@ bool ED_armature_pose_select_pick_with_buffer(ViewLayer *view_layer,
           }
           else {
             nearBone->flag &= ~(BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
+
+	    /* Gposer handle selection update */
+	    if ((arm->flag & IS_GPOSER_ARM) ){
+	      if (nearBone->poser_flag & IS_HANDLE_LEFT){
+		BEZT_DESEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+	      } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+		BEZT_DESEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+	      } else if (nearBone->poser_flag & IS_CONTROL){
+		BEZT_DESEL_ALL(&(nearBone->bezt));
+		nearBone->gp_lhandle->flag &= ~BONE_SELECTED;
+		nearBone->gp_rhandle->flag &= ~BONE_SELECTED;
+	      }	
+
+	    }
           }
         }
         else {
           nearBone->flag |= (BONE_SELECTED | BONE_TIPSEL | BONE_ROOTSEL);
           arm->act_bone = nearBone;
+
+	  /* Gposer handle selection update */
+	  if ((arm->flag & IS_GPOSER_ARM)){
+	    if (nearBone->poser_flag & IS_HANDLE_LEFT){
+	      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
+	    } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
+	      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
+	    } else if (nearBone->poser_flag & IS_CONTROL){
+	      BEZT_SEL_ALL(&(nearBone->bezt));
+	      nearBone->gp_lhandle->flag |= BONE_SELECTED;
+	      nearBone->gp_rhandle->flag |= BONE_SELECTED;
+	    }	
+	  }
         }
       }
     }
-
-    /* Gposer handle selection update */
-    if (nearBone->poser_flag & IS_HANDLE_LEFT){
-      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 0);
-    } else if (nearBone->poser_flag & IS_HANDLE_RIGHT){
-      BEZT_SEL_IDX(&(nearBone->gp_lhandle->bezt), 2);
-    } else if (nearBone->poser_flag & IS_CONTROL){
-      BEZT_SEL_IDX(&(nearBone->bezt), 1);
-    }	
-
+    
     if (ob_act) {
       /* in weightpaint we select the associated vertex group too */
       if (ob_act->mode & OB_MODE_ALL_WEIGHT_PAINT) {
