@@ -2530,7 +2530,6 @@ void BKE_pchan_rebuild_gposer_handles(bPose *pose, bPoseChannel *pchan)
 {
   pchan->gp_lhandle = pose_channel_find_bone(pose, pchan->bone->gp_lhandle);
   pchan->gp_rhandle = pose_channel_find_bone(pose, pchan->bone->gp_rhandle);
-  printf("%s called\n",__func__ );
 }
 
 
@@ -2582,6 +2581,7 @@ void BKE_pose_rebuild(Main *bmain, Object *ob, bArmature *arm, const bool do_id_
   for (pchan = pose->chanbase.first; pchan; pchan = pchan->next) {
     /* Find the custom B-Bone handles. */
     BKE_pchan_rebuild_bbone_handles(pose, pchan);
+    BKE_pchan_rebuild_gposer_handles(pose, pchan);
     /* Re-validate that we are still using a valid pchan form custom transform. */
     /* Note that we could store pointers of freed pchan in a GSet to speed this up, however this is
      * supposed to be a rarely used feature, so for now assuming that always building that GSet

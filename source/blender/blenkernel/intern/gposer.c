@@ -312,27 +312,29 @@ void BKE_gposer_update_bone_beztriple(struct Bone *bone,
 				      struct bPose *pose)
 {
   if (bone->poser_flag & IS_CONTROL){
-      float *pos_control = bone->bezt.vec[1];
-      float pchan_mtx_in[4][4];
-      float pchan_mtx_out[4][4];
-      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
-      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
-      copy_v3_v3(pos_control, pchan_mtx_out[3]);
-    } else if (bone->poser_flag & IS_HANDLE_LEFT){
-      float *pos_lhandle = bone->gp_lhandle->bezt.vec[0];
-      float pchan_mtx_in[4][4];
-      float pchan_mtx_out[4][4];
-      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
-      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
-      copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
-    } else if (bone->poser_flag & IS_HANDLE_RIGHT){
-      float *pos_rhandle = bone->gp_lhandle->bezt.vec[2];
-      float pchan_mtx_in[4][4];
-      float pchan_mtx_out[4][4];
-      BKE_pchan_to_mat4(pchan, pchan_mtx_in);
-      BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
-      copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
-    }    
+    BezTriple *bezt = &(bone->bezt);
+    float *pos_control = bezt->vec[1];
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pos_control, pchan_mtx_out[3]);
+  }
+  else if (bone->poser_flag & IS_HANDLE_LEFT){
+    float *pos_lhandle = bone->gp_lhandle->bezt.vec[0];
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pos_lhandle, pchan_mtx_out[3]);
+  } else if (bone->poser_flag & IS_HANDLE_RIGHT){
+    float *pos_rhandle = bone->gp_lhandle->bezt.vec[2];
+    float pchan_mtx_in[4][4];
+    float pchan_mtx_out[4][4];
+    BKE_pchan_to_mat4(pchan, pchan_mtx_in);
+    BKE_armature_mat_bone_to_pose(pchan, pchan_mtx_in, pchan_mtx_out);
+    copy_v3_v3(pos_rhandle, pchan_mtx_out[3]);
+  }    
 }
 
 
@@ -350,7 +352,8 @@ void BKE_gposer_update_bones_beztriples(struct bContext *C)
   
   CTX_DATA_BEGIN(C, bPoseChannel *, pchan, visible_pose_bones){
     Bone *bone = pchan->bone;
-    if ((bone->poser_flag & IS_CONTROL & IS_HANDLE_LEFT & IS_HANDLE_RIGHT) != 0){
+
+    if ((bone->poser_flag & (IS_CONTROL | IS_HANDLE_LEFT | IS_HANDLE_RIGHT)) != 0){
       BKE_gposer_update_bone_beztriple(bone, pchan, pose);      
     }
   }

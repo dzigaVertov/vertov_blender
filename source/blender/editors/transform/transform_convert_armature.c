@@ -1496,27 +1496,41 @@ void recalcData_pose(TransInfo *t)
     }
 
     /* Gposer update of the handles */
-    FOREACH_TRANS_DATA_CONTAINER(t, tc){
+    FOREACH_TRANS_DATA_CONTAINER(t, tc) {
       Object *ob = tc->poseobj;
       bPose *pose = ob->pose;
       bArmature* arm = (bArmature *)ob->data;
       
-      if ((arm->flag & IS_GPOSER_ARM) != 0){
+      if ((arm->flag & IS_GPOSER_ARM) != 0) {
 	TransData *td = tc->data;
 
-	for (int i = tc->data_len; i--;td++){
+	for (int i = tc->data_len; i--;td++) {
 	  bPoseChannel *pchan = td->extra;
 	  Bone *bone = pchan->bone;
 
-	  if (bone->poser_flag & IS_CONTROL & IS_HANDLE_LEFT & IS_HANDLE_RIGHT){
+	  if (bone->poser_flag & (IS_CONTROL | IS_HANDLE_LEFT | IS_HANDLE_RIGHT)){
 	    BKE_gposer_update_bone_beztriple(bone, pchan, pose);
-	    BKE_gposer_calchandleNurb_intern(bone, 1, false, false, 0);
-	    /* Copiar los valores al hueso */
-	    BKE_gposer_update_handle(bone, pchan, pose);
 	  }
 	}
+	/* Copiar los valores al hueso */
+	for (int i = tc->data_len; i--;td++){
+	  bPoseChannel *pchan = tc->data->extra;
+	  Bone *bone = pchan->bone;
 
-      }
+	  /* TODO: Gposer optimize this so we don't calculate three times every beztriple */
+	  if (bone->poser_flag & (IS_CONTROL | IS_HANDLE_LEFT | IS_HANDLE_RIGHT)){
+	    Bone *ctrl_bone;
+	    if (bone->poser_flag & IS_CONTROL){
+	      ctrl_bone = bone;
+	    } else {
+	      ctrl_bone = bone->gp_lhandle;
+	    }
+	      BKE_gposer_calchandleNurb_intern(ctrl_bone, 1, false, false, 0);
+	      BKE_gposer_update_handle(ctrl_bone, pchan, pose);
+	    }
+	    
+	  }
+	}
       DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
     }
     

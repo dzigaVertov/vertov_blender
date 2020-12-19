@@ -1950,6 +1950,10 @@ void BKE_pose_blend_read_data(BlendDataReader *reader, bPose *pose)
     BLO_read_data_address(reader, &pchan->bbone_prev);
     BLO_read_data_address(reader, &pchan->bbone_next);
 
+    /* gposer handle and control read */
+    BLO_read_data_address(reader, &pchan->gp_lhandle);
+    BLO_read_data_address(reader, &pchan->gp_rhandle);
+
     BKE_constraint_blend_read_data(reader, &pchan->constraints);
 
     BLO_read_data_address(reader, &pchan->prop);
