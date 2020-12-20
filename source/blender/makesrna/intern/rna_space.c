@@ -53,7 +53,7 @@
 
 #include "rna_internal.h"
 
-#include "SEQ_sequencer.h"
+#include "SEQ_relations.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -2223,7 +2223,7 @@ static void rna_SequenceEditor_update_cache(Main *UNUSED(bmain),
                                             Scene *scene,
                                             PointerRNA *UNUSED(ptr))
 {
-  BKE_sequencer_cache_cleanup(scene);
+  SEQ_cache_cleanup(scene);
 }
 
 static void rna_Sequencer_view_type_update(Main *UNUSED(bmain),
@@ -2602,7 +2602,7 @@ static int rna_FileBrowser_FileSelectEntry_name_length(PointerRNA *ptr)
 static int rna_FileBrowser_FileSelectEntry_preview_icon_id_get(PointerRNA *ptr)
 {
   const FileDirEntry *entry = ptr->data;
-  return entry->preview_icon_id;
+  return ED_file_icon(entry);
 }
 
 static PointerRNA rna_FileBrowser_FileSelectEntry_asset_data_get(PointerRNA *ptr)
