@@ -26,12 +26,16 @@
 
 namespace blender::nodes {
 
+using bke::BooleanReadAttribute;
+using bke::BooleanWriteAttribute;
 using bke::Color4fReadAttribute;
 using bke::Color4fWriteAttribute;
 using bke::Float3ReadAttribute;
 using bke::Float3WriteAttribute;
 using bke::FloatReadAttribute;
 using bke::FloatWriteAttribute;
+using bke::Int32ReadAttribute;
+using bke::Int32WriteAttribute;
 using bke::PersistentDataHandleMap;
 using bke::PersistentObjectHandle;
 using bke::ReadAttribute;
@@ -40,6 +44,7 @@ using bke::WriteAttribute;
 using bke::WriteAttributePtr;
 using fn::CPPType;
 using fn::GMutablePointer;
+using fn::GPointer;
 using fn::GValueMap;
 
 class GeoNodeExecParams {
@@ -117,6 +122,16 @@ class GeoNodeExecParams {
     this->check_set_output(identifier, *value.type());
 #endif
     output_values_.add_new_by_move(identifier, value);
+  }
+
+  void set_output_by_copy(StringRef identifier, GPointer value)
+  {
+#ifdef DEBUG
+    BLI_assert(value.type() != nullptr);
+    BLI_assert(value.get() != nullptr);
+    this->check_set_output(identifier, *value.type());
+#endif
+    output_values_.add_new_by_copy(identifier, value);
   }
 
   /**
