@@ -40,6 +40,7 @@
 
 #include "DNA_defaults.h"
 
+
 #include "DNA_armature_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_listBase.h"
@@ -150,6 +151,13 @@ static void armature_free_data(struct ID *id)
 
   BKE_armature_bone_hash_free(armature);
   BKE_armature_bonelist_free(&armature->bonebase, false);
+
+  /* Gposer free cache */
+  if (armature->flag & IS_GPOSER_ARM){
+    /* printf("called: %s\n", __func__); */
+      BKE_gposer_batch_cache_free_cb(armature);
+  }
+
 
   /* free editmode data */
   if (armature->edbo) {

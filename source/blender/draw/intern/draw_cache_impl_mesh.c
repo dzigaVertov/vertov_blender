@@ -695,6 +695,7 @@ void DRW_mesh_batch_cache_dirty_tag(Mesh *me, eMeshBatchDirtyMode mode)
 static void mesh_batch_cache_clear(Mesh *me)
 {
   MeshBatchCache *cache = me->runtime.batch_cache;
+
   if (!cache) {
     return;
   }

@@ -478,6 +478,15 @@ void BKE_armature_deform_coords_with_editmesh(const struct Object *ob_arm,
 
 /** \} */
 
+  /***************************************************************************/
+  /*                          Gposer batch callbacks                         */
+  /***************************************************************************/
+extern void (*BKE_gposer_batch_cache_dirty_tag_cb)(struct bArmature *arm);
+extern void (*BKE_gposer_batch_cache_free_cb)(struct bArmature *arm);
+
+void BKE_gposer_batch_cache_dirty_tag(struct bArmature *arm);
+  
+  
 /* gposer.c handle calculation functions */
 void BKE_gposer_calchandleNurb_intern(struct Bone *bone,
 				      const eBezTriple_Flag__Alias handle_sel_flag,

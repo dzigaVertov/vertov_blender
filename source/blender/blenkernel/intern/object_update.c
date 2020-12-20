@@ -25,6 +25,8 @@
 #include "DNA_collection_types.h"
 #include "DNA_constraint_types.h"
 #include "DNA_gpencil_types.h"
+/* For Gposer */
+#include "DNA_armature_types.h"
 #include "DNA_key_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
@@ -375,6 +377,11 @@ void BKE_object_batch_cache_dirty_tag(Object *ob)
     case OB_VOLUME:
       BKE_volume_batch_cache_dirty_tag(ob->data, BKE_VOLUME_BATCH_DIRTY_ALL);
       break;
+  case OB_ARMATURE:
+    if (((bArmature*)(ob->data))->flag & IS_GPOSER_ARM){
+      BKE_gposer_batch_cache_dirty_tag(ob->data);
+    }
+    break;
   }
 }
 

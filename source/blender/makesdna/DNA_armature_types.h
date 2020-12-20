@@ -183,6 +183,7 @@ typedef enum eArmature_Flag {
   /** other objects are used for visualizing various states (hack for efficient updates) */
   ARM_HAS_VIZ_DEPS = (1 << 14),
   IS_GPOSER_ARM = (1 << 15),
+  GPOSER_DATA_IS_DIRTY = (1 << 16),
 } eArmature_Flag;
 
 /* armature->drawtype */

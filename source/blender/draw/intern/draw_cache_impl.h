@@ -40,6 +40,7 @@ struct MetaBall;
 struct PointCloud;
 struct Volume;
 struct bGPdata;
+struct bArmature;
 
 #include "BKE_mesh_types.h"
 
@@ -65,6 +66,9 @@ void DRW_particle_batch_cache_free(struct ParticleSystem *psys);
 
 void DRW_gpencil_batch_cache_dirty_tag(struct bGPdata *gpd);
 void DRW_gpencil_batch_cache_free(struct bGPdata *gpd);
+
+void DRW_gposer_batch_cache_free(struct bArmature *arm);
+void DRW_gposer_batch_cache_dirty_tag(struct bArmature *arm);
 
 void DRW_hair_batch_cache_dirty_tag(struct Hair *hair, int mode);
 void DRW_hair_batch_cache_validate(struct Hair *hair);

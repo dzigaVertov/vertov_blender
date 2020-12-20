@@ -29,6 +29,8 @@
 #include "DNA_pointcloud_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_volume_types.h"
+/* For Gposer */
+#include "DNA_armature_types.h"
 
 #include "UI_resources.h"
 
@@ -37,6 +39,8 @@
 
 #include "BKE_object.h"
 #include "BKE_paint.h"
+/* For Gposer */
+#include "BKE_armature.h"
 
 #include "GPU_batch.h"
 #include "GPU_batch_utils.h"
@@ -3558,6 +3562,12 @@ void drw_batch_cache_validate(Object *ob)
     case OB_VOLUME:
       DRW_volume_batch_cache_validate((Volume *)ob->data);
       break;
+  case OB_ARMATURE:
+    /* if (((bArmature*)ob->data)->flag & IS_GPOSER_ARM){ */
+    /*   DRW_gposer_batch_cache_dirty_tag((bArmature*)ob->data); */
+    /*   DRW_gposer_batch_cache_get((bArmature *)ob->data); */
+
+    /* } */
     default:
       break;
   }
@@ -3618,6 +3628,10 @@ void DRW_batch_cache_free_old(Object *ob, int ctime)
         DRW_mesh_batch_cache_free_old(mesh_eval, ctime);
       }
       break;
+  /* case OB_ARMATURE: */
+  /*   if (((bArmature*)ob->data)->flag & IS_GPOSER_ARM){ */
+  /*     DRW_gposer_batch_cache_free(((bArmature*)ob->data)); */
+  /*   } */
     /* TODO all cases */
     default:
       break;

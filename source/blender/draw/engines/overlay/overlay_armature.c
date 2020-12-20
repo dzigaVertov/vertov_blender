@@ -79,7 +79,6 @@ static void gposer_batch_cache_clear(GposerBatchCache *cache)
   if (!cache){
     return;
   }
-
   GPU_BATCH_DISCARD_SAFE(cache->gposer_handles_batch);
   GPU_BATCH_DISCARD_SAFE(cache->gposer_controls_batch);
   GPU_VERTBUF_DISCARD_SAFE(cache->gposer_points_vbo);
@@ -88,14 +87,21 @@ static void gposer_batch_cache_clear(GposerBatchCache *cache)
 }
 
 
-static bool gposer_batch_cache_valid(GposerBatchCache *cache){
+static bool gposer_batch_cache_valid(GposerBatchCache *cache, bArmature *arm)
+{
+  bool valid = true;
+  
   if (cache == NULL){
     return false;
   }
-  if (cache->is_dirty){
-    return false;
+
+  if ( arm->flag & GPOSER_DATA_IS_DIRTY ) {
+    valid = false;
   }
-  return true;
+  else if (cache->is_dirty){
+    valid = false;
+  }
+  return valid;
 }
 
 static GposerBatchCache *gposer_batch_cache_init(Object *ob){
@@ -118,7 +124,7 @@ static GposerBatchCache *gposer_batch_cache_get(Object *ob)
   bArmature *arm = ob->data;
   GposerBatchCache *cache = arm->gposer_batch_cache;
 
-  if (!gposer_batch_cache_valid(cache)){
+  if (!gposer_batch_cache_valid(cache, arm)){
     gposer_batch_cache_clear(cache);
     return gposer_batch_cache_init(ob);
   }
@@ -126,9 +132,15 @@ static GposerBatchCache *gposer_batch_cache_get(Object *ob)
   return cache;
 }
 
-static void DRW_gposer_batch_cache_free(bArmature *arm){
+void DRW_gposer_batch_cache_dirty_tag(bArmature *arm){
+  arm->flag |= GPOSER_DATA_IS_DIRTY;
+}
+
+void DRW_gposer_batch_cache_free(bArmature *arm){
   gposer_batch_cache_clear(arm->gposer_batch_cache);
+  /* printf("called: %s\n", __func__); */
   MEM_SAFE_FREE(arm->gposer_batch_cache);
+  arm->flag |= GPOSER_DATA_IS_DIRTY;
   }
 
 typedef struct gposerCtrlVert {
@@ -252,32 +264,37 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
 
 /** Generate vbos and batches  */
 static void gposer_batches_ensure(Object *ob, GposerBatchCache *cache){
-  /* Create VBO. */
-  GPUVertFormat *format = gposer_ctrl_format();
-  cache->gposer_points_vbo = GPU_vertbuf_create_with_format(format);
+  bArmature *arm = ob->data;
+  if (cache->gposer_points_vbo == NULL){
+    /* Create VBO. */
+    GPUVertFormat *format = gposer_ctrl_format();
+    cache->gposer_points_vbo = GPU_vertbuf_create_with_format(format);
 
-  /* Count data. */
-  int num_tips;
-  gposer_ctrls_count(ob, &num_tips);
+    /* Count data. */
+    int num_tips;
+    gposer_ctrls_count(ob, &num_tips);
 
-  if (num_tips > 0){
+    if (num_tips > 0){
+      
+      GPU_vertbuf_data_alloc(cache->gposer_points_vbo, num_tips);
+      gposerControlsIterData iter;
+      iter.verts = (gposerCtrlVert *)GPU_vertbuf_get_data(cache->gposer_points_vbo);
 
-    GPU_vertbuf_data_alloc(cache->gposer_points_vbo, num_tips);
-    gposerControlsIterData iter;
-    iter.verts = (gposerCtrlVert *)GPU_vertbuf_get_data(cache->gposer_points_vbo);
+      /* Fill buffers with data.  */
+      gposer_copy_beztriples_values(ob, &iter);
 
-    /* Fill buffers with data.  */
-    gposer_copy_beztriples_values(ob, &iter);
-
-    cache->gposer_handles_batch = GPU_batch_create(
+      cache->gposer_handles_batch = GPU_batch_create(
 						   GPU_PRIM_LINES, cache->gposer_points_vbo,NULL);
-    GPU_batch_vertbuf_add(cache->gposer_handles_batch, cache->gposer_points_vbo);
+      GPU_batch_vertbuf_add(cache->gposer_handles_batch, cache->gposer_points_vbo);
 
-    cache->gposer_controls_batch = GPU_batch_create(GPU_PRIM_POINTS, cache->gposer_points_vbo, NULL);
-    GPU_batch_vertbuf_add(cache->gposer_controls_batch, cache->gposer_points_vbo);
+      cache->gposer_controls_batch = GPU_batch_create(GPU_PRIM_POINTS, cache->gposer_points_vbo, NULL);
+      GPU_batch_vertbuf_add(cache->gposer_controls_batch, cache->gposer_points_vbo);
+    }
+
+    arm->flag &= ~GPOSER_DATA_IS_DIRTY;
+    cache->is_dirty = false;
   }
-
-  cache->is_dirty = false;
+  
   
 }
 
@@ -2481,11 +2498,6 @@ void OVERLAY_pose_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
       DRW_shgroup_call_no_cull(pd->gposer_points_grp, geom, ob);
     }
   }
-
-  
-  
-
-
 }
 
 void OVERLAY_armature_cache_populate(OVERLAY_Data *vedata, Object *ob)
@@ -2552,6 +2564,7 @@ void OVERLAY_armature_cache_finish(OVERLAY_Data *vedata)
       BLI_ghash_free(pd->armature_call_buffers[i].custom_shapes_transp_ghash, NULL, NULL);
     }
   }
+
 }
 
 void OVERLAY_armature_draw(OVERLAY_Data *vedata)

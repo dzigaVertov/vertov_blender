@@ -52,6 +52,8 @@
 #include "BKE_pointcache.h"
 #include "BKE_pointcloud.h"
 #include "BKE_volume.h"
+/* For gposer */
+#include "BKE_armature.h"
 
 #include "DNA_camera_types.h"
 #include "DNA_mesh_types.h"
@@ -2945,6 +2947,11 @@ void DRW_engines_register(void)
 
     BKE_gpencil_batch_cache_dirty_tag_cb = DRW_gpencil_batch_cache_dirty_tag;
     BKE_gpencil_batch_cache_free_cb = DRW_gpencil_batch_cache_free;
+
+    /* Gposer cache free callbacks */
+    BKE_gposer_batch_cache_dirty_tag_cb = DRW_gposer_batch_cache_dirty_tag;
+    BKE_gposer_batch_cache_free_cb = DRW_gposer_batch_cache_free;
+
 
     BKE_hair_batch_cache_dirty_tag_cb = DRW_hair_batch_cache_dirty_tag;
     BKE_hair_batch_cache_free_cb = DRW_hair_batch_cache_free;

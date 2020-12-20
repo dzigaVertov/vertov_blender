@@ -65,6 +65,21 @@
 
 #include "CLG_log.h"
 
+/*****************************************************************************/
+/*                                Draw Engine                                */
+/*****************************************************************************/
+void (*BKE_gposer_batch_cache_dirty_tag_cb)(bArmature *arm) = NULL;
+void (*BKE_gposer_batch_cache_free_cb)(bArmature *arm) = NULL;
+
+void BKE_gposer_batch_cache_dirty_tag(bArmature *arm){
+  if (arm) {
+    DEG_id_tag_update(&arm->id, ID_RECALC_GEOMETRY);
+    BKE_gposer_batch_cache_dirty_tag_cb(arm);
+  }
+  
+}
+
+
 /* ****************** Gposer Handle calculation ************** */
 /* Duplicated code from curve.c  */
 /* TODO: Figure out what to do with this */
