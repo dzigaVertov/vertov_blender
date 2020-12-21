@@ -4202,6 +4202,7 @@ void BKE_nurb_bezt_handle_test(BezTriple *bezt,
     flag &= ~SEL_F2;
   }
 
+
   /* check for partial selection */
   if (!ELEM(flag, 0, SEL_F1 | SEL_F2 | SEL_F3)) {
     if (ELEM(bezt->h1, HD_AUTO, HD_AUTO_ANIM)) {

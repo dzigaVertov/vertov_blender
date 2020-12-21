@@ -795,6 +795,7 @@ static void gpencil_edit_curve_stroke_iter_cb(bGPDlayer *gpl,
   for (int i = 0; i < editcurve->tot_curve_points; i++) {
     BezTriple *bezt = &editcurve->curve_points[i].bezt;
     const bool handle_selected = BEZT_ISSEL_ANY(bezt);
+
     const char vflag[3] = {
         gpencil_beztriple_vflag_get(bezt->f1, bezt->h1, true, handle_selected),
         gpencil_beztriple_vflag_get(bezt->f2, bezt->h1, hide, handle_selected),
@@ -842,6 +843,7 @@ static void gpencil_edit_batches_ensure(Object *ob, GpencilBatchCache *cache, in
     if (!BLI_findlink(&ob->defbase, iter.vgindex)) {
       iter.vgindex = -1;
     }
+    
 
     /* Create VBO. */
     GPUVertFormat *format = gpencil_edit_stroke_format();

@@ -55,7 +55,8 @@
 
 static void rna_lhandle_type_set(PointerRNA *ptr, int value){
   Bone *bone = (Bone *)ptr->data;
-  bone->bezt.h1 = value; 
+  /* TODO: Fix this.  Gposer hack */
+  bone->bezt.h1 = value == 0 ? 6 : value; 
 }
 
 static int rna_lhandle_type_get(PointerRNA *ptr){
@@ -65,7 +66,8 @@ static int rna_lhandle_type_get(PointerRNA *ptr){
 
 static void rna_rhandle_type_set(PointerRNA *ptr, int value){
   Bone *bone = (Bone *)ptr->data;
-  bone->bezt.h2 = value; 
+  /* TODO: Fix this.  Gposer hack */
+  bone->bezt.h2 = value == 0 ? 6 : value; 
 }
 
 static int rna_rhandle_type_get(PointerRNA *ptr){

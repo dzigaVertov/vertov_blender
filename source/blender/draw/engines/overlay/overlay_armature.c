@@ -138,7 +138,6 @@ void DRW_gposer_batch_cache_dirty_tag(bArmature *arm){
 
 void DRW_gposer_batch_cache_free(bArmature *arm){
   gposer_batch_cache_clear(arm->gposer_batch_cache);
-  /* printf("called: %s\n", __func__); */
   MEM_SAFE_FREE(arm->gposer_batch_cache);
   arm->flag |= GPOSER_DATA_IS_DIRTY;
   }
@@ -216,11 +215,11 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
     if (bezt.vec) {
       const bool handle_selected = BEZT_ISSEL_ANY(&bezt);
       const char vflag[3] = {
-	gposer_beztriple_vflag_get(bezt.f1, bezt.h1, true, handle_selected),
+      	gposer_beztriple_vflag_get(bezt.f1, bezt.h1, true, handle_selected),
         gposer_beztriple_vflag_get(bezt.f2, bezt.h1, false, handle_selected),
         gposer_beztriple_vflag_get(bezt.f3, bezt.h2, true, handle_selected),
       };
-      
+
       /* First segment. */
       copy_v3_v3(g_vert->pos, bezt.vec[0]);
 
@@ -239,26 +238,7 @@ static void gposer_copy_beztriples_values(Object *ob, gposerControlsIterData *it
       copy_v3_v3(g_vert->pos, bezt.vec[2]);
       g_vert->data = vflag[2];
       g_vert++;
-    } else {
-      /* First segment. */
-      copy_v3_v3(g_vert->pos, zer);
-      g_vert->data = 0;
-      g_vert++;
-
-      copy_v3_v3(g_vert->pos, zer);
-      g_vert->data = 0;
-      g_vert++;
-
-      /* Second segment */
-      copy_v3_v3(g_vert->pos, zer);
-      g_vert->data = 0;
-      g_vert++;
-
-      copy_v3_v3(g_vert->pos, zer);
-      g_vert->data = 0;
-      g_vert++;
-      
-    }
+    } 
   }
 }
 
@@ -2588,10 +2568,11 @@ void OVERLAY_armature_in_front_draw(OVERLAY_Data *vedata)
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
 
-    if (psl->gposer_ctrls_ps){
+    
+  }
+  if (psl->gposer_ctrls_ps){
       DRW_draw_pass(psl->gposer_ctrls_ps);
     }
-  }
 }
 
 void OVERLAY_pose_draw(OVERLAY_Data *vedata)
@@ -2604,6 +2585,7 @@ void OVERLAY_pose_draw(OVERLAY_Data *vedata)
       GPU_framebuffer_bind(fbl->overlay_default_fb);
     }
 
+    
     DRW_draw_pass(psl->armature_bone_select_ps);
 
     if (DRW_state_is_fbo()) {
@@ -2613,8 +2595,9 @@ void OVERLAY_pose_draw(OVERLAY_Data *vedata)
 
     DRW_draw_pass(psl->armature_transp_ps[1]);
     DRW_draw_pass(psl->armature_ps[1]);
-    if (psl->gposer_ctrls_ps){
+
+  }
+  if (psl->gposer_ctrls_ps){
       DRW_draw_pass(psl->gposer_ctrls_ps);
     }
-  }
 }
