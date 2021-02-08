@@ -205,6 +205,7 @@ option(WITH_OPENVDB_BLOSC "Enable blosc compression for OpenVDB, only enable if 
 option(WITH_OPENVDB_3_ABI_COMPATIBLE "Assume OpenVDB library has been compiled with version 3 ABI compatibility" OFF)
 mark_as_advanced(WITH_OPENVDB_3_ABI_COMPATIBLE)
 option(WITH_NANOVDB       "Enable usage of NanoVDB data structure for rendering on the GPU" ON)
+option(WITH_HARU          "Enable features relying on Libharu (Grease pencil PDF export)" ON)
 
 # GHOST Windowing Library Options
 option(WITH_GHOST_DEBUG   "Enable debugging output for the GHOST library" OFF)
@@ -610,6 +611,11 @@ if(WIN32)
 
 endif()
 
+if(UNIX)
+  # See WITH_WINDOWS_SCCACHE for Windows.
+  option(WITH_COMPILER_CCACHE "Use ccache to improve rebuild times (Works with Ninja, Makefiles and Xcode)" OFF)
+endif()
+
 # The following only works with the Ninja generator in CMake >= 3.0.
 if("${CMAKE_GENERATOR}" MATCHES "Ninja")
   option(WITH_NINJA_POOL_JOBS
@@ -724,6 +730,9 @@ set_and_warn_dependency(WITH_OPENVDB WITH_NANOVDB       OFF)
 
 # OpenVDB uses 'half' type from OpenEXR & fails to link without OpenEXR enabled.
 set_and_warn_dependency(WITH_IMAGE_OPENEXR WITH_OPENVDB OFF)
+
+# Haru needs `TIFFFaxBlackCodes` & `TIFFFaxWhiteCodes` symbols from TIFF.
+set_and_warn_dependency(WITH_IMAGE_TIFF WITH_HARU       OFF)
 
 # auto enable openimageio for cycles
 if(WITH_CYCLES)
@@ -1428,6 +1437,7 @@ if(CMAKE_COMPILER_IS_GNUCC)
   # gcc 4.2 gives annoying warnings on every file with this
   if(NOT "${CMAKE_C_COMPILER_VERSION}" VERSION_LESS "4.3")
     ADD_CHECK_C_COMPILER_FLAG(C_WARNINGS C_WARN_UNINITIALIZED -Wuninitialized)
+    ADD_CHECK_CXX_COMPILER_FLAG(CXX_WARNINGS CXX_WARN_UNINITIALIZED -Wuninitialized)
   endif()
 
   # versions before gcc4.6 give many BLI_math warnings
@@ -1492,11 +1502,13 @@ if(CMAKE_COMPILER_IS_GNUCC)
   ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_FORMAT                  -Wno-format)
   ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_SWITCH                  -Wno-switch)
   ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_VARIABLE         -Wno-unused-variable)
+  ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_UNUSED_VARIABLE         -Wno-uninitialized)
 
   ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_CLASS_MEMACCESS     -Wno-class-memaccess)
   ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_COMMENT             -Wno-comment)
   ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_TYPEDEFS     -Wno-unused-local-typedefs)
   ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_VARIABLE     -Wno-unused-variable)
+  ADD_CHECK_CXX_COMPILER_FLAG(CXX_REMOVE_STRICT_FLAGS CXX_WARN_NO_UNUSED_VARIABLE     -Wno-uninitialized)
 
   if(CMAKE_COMPILER_IS_GNUCC AND (NOT "${CMAKE_C_COMPILER_VERSION}" VERSION_LESS "7.0"))
     ADD_CHECK_C_COMPILER_FLAG(C_REMOVE_STRICT_FLAGS C_WARN_NO_IMPLICIT_FALLTHROUGH    -Wno-implicit-fallthrough)
@@ -1758,8 +1770,20 @@ if(WITH_BLENDER)
   # internal and external library information first, for test linking
   add_subdirectory(source)
 elseif(WITH_CYCLES_STANDALONE)
+  add_subdirectory(intern/glew-mx)
+  add_subdirectory(intern/guardedalloc)
+  add_subdirectory(intern/libc_compat)
+  add_subdirectory(intern/numaapi)
+  add_subdirectory(intern/sky)
+
   add_subdirectory(intern/cycles)
   add_subdirectory(extern/clew)
+  if(WITH_CYCLES_LOGGING)
+    if(NOT WITH_SYSTEM_GFLAGS)
+      add_subdirectory(extern/gflags)
+    endif()
+    add_subdirectory(extern/glog)
+  endif()
   if(WITH_CUDA_DYNLOAD)
     add_subdirectory(extern/cuew)
   endif()
@@ -1769,15 +1793,14 @@ elseif(WITH_CYCLES_STANDALONE)
 endif()
 
 #-----------------------------------------------------------------------------
+# Testing
+add_subdirectory(tests)
+
+#-----------------------------------------------------------------------------
 # Blender Application
 if(WITH_BLENDER)
   add_subdirectory(source/creator)
 endif()
-
-
-#-----------------------------------------------------------------------------
-# Testing
-add_subdirectory(tests)
 
 
 #-----------------------------------------------------------------------------
@@ -1833,6 +1856,7 @@ if(FIRST_RUN)
   info_cfg_option(WITH_FFTW3)
   info_cfg_option(WITH_FREESTYLE)
   info_cfg_option(WITH_GMP)
+  info_cfg_option(WITH_HARU)
   info_cfg_option(WITH_IK_ITASC)
   info_cfg_option(WITH_IK_SOLVER)
   info_cfg_option(WITH_INPUT_NDOF)
@@ -1841,6 +1865,8 @@ if(FIRST_RUN)
   info_cfg_option(WITH_OPENCOLORIO)
   info_cfg_option(WITH_OPENIMAGEDENOISE)
   info_cfg_option(WITH_OPENVDB)
+  info_cfg_option(WITH_POTRACE)
+  info_cfg_option(WITH_PUGIXML)
   info_cfg_option(WITH_QUADRIFLOW)
   info_cfg_option(WITH_TBB)
   info_cfg_option(WITH_USD)

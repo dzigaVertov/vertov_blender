@@ -423,6 +423,7 @@ void wm_event_do_notifiers(bContext *C)
   LISTBASE_FOREACH (wmWindow *, win, &wm->windows) {
     Scene *scene = WM_window_get_active_scene(win);
     bool do_anim = false;
+    bool clear_info_stats = false;
 
     CTX_wm_window_set(C, win);
 
@@ -489,11 +490,17 @@ void wm_event_do_notifiers(bContext *C)
         }
       }
       if (ELEM(note->category, NC_SCENE, NC_OBJECT, NC_GEOM, NC_WM)) {
-        ViewLayer *view_layer = CTX_data_view_layer(C);
-        ED_info_stats_clear(view_layer);
-        WM_event_add_notifier(C, NC_SPACE | ND_SPACE_INFO, NULL);
+        clear_info_stats = true;
       }
     }
+
+    if (clear_info_stats) {
+      /* Only do once since adding notifiers is slow when there are many. */
+      ViewLayer *view_layer = CTX_data_view_layer(C);
+      ED_info_stats_clear(view_layer);
+      WM_event_add_notifier(C, NC_SPACE | ND_SPACE_INFO, NULL);
+    }
+
     if (do_anim) {
 
       /* XXX, quick frame changes can cause a crash if framechange and rendering
@@ -536,13 +543,33 @@ void wm_event_do_notifiers(bContext *C)
         ED_screen_do_listen(C, note);
 
         LISTBASE_FOREACH (ARegion *, region, &screen->regionbase) {
-          ED_region_do_listen(win, NULL, region, note, scene);
+          wmRegionListenerParams region_params = {
+              .window = win,
+              .area = NULL,
+              .region = region,
+              .scene = scene,
+              .notifier = note,
+          };
+          ED_region_do_listen(&region_params);
         }
 
         ED_screen_areas_iter (win, screen, area) {
-          ED_area_do_listen(win, area, note, scene);
+          wmSpaceTypeListenerParams area_params = {
+              .window = win,
+              .area = area,
+              .notifier = note,
+              .scene = scene,
+          };
+          ED_area_do_listen(&area_params);
           LISTBASE_FOREACH (ARegion *, region, &area->regionbase) {
-            ED_region_do_listen(win, area, region, note, scene);
+            wmRegionListenerParams region_params = {
+                .window = win,
+                .area = area,
+                .region = region,
+                .scene = scene,
+                .notifier = note,
+            };
+            ED_region_do_listen(&region_params);
           }
         }
       }
@@ -2072,7 +2099,7 @@ static int wm_handler_operator_call(bContext *C,
           handler->op = NULL;
         }
 
-        /* Putting back screen context, reval can pass trough after modal failures! */
+        /* Putting back screen context, reval can pass through after modal failures! */
         if ((retval & OPERATOR_PASS_THROUGH) || wm_event_always_pass(event)) {
           CTX_wm_area_set(C, area);
           CTX_wm_region_set(C, region);
@@ -2252,38 +2279,47 @@ static int wm_handler_fileselect_do(bContext *C,
           bScreen *screen = WM_window_get_active_screen(win);
           ScrArea *file_area = screen->areabase.first;
 
-          if (screen->temp && (file_area->spacetype == SPACE_FILE)) {
-            int win_size[2];
-            bool is_maximized;
-            ED_fileselect_window_params_get(win, win_size, &is_maximized);
-            ED_fileselect_params_to_userdef(file_area->spacedata.first, win_size, is_maximized);
-
-            if (BLI_listbase_is_single(&file_area->spacedata)) {
-              BLI_assert(ctx_win != win);
-
-              wm_window_close(C, wm, win);
-
-              CTX_wm_window_set(C, ctx_win); /* #wm_window_close() NULLs. */
-              /* Some operators expect a drawable context (for EVT_FILESELECT_EXEC). */
-              wm_window_make_drawable(wm, ctx_win);
-              /* Ensure correct cursor position, otherwise, popups may close immediately after
-               * opening (UI_BLOCK_MOVEMOUSE_QUIT). */
-              wm_get_cursor_position(ctx_win, &ctx_win->eventstate->x, &ctx_win->eventstate->y);
-              wm->winactive = ctx_win; /* Reports use this... */
-              if (handler->context.win == win) {
-                handler->context.win = NULL;
-              }
-            }
-            else if (file_area->full) {
-              ED_screen_full_prevspace(C, file_area);
-            }
-            else {
-              ED_area_prevspace(C, file_area);
-            }
-
-            temp_win = win;
-            break;
+          if ((file_area->spacetype != SPACE_FILE) || !WM_window_is_temp_screen(win)) {
+            continue;
           }
+
+          if (file_area->full) {
+            /* Users should not be able to maximize/fullscreen an area in a temporary screen. So if
+             * there's a maximized file browser in a temporary screen, it was likely opened by
+             * #EVT_FILESELECT_FULL_OPEN. */
+            continue;
+          }
+
+          int win_size[2];
+          bool is_maximized;
+          ED_fileselect_window_params_get(win, win_size, &is_maximized);
+          ED_fileselect_params_to_userdef(file_area->spacedata.first, win_size, is_maximized);
+
+          if (BLI_listbase_is_single(&file_area->spacedata)) {
+            BLI_assert(ctx_win != win);
+
+            wm_window_close(C, wm, win);
+
+            CTX_wm_window_set(C, ctx_win); /* #wm_window_close() NULLs. */
+            /* Some operators expect a drawable context (for EVT_FILESELECT_EXEC). */
+            wm_window_make_drawable(wm, ctx_win);
+            /* Ensure correct cursor position, otherwise, popups may close immediately after
+             * opening (UI_BLOCK_MOVEMOUSE_QUIT). */
+            wm_get_cursor_position(ctx_win, &ctx_win->eventstate->x, &ctx_win->eventstate->y);
+            wm->winactive = ctx_win; /* Reports use this... */
+            if (handler->context.win == win) {
+              handler->context.win = NULL;
+            }
+          }
+          else if (file_area->full) {
+            ED_screen_full_prevspace(C, file_area);
+          }
+          else {
+            ED_area_prevspace(C, file_area);
+          }
+
+          temp_win = win;
+          break;
         }
 
         if (!temp_win && ctx_area->full) {
@@ -2772,8 +2808,10 @@ static int wm_handlers_do_intern(bContext *C, wmEvent *event, ListBase *handlers
               LISTBASE_FOREACH (wmDrag *, drag, lb) {
                 const char *tooltip = NULL;
                 if (drop->poll(C, drag, event, &tooltip)) {
-                  /* Optionally copy drag information to operator properties. */
-                  if (drop->copy) {
+                  /* Optionally copy drag information to operator properties. Don't call it if the
+                   * operator fails anyway, it might do more than just set properties (e.g.
+                   * typically import an asset). */
+                  if (drop->copy && WM_operator_poll_context(C, drop->ot, drop->opcontext)) {
                     drop->copy(drag, drop);
                   }
 

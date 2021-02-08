@@ -460,7 +460,7 @@ bool ED_fileselect_is_asset_browser(const SpaceFile *sfile)
 
 void ED_fileselect_window_params_get(const wmWindow *win, int win_size[2], bool *is_maximized)
 {
-  /* Get DPI/pixelsize independent size to be stored in preferences. */
+  /* Get DPI/pixel-size independent size to be stored in preferences. */
   WM_window_set_dpi(win); /* Ensure the DPI is taken from the right window. */
 
   win_size[0] = WM_window_pixels_x(win) / UI_DPI_FAC;
@@ -1142,7 +1142,9 @@ void ED_fileselect_exit(wmWindowManager *wm, Scene *owner_scene, SpaceFile *sfil
     return;
   }
   if (sfile->op) {
-    wmWindow *temp_win = WM_window_is_temp_screen(wm->winactive) ? wm->winactive : NULL;
+    wmWindow *temp_win = (wm->winactive && WM_window_is_temp_screen(wm->winactive)) ?
+                             wm->winactive :
+                             NULL;
     if (temp_win) {
       int win_size[2];
       bool is_maximized;

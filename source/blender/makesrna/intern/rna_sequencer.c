@@ -927,9 +927,10 @@ static void rna_Sequence_filepath_update(Main *bmain, Scene *UNUSED(scene), Poin
   rna_Sequence_invalidate_raw_update(bmain, scene, ptr);
 }
 
-static void rna_Sequence_sound_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
+static void rna_Sequence_sound_update(Main *bmain, Scene *scene, PointerRNA *UNUSED(ptr))
 {
   DEG_id_tag_update(&scene->id, ID_RECALC_SEQUENCER_STRIPS | ID_RECALC_AUDIO);
+  DEG_relations_tag_update(bmain);
 }
 
 static int seqproxy_seq_cmp_fn(Sequence *seq, void *arg_pt)
@@ -1943,8 +1944,8 @@ static void rna_def_sequence(BlenderRNA *brna)
   RNA_def_property_boolean_sdna(prop, NULL, "cache_flag", SEQ_CACHE_STORE_PREPROCESSED);
   RNA_def_property_ui_text(
       prop,
-      "Cache Pre-Processed",
-      "Cache pre-processed images, for faster tweaking of effects at the cost of memory usage");
+      "Cache Preprocessed",
+      "Cache preprocessed images, for faster tweaking of effects at the cost of memory usage");
 
   prop = RNA_def_property(srna, "use_cache_composite", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "cache_flag", SEQ_CACHE_STORE_COMPOSITE);
@@ -2327,7 +2328,7 @@ static void rna_def_image(BlenderRNA *brna)
   RNA_def_property_pointer_sdna(prop, NULL, "stereo3d_format");
   RNA_def_property_flag(prop, PROP_NEVER_NULL);
   RNA_def_property_struct_type(prop, "Stereo3dFormat");
-  RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3d");
+  RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3D");
 
   rna_def_filter_video(srna);
   rna_def_proxy(srna);
@@ -2485,7 +2486,7 @@ static void rna_def_movie(BlenderRNA *brna)
   RNA_def_property_pointer_sdna(prop, NULL, "stereo3d_format");
   RNA_def_property_flag(prop, PROP_NEVER_NULL);
   RNA_def_property_struct_type(prop, "Stereo3dFormat");
-  RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3d");
+  RNA_def_property_ui_text(prop, "Stereo 3D Format", "Settings for stereo 3D");
 
   rna_def_filter_video(srna);
   rna_def_proxy(srna);

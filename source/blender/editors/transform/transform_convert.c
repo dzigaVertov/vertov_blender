@@ -892,7 +892,6 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
       special_aftertrans_update__node(C, t);
       break;
     case TC_OBJECT:
-    case TC_OBJECT_TEXSPACE:
       special_aftertrans_update__object(C, t);
       break;
     case TC_SCULPT:
@@ -912,6 +911,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
     case TC_LATTICE_VERTS:
     case TC_MBALL_VERTS:
     case TC_MESH_UV:
+    case TC_OBJECT_TEXSPACE:
     case TC_PAINT_CURVE_VERTS:
     case TC_PARTICLE_VERTS:
     case TC_NONE:
@@ -928,10 +928,10 @@ int special_transform_moving(TransInfo *t)
   if (t->spacetype == SPACE_GRAPH) {
     return G_TRANSFORM_FCURVES;
   }
-  if ((t->flag & T_EDIT) || (t->flag & T_POSE)) {
+  if ((t->flag & T_EDIT) || (t->options & CTX_POSE_BONE)) {
     return G_TRANSFORM_EDIT;
   }
-  if (t->flag & (T_OBJECT | T_TEXTURE)) {
+  if (t->options & (CTX_OBJECT | CTX_TEXTURE_SPACE)) {
     return G_TRANSFORM_OBJ;
   }
 
@@ -981,12 +981,10 @@ void createTransData(bContext *C, TransInfo *t)
 
   t->data_len_all = -1;
 
-  eTransConvertType convert_type = TC_NONE;
+  eTConvertType convert_type = TC_NONE;
 
   /* if tests must match recalcData for correct updates */
   if (t->options & CTX_CURSOR) {
-    t->flag |= T_CURSOR;
-
     if (t->spacetype == SPACE_IMAGE) {
       convert_type = TC_CURSOR_IMAGE;
     }
@@ -998,11 +996,10 @@ void createTransData(bContext *C, TransInfo *t)
            (ob->mode == OB_MODE_SCULPT) && ob->sculpt) {
     convert_type = TC_SCULPT;
   }
-  else if (t->options & CTX_TEXTURE) {
-    t->flag |= T_TEXTURE;
+  else if (t->options & CTX_TEXTURE_SPACE) {
     convert_type = TC_OBJECT_TEXSPACE;
   }
-  else if (t->options & CTX_EDGE) {
+  else if (t->options & CTX_EDGE_DATA) {
     t->flag |= T_EDIT;
     convert_type = TC_MESH_EDGES;
     /* Multi object editing. */
@@ -1043,7 +1040,7 @@ void createTransData(bContext *C, TransInfo *t)
   else if (t->spacetype == SPACE_SEQ) {
     t->flag |= T_POINTS | T_2D_EDIT;
     t->obedit_type = -1;
-    t->num.flag |= NUM_NO_FRACTION; /* sequencer has no use for floating point trasnform */
+    t->num.flag |= NUM_NO_FRACTION; /* sequencer has no use for floating point transform. */
     convert_type = TC_SEQ_DATA;
   }
   else if (t->spacetype == SPACE_GRAPH) {
@@ -1074,7 +1071,12 @@ void createTransData(bContext *C, TransInfo *t)
     initTransDataContainers_FromObjectData(t, ob, NULL, 0);
 
     if (t->obedit_type == OB_MESH) {
-      convert_type = TC_MESH_VERTS;
+      if (t->mode == TFM_SKIN_RESIZE) {
+        convert_type = TC_MESH_SKIN;
+      }
+      else {
+        convert_type = TC_MESH_VERTS;
+      }
     }
     else if (ELEM(t->obedit_type, OB_CURVE, OB_SURF)) {
       convert_type = TC_CURVE_VERTS;
@@ -1137,6 +1139,8 @@ void createTransData(bContext *C, TransInfo *t)
     /* In grease pencil all transformations must be canceled if not Object or Edit. */
   }
   else {
+    t->options |= CTX_OBJECT;
+
     /* Needed for correct Object.obmat after duplication, see: T62135. */
     BKE_scene_graph_evaluated_ensure(t->depsgraph, CTX_data_main(t->context));
 
@@ -1147,7 +1151,6 @@ void createTransData(bContext *C, TransInfo *t)
       t->options |= CTX_OBMODE_XFORM_SKIP_CHILDREN;
     }
 
-    t->flag |= T_OBJECT;
     convert_type = TC_OBJECT;
   }
 
@@ -1159,6 +1162,7 @@ void createTransData(bContext *C, TransInfo *t)
       createTransActionData(C, t);
       break;
     case TC_POSE:
+      t->options |= CTX_POSE_BONE;
       createTransPose(t);
       /* Enable PET, it was disbled: its not usable in pose mode yet [#32444] */
       init_prop_edit = true;
@@ -1198,6 +1202,9 @@ void createTransData(bContext *C, TransInfo *t)
     case TC_MESH_EDGES:
       createTransEdge(t);
       break;
+    case TC_MESH_SKIN:
+      createTransMeshSkin(t);
+      break;
     case TC_MESH_UV:
       createTransUVs(C, t);
       break;
@@ -1217,11 +1224,11 @@ void createTransData(bContext *C, TransInfo *t)
         if ((rv3d->persp == RV3D_CAMOB) && v3d->camera) {
           /* we could have a flag to easily check an object is being transformed */
           if (v3d->camera->id.tag & LIB_TAG_DOIT) {
-            t->flag |= T_CAMERA;
+            t->options |= CTX_CAMERA;
           }
         }
         else if (v3d->ob_center && v3d->ob_center->id.tag & LIB_TAG_DOIT) {
-          t->flag |= T_CAMERA;
+          t->options |= CTX_CAMERA;
         }
       }
       break;
@@ -1269,9 +1276,9 @@ void createTransData(bContext *C, TransInfo *t)
     if (ELEM(convert_type, TC_ACTION_DATA, TC_GRAPH_EDIT_DATA)) {
       /* Distance has already been set. */
     }
-    else if (convert_type == TC_MESH_VERTS) {
+    else if (ELEM(convert_type, TC_MESH_VERTS, TC_MESH_SKIN)) {
       if (t->flag & T_PROP_CONNECTED) {
-        /* Already calculated by editmesh_set_connectivity_distance. */
+        /* Already calculated by transform_convert_mesh_connectivity_distance. */
       }
       else {
         set_prop_dist(t, false);
@@ -1532,6 +1539,9 @@ void recalcData(TransInfo *t)
     case TC_MESH_EDGES:
       recalcData_mesh(t);
       break;
+    case TC_MESH_SKIN:
+      recalcData_mesh_skin(t);
+      break;
     case TC_MESH_UV:
       recalcData_uv(t);
       break;
@@ -1542,8 +1552,10 @@ void recalcData(TransInfo *t)
       flushTransNodes(t);
       break;
     case TC_OBJECT:
-    case TC_OBJECT_TEXSPACE:
       recalcData_objects(t);
+      break;
+    case TC_OBJECT_TEXSPACE:
+      recalcData_texspace(t);
       break;
     case TC_PAINT_CURVE_VERTS:
       flushTransPaintCurve(t);

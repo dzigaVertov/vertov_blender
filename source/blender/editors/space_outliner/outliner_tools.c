@@ -23,6 +23,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "CLG_log.h"
+
 #include "DNA_anim_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_collection_types.h"
@@ -91,6 +93,8 @@
 #include "SEQ_sequencer.h"
 
 #include "outliner_intern.h"
+
+static CLG_LogRef LOG = {"ed.outliner.tools"};
 
 /* -------------------------------------------------------------------- */
 /** \name ID/Library/Data Set/Un-link Utilities
@@ -790,7 +794,7 @@ static void id_override_library_create_fn(bContext *C,
 
     id_root->tag |= LIB_TAG_DOIT;
 
-    /* For now, remapp all local usages of linked ID to local override one here. */
+    /* For now, remap all local usages of linked ID to local override one here. */
     ID *id_iter;
     FOREACH_MAIN_ID_BEGIN (bmain, id_iter) {
       if (ID_IS_LINKED(id_iter)) {
@@ -824,6 +828,9 @@ static void id_override_library_create_fn(bContext *C,
       BKE_main_id_tag_all(bmain, LIB_TAG_DOIT, false);
     }
   }
+  else {
+    CLOG_WARN(&LOG, "Could not create library override for data block '%s'", id_root->name);
+  }
 }
 
 static void id_override_library_reset_fn(bContext *C,
@@ -851,6 +858,9 @@ static void id_override_library_reset_fn(bContext *C,
 
     WM_event_add_notifier(C, NC_WM | ND_DATACHANGED, NULL);
     WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+  }
+  else {
+    CLOG_WARN(&LOG, "Could not reset library override of data block '%s'", id_root->name);
   }
 }
 
@@ -883,6 +893,9 @@ static void id_override_library_resync_fn(bContext *C,
 
     BKE_lib_override_library_resync(bmain, scene, CTX_data_view_layer(C), id_root);
   }
+  else {
+    CLOG_WARN(&LOG, "Could not resync library override of data block '%s'", id_root->name);
+  }
 }
 
 static void id_override_library_delete_fn(bContext *C,
@@ -913,6 +926,9 @@ static void id_override_library_delete_fn(bContext *C,
     }
 
     BKE_lib_override_library_delete(bmain, id_root);
+  }
+  else {
+    CLOG_WARN(&LOG, "Could not delete library override of data block '%s'", id_root->name);
   }
 }
 
@@ -1789,18 +1805,44 @@ static bool outliner_id_operation_item_poll(bContext *C,
                                             const int enum_value)
 {
   SpaceOutliner *space_outliner = CTX_wm_space_outliner(C);
+  TreeElement *te = get_target_element(space_outliner);
+  TreeStoreElem *tselem = TREESTORE(te);
+  if (!TSE_IS_REAL_ID(tselem)) {
+    return false;
+  }
+
+  Object *ob = NULL;
+  if (GS(tselem->id->name) == ID_OB) {
+    ob = (Object *)tselem->id;
+  }
 
   switch (enum_value) {
+    case OUTLINER_IDOP_MARK_ASSET:
+    case OUTLINER_IDOP_CLEAR_ASSET:
+      return U.experimental.use_asset_browser;
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_CREATE:
+      if (ID_IS_OVERRIDABLE_LIBRARY(tselem->id)) {
+        return true;
+      }
+      return false;
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_CREATE_HIERARCHY:
-      return true;
+      if (ID_IS_OVERRIDABLE_LIBRARY(tselem->id) || (ID_IS_LINKED(tselem->id))) {
+        return true;
+      }
+      return false;
+    case OUTLINER_IDOP_OVERRIDE_LIBRARY_PROXY_CONVERT:
+      if (ob != NULL && ob->proxy != NULL) {
+        return true;
+      }
+      return false;
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_RESET:
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_RESET_HIERARCHY:
-      return true;
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_RESYNC_HIERARCHY:
-      return true;
     case OUTLINER_IDOP_OVERRIDE_LIBRARY_DELETE_HIERARCHY:
-      return true;
+      if (ID_IS_OVERRIDE_LIBRARY_REAL(tselem->id)) {
+        return true;
+      }
+      return false;
     case OUTLINER_IDOP_SINGLE:
       if (!space_outliner || ELEM(space_outliner->outlinevis, SO_SCENES, SO_VIEW_LAYER)) {
         return true;
@@ -2140,7 +2182,7 @@ static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 void OUTLINER_OT_id_operation(wmOperatorType *ot)
 {
   /* identifiers */
-  ot->name = "Outliner ID data Operation";
+  ot->name = "Outliner ID Data Operation";
   ot->idname = "OUTLINER_OT_id_operation";
 
   /* callbacks */
@@ -2150,7 +2192,7 @@ void OUTLINER_OT_id_operation(wmOperatorType *ot)
 
   ot->flag = 0;
 
-  ot->prop = RNA_def_enum(ot->srna, "type", prop_id_op_types, 0, "ID data Operation", "");
+  ot->prop = RNA_def_enum(ot->srna, "type", prop_id_op_types, 0, "ID Data Operation", "");
   RNA_def_enum_funcs(ot->prop, outliner_id_operation_itemf);
 }
 
@@ -2569,8 +2611,8 @@ void OUTLINER_OT_constraint_operation(wmOperatorType *ot)
  * \{ */
 
 static const EnumPropertyItem prop_modifier_op_types[] = {
-    {OL_MODIFIER_OP_TOGVIS, "TOGVIS", ICON_RESTRICT_VIEW_OFF, "Toggle viewport use", ""},
-    {OL_MODIFIER_OP_TOGREN, "TOGREN", ICON_RESTRICT_RENDER_OFF, "Toggle render use", ""},
+    {OL_MODIFIER_OP_TOGVIS, "TOGVIS", ICON_RESTRICT_VIEW_OFF, "Toggle Viewport Use", ""},
+    {OL_MODIFIER_OP_TOGREN, "TOGREN", ICON_RESTRICT_RENDER_OFF, "Toggle Render Use", ""},
     {OL_MODIFIER_OP_DELETE, "DELETE", ICON_X, "Delete", ""},
     {0, NULL, 0, NULL, NULL},
 };

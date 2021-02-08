@@ -444,7 +444,7 @@ static short pose_grab_with_ik(Main *bmain, Object *ob)
   for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
     if (pchan->bone->layer & arm->layer) {
       if (pchan->bone->flag & (BONE_SELECTED | BONE_TRANSFORM_MIRROR)) {
-        /* Rule: no IK for solitatry (unconnected) bones */
+        /* Rule: no IK for solitary (unconnected) bones. */
         for (bonec = pchan->bone->childbase.first; bonec; bonec = bonec->next) {
           if (bonec->flag & BONE_CONNECTED) {
             break;
@@ -881,8 +881,6 @@ void createTransPose(TransInfo *t)
       t->mode = TFM_RESIZE;
     }
   }
-
-  t->flag |= T_POSE;
 }
 
 void createTransArmatureVerts(TransInfo *t)
@@ -1366,7 +1364,7 @@ static void pose_transform_mirror_update(TransInfo *t, TransDataContainer *tc, O
       }
       mul_v3_m4v3(data->grabtarget, flip_mtx, td->loc);
       if (pid) {
-        /* TODO(germano): Realitve Mirror support */
+        /* TODO(germano): Relative Mirror support. */
       }
       data->flag |= CONSTRAINT_IK_AUTO;
       /* Add a temporary auto IK constraint here, as we will only temporarily active this

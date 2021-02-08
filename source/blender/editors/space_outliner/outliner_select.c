@@ -398,13 +398,9 @@ static eOLDrawState tree_element_set_active_object(bContext *C,
     }
 
     if (set != OL_SETSEL_NONE) {
-      ED_object_base_activate(C, base); /* adds notifier */
+      ED_object_base_activate_with_mode_exit_if_needed(C, base); /* adds notifier */
       DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
       WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
-    }
-
-    if (ob != OBEDIT_FROM_VIEW_LAYER(view_layer)) {
-      ED_object_editmode_exit(C, EM_FREEDATA);
     }
   }
   return OL_DRAWSEL_NORMAL;
@@ -931,25 +927,6 @@ static eOLDrawState tree_element_active_sequence_dup(Scene *scene,
   return OL_DRAWSEL_NONE;
 }
 
-static eOLDrawState tree_element_active_keymap_item(bContext *UNUSED(C),
-                                                    Scene *UNUSED(scene),
-                                                    ViewLayer *UNUSED(sl),
-                                                    TreeElement *te,
-                                                    TreeStoreElem *UNUSED(tselem),
-                                                    const eOLSetState set)
-{
-  wmKeyMapItem *kmi = te->directdata;
-
-  if (set == OL_SETSEL_NONE) {
-    if (kmi->flag & KMI_INACTIVE) {
-      return OL_DRAWSEL_NONE;
-    }
-    return OL_DRAWSEL_NORMAL;
-  }
-  kmi->flag ^= KMI_INACTIVE;
-  return OL_DRAWSEL_NONE;
-}
-
 static eOLDrawState tree_element_active_master_collection(bContext *C,
                                                           TreeElement *UNUSED(te),
                                                           const eOLSetState set)
@@ -1075,8 +1052,6 @@ eOLDrawState tree_element_type_active(bContext *C,
       return tree_element_active_sequence(C, tvc->scene, te, tselem, set);
     case TSE_SEQUENCE_DUP:
       return tree_element_active_sequence_dup(tvc->scene, te, tselem, set);
-    case TSE_KEYMAP_ITEM:
-      return tree_element_active_keymap_item(C, tvc->scene, tvc->view_layer, te, tselem, set);
     case TSE_GP_LAYER:
       return tree_element_active_gplayer(C, tvc->scene, te, tselem, set);
       break;
@@ -1103,6 +1078,24 @@ bPoseChannel *outliner_find_parent_bone(TreeElement *te, TreeElement **r_bone_te
   }
 
   return NULL;
+}
+
+static void outliner_sync_to_properties_editors(const bContext *C,
+                                                PointerRNA *ptr,
+                                                const int context)
+{
+  bScreen *screen = CTX_wm_screen(C);
+
+  LISTBASE_FOREACH (ScrArea *, area, &screen->areabase) {
+    if (area->spacetype != SPACE_PROPERTIES) {
+      continue;
+    }
+
+    SpaceProperties *sbuts = (SpaceProperties *)area->spacedata.first;
+    if (ED_buttons_should_sync_with_outliner(C, sbuts, area)) {
+      ED_buttons_set_context(C, sbuts, ptr, context);
+    }
+  }
 }
 
 static void outliner_set_properties_tab(bContext *C, TreeElement *te, TreeStoreElem *tselem)
@@ -1285,7 +1278,7 @@ static void outliner_set_properties_tab(bContext *C, TreeElement *te, TreeStoreE
   }
 
   if (ptr.data) {
-    ED_buttons_set_context(C, &ptr, context);
+    outliner_sync_to_properties_editors(C, &ptr, context);
   }
 }
 
@@ -1529,7 +1522,7 @@ static bool outliner_is_co_within_active_mode_column(bContext *C,
  * Action to run when clicking in the outliner,
  *
  * May expend/collapse branches or activate items.
- * */
+ */
 static int outliner_item_do_activate_from_cursor(bContext *C,
                                                  const int mval[2],
                                                  const bool extend,

@@ -41,6 +41,7 @@ Convenience Targets
    * developer:     Enable faster builds, error checking and tests, recommended for developers.
    * config:        Run cmake configuration tool to set build options.
    * ninja:         Use ninja build tool for faster builds.
+   * ccache:        Use ccache for faster rebuilds.
 
    Note: passing the argument 'BUILD_DIR=path' when calling make will override the default build dir.
    Note: passing the argument 'BUILD_CMAKE_ARGS=args' lets you add cmake arguments.
@@ -182,8 +183,13 @@ endif
 ifndef DEPS_INSTALL_DIR
 	DEPS_INSTALL_DIR:=$(shell dirname "$(BLENDER_DIR)")/lib/$(OS_NCASE)
 
-	ifneq ($(OS_NCASE),darwin)
-		# Add processor type to directory name
+	# Add processor type to directory name, except for darwin x86_64
+	# which by convention does not have it.
+	ifeq ($(OS_NCASE),darwin)
+		ifneq ($(CPU),x86_64)
+			DEPS_INSTALL_DIR:=$(DEPS_INSTALL_DIR)_$(CPU)
+		endif
+	else
 		DEPS_INSTALL_DIR:=$(DEPS_INSTALL_DIR)_$(CPU)
 	endif
 endif
@@ -197,7 +203,7 @@ endif
 # in libraries, or python 2 for running make update to get it.
 ifeq ($(OS_NCASE),darwin)
 	ifeq (, $(shell command -v $(PYTHON)))
-		PYTHON:=../lib/darwin/python/bin/python3.7m
+		PYTHON:=$(DEPS_INSTALL_DIR)/python/bin/python3.7m
 		ifeq (, $(shell command -v $(PYTHON)))
 			PYTHON:=python
 		endif
@@ -239,6 +245,10 @@ endif
 
 ifneq "$(findstring developer, $(MAKECMDGOALS))" ""
 	CMAKE_CONFIG_ARGS:=-C"$(BLENDER_DIR)/build_files/cmake/config/blender_developer.cmake" $(CMAKE_CONFIG_ARGS)
+endif
+
+ifneq "$(findstring ccache, $(MAKECMDGOALS))" ""
+	CMAKE_CONFIG_ARGS:=-DWITH_COMPILER_CCACHE=YES $(CMAKE_CONFIG_ARGS)
 endif
 
 # -----------------------------------------------------------------------------
@@ -340,6 +350,7 @@ headless: all
 bpy: all
 developer: all
 ninja: all
+ccache: all
 
 # -----------------------------------------------------------------------------
 # Build dependencies
@@ -514,7 +525,7 @@ format: .FORCE
 
 # Simple version of ./doc/python_api/sphinx_doc_gen.sh with no PDF generation.
 doc_py: .FORCE
-	ASAN_OPTIONS=halt_on_error=0 \
+	ASAN_OPTIONS=halt_on_error=0:${ASAN_OPTIONS} \
 	$(BLENDER_BIN) --background -noaudio --factory-startup \
 		--python doc/python_api/sphinx_doc_gen.py
 	sphinx-build -b html -j $(NPROCS) doc/python_api/sphinx-in doc/python_api/sphinx-out
