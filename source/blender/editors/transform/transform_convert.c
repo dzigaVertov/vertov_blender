@@ -993,8 +993,8 @@ static void init_proportional_edit(TransInfo *t)
     case TC_NODE_DATA:
     case TC_OBJECT:
     case TC_PARTICLE_VERTS:
-      break;
-    case TC_POSE: /* Disable PET, its not usable in pose mode yet T32444. */
+    case TC_POSE: /* Enable PET, it was: Disable PET, its not usable in pose mode yet T32444. */
+      break;    
     case TC_ARMATURE_VERTS:
     case TC_CURSOR_IMAGE:
     case TC_CURSOR_VIEW3D:
@@ -1341,8 +1341,6 @@ void createTransData(bContext *C, TransInfo *t)
       /* XXX active-layer checking isn't done
        * as that should probably be checked through context instead. */
       createTransPose(t);
-      /* Enable PET, it was disbled: its not usable in pose mode yet [#32444] */
-      init_prop_edit = true;
       break;
     case TC_ARMATURE_VERTS:
       createTransArmatureVerts(t);
