@@ -82,7 +82,7 @@ typedef enum eFModifier_Types {
   FMODIFIER_TYPE_ENVELOPE = 3,
   FMODIFIER_TYPE_CYCLES = 4,
   FMODIFIER_TYPE_NOISE = 5,
-  /** Unimplemented - for applying: fft, high/low pass filters, etc. */
+  /** Unimplemented - for applying: FFT, high/low pass filters, etc. */
   FMODIFIER_TYPE_FILTER = 6,
   FMODIFIER_TYPE_PYTHON = 7,
   FMODIFIER_TYPE_LIMITS = 8,
@@ -438,9 +438,10 @@ typedef enum eDriverVar_Types {
   /** 'final' transform for object/bones */
   DVAR_TYPE_TRANSFORM_CHAN,
 
-  /** Maximum number of variable types.
+  /**
+   * Maximum number of variable types.
    *
-   * \note This must always be th last item in this list,
+   * \note This must always be the last item in this list,
    * so add new types above this line.
    */
   MAX_DVAR_TYPES,

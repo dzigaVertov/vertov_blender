@@ -24,9 +24,9 @@
 
 #pragma once
 
-struct BezTriple;
 struct BMEditMesh;
 struct BMesh;
+struct BezTriple;
 struct FCurve;
 struct ListBase;
 struct Object;
@@ -201,7 +201,7 @@ void createTransPaintCurveVerts(bContext *C, TransInfo *t);
 void flushTransPaintCurve(TransInfo *t);
 
 /* transform_convert_particle.c */
-void createTransParticleVerts(bContext *C, TransInfo *t);
+void createTransParticleVerts(TransInfo *t);
 void recalcData_particles(TransInfo *t);
 
 /* transform_convert_sculpt.c */

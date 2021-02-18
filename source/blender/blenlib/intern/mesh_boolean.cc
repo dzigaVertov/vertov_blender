@@ -2385,7 +2385,7 @@ static void inside_shape_callback(void *userdata,
     std::cout << "  fv2=(" << fv2[0] << "," << fv2[1] << "," << fv2[2] << ")\n";
   }
   if (isect_ray_tri_epsilon_v3(
-          ray->origin, ray->direction, fv0, fv1, fv2, &dist, NULL, FLT_EPSILON)) {
+          ray->origin, ray->direction, fv0, fv1, fv2, &dist, nullptr, FLT_EPSILON)) {
     /* Count parity as +1 if ray is in the same direction as tri's normal,
      * and -1 if the directions are opposite. */
     double3 o_db{double(ray->origin[0]), double(ray->origin[1]), double(ray->origin[2])};
@@ -2403,8 +2403,8 @@ static void inside_shape_callback(void *userdata,
  * how likely we think it is that it is inside.
  * This is done by casting some rays from just on the positive side of a test
  * face in various directions and summing the parity of crossing faces of each face.
- * The BVHtree \a tree contains all the triangles of \a tm and can be used for
- * fast raycasting.
+ *
+ * \param tree: Contains all the triangles of \a tm and can be used for fast ray-casting.
  */
 static void test_tri_inside_shapes(const IMesh &tm,
                                    std::function<int(int)> shape_fn,
@@ -2424,7 +2424,7 @@ static void test_tri_inside_shapes(const IMesh &tm,
     return;
   }
   double3 test_point = calc_point_inside_tri_db(tri_test);
-  /* Offset the test point a tiny bit in the tri_test normal direcction. */
+  /* Offset the test point a tiny bit in the tri_test normal direction. */
   tri_test.populate_plane(false);
   double3 norm = tri_test.plane->norm.normalized();
   const double offset_amount = 1e-5;
@@ -2436,8 +2436,8 @@ static void test_tri_inside_shapes(const IMesh &tm,
   }
   /* Try six test rays almost along orthogonal axes.
    * Perturb their directions slightly to make it less likely to hit a seam.
-   * Raycast assumes they have unit length, so use r1 near 1 and
-   * ra near 0.5, and rb near .01, but normalized so sqrt(r1^2 + ra^2 + rb^2) == 1. */
+   * Ray-cast assumes they have unit length, so use r1 near 1 and
+   * ra near 0.5, and rb near .01, but normalized so `sqrt(r1^2 + ra^2 + rb^2) == 1`. */
   constexpr int num_rays = 6;
   constexpr float r1 = 0.9987025295199663f;
   constexpr float ra = 0.04993512647599832f;

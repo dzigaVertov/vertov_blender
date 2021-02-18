@@ -16,16 +16,15 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-set(LCMS_EXTRA_ARGS
-)
-
-ExternalProject_Add(external_lcms
-  URL ${LCMS_URI}
-  DOWNLOAD_DIR ${DOWNLOAD_DIR}
-  URL_HASH MD5=${LCMS_HASH}
-  PREFIX ${BUILD_DIR}/lcms
-  # Patch taken from ocio.
-  PATCH_COMMAND ${CMAKE_COMMAND} -E copy ${PATCH_DIR}/cmakelists_lcms.txt ${BUILD_DIR}/lcms/src/external_lcms/CMakeLists.txt
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${LIBDIR}/lcms ${DEFAULT_CMAKE_FLAGS} ${LCMS_EXTRA_ARGS}
-  INSTALL_DIR ${LIBDIR}/lcms
-)
+if(APPLE AND ("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64"))
+  ExternalProject_Add(external_sse2neon
+    GIT_REPOSITORY  ${SSE2NEON_GIT}
+    GIT_TAG ${SSE2NEON_GIT_HASH}
+    DOWNLOAD_DIR ${DOWNLOAD_DIR}
+    PREFIX ${BUILD_DIR}/sse2neon
+    CONFIGURE_COMMAND echo sse2neon - Nothing to configure
+    BUILD_COMMAND echo sse2neon - nothing to build
+    INSTALL_COMMAND mkdir -p ${LIBDIR}/sse2neon && cp ${BUILD_DIR}/sse2neon/src/external_sse2neon/sse2neon.h ${LIBDIR}/sse2neon
+    INSTALL_DIR ${LIBDIR}/sse2neon
+  )
+endif()

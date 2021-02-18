@@ -560,14 +560,6 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm,
                                       wmWindow *win,
                                       bool is_dialog)
 {
-  /* On Windows, if there is a parent window then force is_dialog. Otherwise the parent
-     handle is not used in window creation and they do not stay on top of parents. */
-#ifdef WIN32
-  if (win->parent) {
-    is_dialog = true;
-  }
-#endif
-
   /* a new window is created when pageflip mode is required for a window */
   GHOST_GLSettings glSettings = {0};
   if (win->stereo3d_format->display_mode == S3D_DISPLAY_PAGEFLIP) {
@@ -586,30 +578,17 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm,
   wmWindow *prev_windrawable = wm->windrawable;
   wm_window_clear_drawable(wm);
 
-  GHOST_WindowHandle ghostwin;
-  if (is_dialog && win->parent) {
-    ghostwin = GHOST_CreateDialogWindow(g_system,
-                                        win->parent->ghostwin,
-                                        title,
-                                        win->posx,
-                                        posy,
-                                        win->sizex,
-                                        win->sizey,
-                                        (GHOST_TWindowState)win->windowstate,
-                                        GHOST_kDrawingContextTypeOpenGL,
-                                        glSettings);
-  }
-  else {
-    ghostwin = GHOST_CreateWindow(g_system,
-                                  title,
-                                  win->posx,
-                                  posy,
-                                  win->sizex,
-                                  win->sizey,
-                                  (GHOST_TWindowState)win->windowstate,
-                                  GHOST_kDrawingContextTypeOpenGL,
-                                  glSettings);
-  }
+  GHOST_WindowHandle ghostwin = GHOST_CreateWindow(g_system,
+                                                   (win->parent) ? win->parent->ghostwin : NULL,
+                                                   title,
+                                                   win->posx,
+                                                   posy,
+                                                   win->sizex,
+                                                   win->sizey,
+                                                   (GHOST_TWindowState)win->windowstate,
+                                                   is_dialog,
+                                                   GHOST_kDrawingContextTypeOpenGL,
+                                                   glSettings);
 
   if (ghostwin) {
     win->gpuctx = GPU_context_create(ghostwin);
@@ -2047,7 +2026,7 @@ uint *WM_window_pixels_read(wmWindowManager *wm, wmWindow *win, int r_size[2])
   const uint rect_len = r_size[0] * r_size[1];
   uint *rect = MEM_mallocN(sizeof(*rect) * rect_len, __func__);
 
-  GPU_frontbuffer_read_pixels(0, 0, r_size[0], r_size[1], 4, GPU_DATA_UNSIGNED_BYTE, rect);
+  GPU_frontbuffer_read_pixels(0, 0, r_size[0], r_size[1], 4, GPU_DATA_UBYTE, rect);
 
   if (setup_context) {
     if (wm->windrawable) {

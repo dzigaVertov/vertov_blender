@@ -131,22 +131,22 @@ if(WITH_CODEC_SNDFILE)
 endif()
 
 if(WITH_PYTHON)
-  # we use precompiled libraries for py 3.7 and up by default
-  set(PYTHON_VERSION 3.7)
+  # we use precompiled libraries for py 3.9 and up by default
+  set(PYTHON_VERSION 3.9)
   if(NOT WITH_PYTHON_MODULE AND NOT WITH_PYTHON_FRAMEWORK)
     # normally cached but not since we include them with blender
-    set(PYTHON_INCLUDE_DIR "${LIBDIR}/python/include/python${PYTHON_VERSION}m")
-    set(PYTHON_EXECUTABLE "${LIBDIR}/python/bin/python${PYTHON_VERSION}m")
-    set(PYTHON_LIBRARY ${LIBDIR}/python/lib/libpython${PYTHON_VERSION}m.a)
+    set(PYTHON_INCLUDE_DIR "${LIBDIR}/python/include/python${PYTHON_VERSION}")
+    set(PYTHON_EXECUTABLE "${LIBDIR}/python/bin/python${PYTHON_VERSION}")
+    set(PYTHON_LIBRARY ${LIBDIR}/python/lib/libpython${PYTHON_VERSION}.a)
     set(PYTHON_LIBPATH "${LIBDIR}/python/lib/python${PYTHON_VERSION}")
     # set(PYTHON_LINKFLAGS "-u _PyMac_Error")  # won't  build with this enabled
   else()
     # module must be compiled against Python framework
     set(_py_framework "/Library/Frameworks/Python.framework/Versions/${PYTHON_VERSION}")
 
-    set(PYTHON_INCLUDE_DIR "${_py_framework}/include/python${PYTHON_VERSION}m")
-    set(PYTHON_EXECUTABLE "${_py_framework}/bin/python${PYTHON_VERSION}m")
-    set(PYTHON_LIBPATH "${_py_framework}/lib/python${PYTHON_VERSION}/config-${PYTHON_VERSION}m")
+    set(PYTHON_INCLUDE_DIR "${_py_framework}/include/python${PYTHON_VERSION}")
+    set(PYTHON_EXECUTABLE "${_py_framework}/bin/python${PYTHON_VERSION}")
+    set(PYTHON_LIBPATH "${_py_framework}/lib/python${PYTHON_VERSION}/config-${PYTHON_VERSION}")
     # set(PYTHON_LIBRARY python${PYTHON_VERSION})
     # set(PYTHON_LINKFLAGS "-u _PyMac_Error -framework Python")  # won't  build with this enabled
 
@@ -205,6 +205,13 @@ set(PLATFORM_LINKFLAGS
 )
 
 list(APPEND PLATFORM_LINKLIBS c++)
+
+if(WITH_OPENIMAGEDENOISE)
+  if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
+    # OpenImageDenoise uses BNNS from the Accelerate framework.
+    string(APPEND PLATFORM_LINKFLAGS " -framework Accelerate")
+  endif()
+endif()
 
 if(WITH_JACK)
   string(APPEND PLATFORM_LINKFLAGS " -F/Library/Frameworks -weak_framework jackmp")
@@ -297,7 +304,12 @@ if(WITH_OPENIMAGEIO)
 endif()
 
 if(WITH_OPENCOLORIO)
-  find_package(OpenColorIO)
+  find_package(OpenColorIO 2.0.0)
+
+  if(NOT OPENCOLORIO_FOUND)
+    set(WITH_OPENCOLORIO OFF)
+    message(STATUS "OpenColorIO not found")
+  endif()
 endif()
 
 if(WITH_OPENVDB)
@@ -309,8 +321,11 @@ if(WITH_OPENVDB)
 endif()
 
 if(WITH_NANOVDB)
-  set(NANOVDB ${LIBDIR}/nanovdb)
-  set(NANOVDB_INCLUDE_DIR ${NANOVDB}/include)
+  find_package(NanoVDB)
+endif()
+
+if(WITH_CPU_SIMD)
+  find_package(sse2neon)
 endif()
 
 if(WITH_LLVM)
@@ -338,12 +353,6 @@ if(WITH_CYCLES_OSL)
     message(STATUS "OSL not found")
     set(WITH_CYCLES_OSL OFF)
   endif()
-endif()
-
-if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
-  set(WITH_CYCLES_EMBREE OFF)
-  set(WITH_OPENIMAGEDENOISE OFF)
-  set(WITH_CPU_SSE OFF)
 endif()
 
 if(WITH_CYCLES_EMBREE)

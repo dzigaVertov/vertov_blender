@@ -35,6 +35,7 @@
 
 #include "gpu_py_matrix.h"
 #include "gpu_py_select.h"
+#include "gpu_py_state.h"
 #include "gpu_py_types.h"
 
 #include "gpu_py_api.h" /* own include */
@@ -64,7 +65,7 @@ bool bpygpu_is_init_or_error(void)
 int bpygpu_ParsePrimType(PyObject *o, void *p)
 {
   Py_ssize_t mode_id_len;
-  const char *mode_id = _PyUnicode_AsStringAndSize(o, &mode_id_len);
+  const char *mode_id = PyUnicode_AsUTF8AndSize(o, &mode_id_len);
   if (mode_id == NULL) {
     PyErr_Format(PyExc_ValueError, "expected a string, got %s", Py_TYPE(o)->tp_name);
     return 0;
@@ -105,13 +106,13 @@ success:
 /** \name GPU Module
  * \{ */
 
-PyDoc_STRVAR(GPU_doc,
+PyDoc_STRVAR(pygpu_doc,
              "This module provides Python wrappers for the GPU implementation in Blender.\n"
              "Some higher level functions can be found in the `gpu_extras` module.");
-static struct PyModuleDef GPU_module_def = {
+static struct PyModuleDef pygpu_module_def = {
     PyModuleDef_HEAD_INIT,
     .m_name = "gpu",
-    .m_doc = GPU_doc,
+    .m_doc = pygpu_doc,
 };
 
 PyObject *BPyInit_gpu(void)
@@ -120,18 +121,21 @@ PyObject *BPyInit_gpu(void)
   PyObject *submodule;
   PyObject *mod;
 
-  mod = PyModule_Create(&GPU_module_def);
+  mod = PyModule_Create(&pygpu_module_def);
 
-  PyModule_AddObject(mod, "types", (submodule = BPyInit_gpu_types()));
+  PyModule_AddObject(mod, "types", (submodule = bpygpu_types_init()));
   PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
 
-  PyModule_AddObject(mod, "matrix", (submodule = BPyInit_gpu_matrix()));
+  PyModule_AddObject(mod, "matrix", (submodule = bpygpu_matrix_init()));
   PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
 
-  PyModule_AddObject(mod, "select", (submodule = BPyInit_gpu_select()));
+  PyModule_AddObject(mod, "select", (submodule = bpygpu_select_init()));
   PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
 
-  PyModule_AddObject(mod, "shader", (submodule = BPyInit_gpu_shader()));
+  PyModule_AddObject(mod, "shader", (submodule = bpygpu_shader_init()));
+  PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
+
+  PyModule_AddObject(mod, "state", (submodule = bpygpu_state_init()));
   PyDict_SetItem(sys_modules, PyModule_GetNameObject(submodule), submodule);
 
   return mod;
