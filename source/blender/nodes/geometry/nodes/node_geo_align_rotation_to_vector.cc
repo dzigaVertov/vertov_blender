@@ -40,6 +40,8 @@ static void geo_node_align_rotation_to_vector_layout(uiLayout *layout,
                                                      PointerRNA *ptr)
 {
   uiItemR(layout, ptr, "axis", UI_ITEM_R_EXPAND, nullptr, ICON_NONE);
+  uiLayoutSetPropSep(layout, true);
+  uiLayoutSetPropDecorate(layout, false);
   uiItemR(layout, ptr, "pivot_axis", 0, IFACE_("Pivot"), ICON_NONE);
   uiLayout *col = uiLayoutColumn(layout, false);
   uiItemR(col, ptr, "input_type_factor", 0, IFACE_("Factor"), ICON_NONE);
@@ -69,9 +71,10 @@ static void align_rotations_auto_pivot(const Float3ReadAttribute &vectors,
     if (is_zero_v3(rotation_axis)) {
       /* The vectors are linearly dependent, so we fall back to another axis. */
       rotation_axis = float3::cross_high_precision(old_axis, float3(1, 0, 0));
-      if (is_zero_v3(rotation_axis))
+      if (is_zero_v3(rotation_axis)) {
         /* This is now guaranteed to not be zero. */
         rotation_axis = float3::cross_high_precision(old_axis, float3(0, 1, 0));
+      }
     }
 
     const float full_angle = angle_normalized_v3v3(old_axis, new_axis);
