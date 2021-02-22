@@ -2197,10 +2197,10 @@ static bool fit_curve_init(bContext *C, wmOperator *op, bool is_invoke)
   else {
     gps = gpf->strokes.first;
     for (int i = 0; i<stroke_index; i++){
-      /* Gposer this is wrong */
-      if (BKE_gpencil_stroke_select_check(gps)){
-	break;
-      }
+      /* /\* Gposer this is wrong *\/ */
+      /* if (BKE_gpencil_stroke_select_check(gps)){ */
+      /* 	break; */
+      /* }*/
       if (gps->next){
 	gps = gps->next;      
       }
