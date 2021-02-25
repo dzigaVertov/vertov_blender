@@ -91,7 +91,7 @@ class MeshesToIMeshInfo {
   /* Similarly for polys of meshes. */
   Array<int> mesh_poly_offset;
   /* For each Mesh vertex in all the meshes (with concatenated indexing),
-   * what is the IMesh Vert* allocated for it in the intput IMesh? */
+   * what is the IMesh Vert* allocated for it in the input IMesh? */
   Array<const Vert *> mesh_to_imesh_vert;
   /* Similarly for each Mesh poly. */
   Array<Face *> mesh_to_imesh_face;
@@ -446,7 +446,8 @@ static void copy_edge_attributes(Mesh *dest_mesh,
   }
 }
 
-/* For Imesh face `f`, with corresponding output Mesh poly `mp`,
+/**
+ * For #IMesh face `f`, with corresponding output Mesh poly `mp`,
  * where the original Mesh poly is `orig_mp`, coming from the Mesh
  * `orig_me`, which has index `orig_me_index` in `mim`:
  * fill in the `orig_loops` Array with corresponding indices of MLoops from `orig_me`
@@ -472,7 +473,7 @@ static int fill_orig_loops(const Face *f,
    * that is the same as one in orig_me (after correcting for offset in mim meshes).
    * Then see that loop and any subsequent ones have the same start and end vertex.
    * This may miss some cases of partial alignment, but that's OK since discovering
-   * aligned loops is only an optimization to avoid some reinterpolation.
+   * aligned loops is only an optimization to avoid some re-interpolation.
    */
   int first_orig_v = f->vert[0]->orig;
   if (first_orig_v == NO_INDEX) {
@@ -758,8 +759,10 @@ static Mesh *imesh_to_mesh(IMesh *im, MeshesToIMeshInfo &mim)
   return result;
 }
 
-/* Do Exact Boolean directly, without a round trip through BMesh.
- * The Mesh operands are in `meshes`, with corresponding transfprms in in `obmats`. */
+/**
+ * Do Exact Boolean directly, without a round trip through #BMesh.
+ * The Mesh operands are in `meshes`, with corresponding transforms in in `obmats`.
+ */
 static Mesh *direct_mesh_boolean(const Mesh **meshes,
                                  const float (*obmats[])[4][4],
                                  const int meshes_len,

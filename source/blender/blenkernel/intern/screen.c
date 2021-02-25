@@ -65,6 +65,10 @@
 
 #include "BLO_read_write.h"
 
+#ifdef WITH_PYTHON
+#  include "BPY_extern.h"
+#endif
+
 static void screen_free_data(ID *id)
 {
   bScreen *screen = (bScreen *)id;
@@ -307,6 +311,7 @@ IDTypeInfo IDType_ID_SCR = {
     .make_local = NULL,
     .foreach_id = screen_foreach_id,
     .foreach_cache = NULL,
+    .owner_get = NULL,
 
     .blend_write = screen_blend_write,
     /* Cannot be used yet, because #direct_link_screen has a return value. */
@@ -328,6 +333,9 @@ static ListBase spacetypes = {NULL, NULL};
 static void spacetype_free(SpaceType *st)
 {
   LISTBASE_FOREACH (ARegionType *, art, &st->regiontypes) {
+#ifdef WITH_PYTHON
+    BPY_callback_screen_free(art);
+#endif
     BLI_freelistN(&art->drawcalls);
 
     LISTBASE_FOREACH (PanelType *, pt, &art->paneltypes) {
