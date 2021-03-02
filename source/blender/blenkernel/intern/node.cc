@@ -372,7 +372,8 @@ static ID *node_owner_get(Main *bmain, ID *id)
   if ((id->flag & LIB_EMBEDDED_DATA) == 0) {
     return id;
   }
-  BLI_assert((id->tag & LIB_TAG_NO_MAIN) == 0);
+  /* TODO: Sort this NO_MAIN or not for embedded node trees. See T86119. */
+  // BLI_assert((id->tag & LIB_TAG_NO_MAIN) == 0);
 
   ListBase *lists[] = {&bmain->materials,
                        &bmain->lights,
@@ -2501,7 +2502,7 @@ static void node_preview_init_tree_recursive(bNodeInstanceHash *previews,
                                              bNodeInstanceKey parent_key,
                                              int xsize,
                                              int ysize,
-                                             int create)
+                                             bool create_previews)
 {
   LISTBASE_FOREACH (bNode *, node, &ntree->nodes) {
     bNodeInstanceKey key = BKE_node_instance_key(parent_key, ntree, node);
@@ -2510,16 +2511,17 @@ static void node_preview_init_tree_recursive(bNodeInstanceHash *previews,
       node->preview_xsize = xsize;
       node->preview_ysize = ysize;
 
-      BKE_node_preview_verify(previews, key, xsize, ysize, create);
+      BKE_node_preview_verify(previews, key, xsize, ysize, create_previews);
     }
 
     if (node->type == NODE_GROUP && node->id) {
-      node_preview_init_tree_recursive(previews, (bNodeTree *)node->id, key, xsize, ysize, create);
+      node_preview_init_tree_recursive(
+          previews, (bNodeTree *)node->id, key, xsize, ysize, create_previews);
     }
   }
 }
 
-void BKE_node_preview_init_tree(bNodeTree *ntree, int xsize, int ysize, int create_previews)
+void BKE_node_preview_init_tree(bNodeTree *ntree, int xsize, int ysize, bool create_previews)
 {
   if (!ntree) {
     return;
@@ -3553,7 +3555,8 @@ void nodeSetActive(bNodeTree *ntree, bNode *node)
         tnode->flag &= ~NODE_ACTIVE_ID;
       }
     }
-    if (node->typeinfo->nclass == NODE_CLASS_TEXTURE) {
+    if ((node->typeinfo->nclass == NODE_CLASS_TEXTURE) ||
+        (node->typeinfo->type == GEO_NODE_ATTRIBUTE_SAMPLE_TEXTURE)) {
       tnode->flag &= ~NODE_ACTIVE_TEXTURE;
     }
   }
@@ -3562,7 +3565,8 @@ void nodeSetActive(bNodeTree *ntree, bNode *node)
   if (node->id) {
     node->flag |= NODE_ACTIVE_ID;
   }
-  if (node->typeinfo->nclass == NODE_CLASS_TEXTURE) {
+  if ((node->typeinfo->nclass == NODE_CLASS_TEXTURE) ||
+      (node->typeinfo->type == GEO_NODE_ATTRIBUTE_SAMPLE_TEXTURE)) {
     node->flag |= NODE_ACTIVE_TEXTURE;
   }
 }

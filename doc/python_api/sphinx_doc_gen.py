@@ -75,7 +75,6 @@ def rna_info_BuildRNAInfo_cache():
 rna_info_BuildRNAInfo_cache.ret = None
 # --- end rna_info cache
 
-# import rpdb2; rpdb2.start_embedded_debugger('test')
 import os
 import sys
 import inspect
@@ -254,6 +253,7 @@ else:
         "gpu.select",
         "gpu.shader",
         "gpu.state",
+        "gpu.texture",
         "gpu_extras",
         "idprop.types",
         "mathutils",
@@ -1982,10 +1982,11 @@ def write_rst_importable_modules(basepath):
         "imbuf.types": "Image Buffer Types",
         "gpu": "GPU Shader Module",
         "gpu.types": "GPU Types",
-        "gpu.matrix": "GPU Matrix",
-        "gpu.select": "GPU Select",
-        "gpu.shader": "GPU Shader",
-        "gpu.state": "GPU State",
+        "gpu.matrix": "GPU Matrix Utilities",
+        "gpu.select": "GPU Select Utilities",
+        "gpu.shader": "GPU Shader Utilities",
+        "gpu.state": "GPU State Utilities",
+        "gpu.texture": "GPU Texture Utilities",
         "bmesh": "BMesh Module",
         "bmesh.ops": "BMesh Operators",
         "bmesh.types": "BMesh Types",

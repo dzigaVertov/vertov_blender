@@ -1221,7 +1221,7 @@ class VertexGroupsAttributeProvider final : public DynamicAttributesProvider {
   {
     BLI_assert(component.type() == GeometryComponentType::Mesh);
     const MeshComponent &mesh_component = static_cast<const MeshComponent &>(component);
-    for (const auto &item : mesh_component.vertex_group_names().items()) {
+    for (const auto item : mesh_component.vertex_group_names().items()) {
       const StringRefNull name = item.key;
       const int vertex_group_index = item.value;
       if (vertex_group_index >= 0) {
@@ -1886,7 +1886,7 @@ OutputAttributePtr GeometryComponent::attribute_try_get_for_output(const StringR
   if (!attribute) {
     this->attribute_try_create(attribute_name, domain, data_type);
     attribute = this->attribute_try_get_for_write(attribute_name);
-    if (default_value != nullptr) {
+    if (attribute && default_value != nullptr) {
       void *data = attribute->get_span_for_write_only().data();
       cpp_type->fill_initialized(default_value, data, attribute->size());
       attribute->apply_span();
