@@ -340,6 +340,12 @@ void BKE_curve_deform_co(const struct Object *ob_curve,
 
 /* curve_convert.c */
 
+  /* Poser trying to replicate de mesh's new from object */
+void BKE_curve_nomain_to_curve(struct Curve *curve_src,
+			       struct Curve *curve_dst,
+			       struct Object *ob,
+			       bool take_ownership);
+
 /* Create a new curve from the given object at its current state. This only works for curve and
  * text objects, otherwise NULL is returned.
  *
@@ -349,6 +355,11 @@ void BKE_curve_deform_co(const struct Object *ob_curve,
 struct Curve *BKE_curve_new_from_object(struct Object *object,
                                         struct Depsgraph *depsgraph,
                                         bool apply_modifiers);
+
+struct Curve *BKE_curve_new_from_object_to_bmain(struct Main *bmain,
+						 struct Depsgraph *depsgraph,
+						 struct Object *object,
+						 bool preserve_all_data_layers);
 
 #ifdef __cplusplus
 }

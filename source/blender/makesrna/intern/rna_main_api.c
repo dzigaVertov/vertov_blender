@@ -351,6 +351,7 @@ static Mesh *rna_Main_meshes_new_from_object(Main *bmain,
   Mesh *mesh = BKE_mesh_new_from_object_to_bmain(
       bmain, depsgraph, object, preserve_all_data_layers);
 
+
   WM_main_add_notifier(NC_ID | NA_ADDED, NULL);
 
   return mesh;
@@ -442,6 +443,30 @@ static Lattice *rna_Main_lattices_new(Main *bmain, const char *name)
   WM_main_add_notifier(NC_ID | NA_ADDED, NULL);
 
   return lt;
+}
+
+/* Poser adding for new curve from object */
+static Curve *rna_Main_curves_new_from_object(Main *bmain,
+                                             ReportList *reports,
+                                             Object *object,
+                                             bool preserve_all_data_layers,
+                                             Depsgraph *depsgraph)
+{
+  switch (object->type) {
+    case OB_CURVE:
+      break;
+    default:
+      BKE_report(reports, RPT_ERROR, "Object does not have geometry data");
+      return NULL;
+  }
+
+  Curve *curve = BKE_curve_new_from_object_to_bmain(
+      bmain, depsgraph, object, preserve_all_data_layers);
+
+
+  WM_main_add_notifier(NC_ID | NA_ADDED, NULL);
+
+  return curve;
 }
 
 static Curve *rna_Main_curves_new(Main *bmain, const char *name, int type)
@@ -1421,6 +1446,35 @@ void RNA_def_main_curves(BlenderRNA *brna, PropertyRNA *cprop)
   parm = RNA_def_pointer(func, "curve", "Curve", "", "New curve data-block");
   RNA_def_function_return(func, parm);
 
+  /* Poser adding curves new_from_object */
+  func = RNA_def_function(srna, "new_from_object", "rna_Main_curves_new_from_object");
+  RNA_def_function_ui_description(
+	func,
+	"Add a new curve created from given object (undeformed geometry if object is original, and "
+      "final evaluated geometry, with all modifiers etc., if object is evaluated)");
+  RNA_def_function_flag(func, FUNC_USE_REPORTS);
+  parm = RNA_def_pointer(func, "object", "Object", "", "Object to create curve from");
+  RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
+  RNA_def_boolean(func,
+		  "preserve_all_data_layers",
+                  false,
+                  "",
+                  "Preserve all data layers in the curve. "
+                  "By default Blender only computes the subset of data layers needed for viewport "
+                  "display and rendering, for better performance");
+  RNA_def_pointer(
+      func,
+      "depsgraph",
+      "Depsgraph",
+      "Dependency Graph",
+      "Evaluated dependency graph which is required when preserve_all_data_layers is true");
+  parm = RNA_def_pointer(func,
+                         "curve",
+                         "Curve",
+                         "",
+                         "Curve created from object, remove it if it is only used for export");
+  RNA_def_function_return(func, parm);
+  
   func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
   RNA_def_function_flag(func, FUNC_USE_REPORTS);
   RNA_def_function_ui_description(func, "Remove a curve from the current blendfile");
